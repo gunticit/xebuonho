@@ -3,15 +3,21 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
 )
 
-// RideHandler handles ride REST endpoints
-type RideHandler struct{}
+// RideHandler handles ride REST endpoints via gRPC
+type RideHandler struct {
+	client *grpcclient.RideClient
+}
 
-func NewRideHandler() *RideHandler { return &RideHandler{} }
+func NewRideHandler(client *grpcclient.RideClient) *RideHandler {
+	return &RideHandler{client: client}
+}
 
 // POST /api/v1/rides
 func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
@@ -45,20 +51,27 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In production: call ride-service via gRPC
-	// rideClient.CreateRide(ctx, &pb.CreateRideRequest{...})
+	ride, fare, err := h.client.CreateRide(r.Context(), grpcclient.CreateRideRequest{
+		RiderID:        userID,
+		PickupLat:      req.PickupLat,
+		PickupLng:      req.PickupLng,
+		PickupAddress:  req.PickupAddress,
+		DropoffLat:     req.DropoffLat,
+		DropoffLng:     req.DropoffLng,
+		DropoffAddress: req.DropoffAddress,
+		VehicleType:    req.VehicleType,
+		PaymentMethod:  req.PaymentMethod,
+		PromoCode:      req.PromoCode,
+		IdempotencyKey: idempotencyKey,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"id":              "ride-generated-uuid",
-		"rider_id":        userID,
-		"pickup_lat":      req.PickupLat,
-		"pickup_lng":      req.PickupLng,
-		"pickup_address":  req.PickupAddress,
-		"dropoff_lat":     req.DropoffLat,
-		"dropoff_lng":     req.DropoffLng,
-		"dropoff_address": req.DropoffAddress,
-		"vehicle_type":    req.VehicleType,
-		"payment_method":  req.PaymentMethod,
-		"status":          "created",
+		"ride":          ride,
+		"fare_estimate": fare,
 	})
 }
 
@@ -70,29 +83,36 @@ func (h *RideHandler) GetRide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In production: call ride-service via gRPC
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"id":     rideID,
-		"status": "created",
-	})
+	ride, err := h.client.GetRide(r.Context(), rideID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, ride)
 }
 
 // PATCH /api/v1/rides/{id}/cancel
 func (h *RideHandler) CancelRide(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimSuffix(r.URL.Path, "/cancel")
 	rideID := extractPathParam(path, "/api/v1/rides/")
+	userRole := middleware.GetUserRole(r)
 
 	var req struct {
 		Reason string `json:"reason"`
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 
-	// In production: call order-service CancelOrder via gRPC
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"id":            rideID,
-		"status":        "cancelled_by_customer",
-		"cancel_reason": req.Reason,
-	})
+	cancelledBy := "rider"
+	if userRole == "driver" {
+		cancelledBy = "driver"
+	}
+
+	ride, err := h.client.CancelRide(r.Context(), rideID, cancelledBy, req.Reason)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, ride)
 }
 
 // POST /api/v1/rides/estimate
@@ -110,23 +130,37 @@ func (h *RideHandler) EstimateFare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In production: call ride-service via gRPC
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"vehicle_type":     req.VehicleType,
-		"fare_estimate":    85000,
-		"currency":         "VND",
-		"surge_multiplier": 1.0,
-	})
+	estimates, err := h.client.EstimateFare(r.Context(), req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng, req.VehicleType)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"estimates": estimates})
 }
 
 // GET /api/v1/rides?page=1&limit=20
 func (h *RideHandler) ListRides(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
+	userRole := middleware.GetUserRole(r)
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 20
+	}
 
-	// In production: call ride-service ListRides via gRPC
+	rides, total, err := h.client.ListRides(r.Context(), userID, userRole, page, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"rides":    []interface{}{},
-		"total":    0,
-		"rider_id": userID,
+		"rides": rides,
+		"total": total,
+		"page":  page,
+		"limit": limit,
 	})
 }

@@ -9,17 +9,39 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
 	"github.com/xebuonho/services/api-gateway/internal/router"
 )
 
 func main() {
 	cfg := loadConfig()
 	logger := setupLogger()
+	ctx := context.Background()
 
 	// ==========================================
-	// Build Router with all routes & middleware
+	// Connect to backend services via gRPC
 	// ==========================================
-	handler := router.NewRouter(cfg.JWTSecret)
+	logger.Println("Connecting to backend services...")
+	clientPool, err := grpcclient.NewClientPool(ctx, grpcclient.ServiceAddresses{
+		RideService:     cfg.RideServiceAddr,
+		OrderService:    cfg.OrderServiceAddr,
+		MerchantService: cfg.MerchantServiceAddr,
+	})
+	if err != nil {
+		log.Fatalf("Failed to connect to backend services: %v", err)
+	}
+	defer clientPool.Close()
+	logger.Println("Connected to all backend services ✅")
+
+	// Create typed clients
+	rideClient := grpcclient.NewRideClient(clientPool.GetRideConn())
+	orderClient := grpcclient.NewOrderClient(clientPool.GetOrderConn())
+	merchantClient := grpcclient.NewMerchantClient(clientPool.GetMerchantConn())
+
+	// ==========================================
+	// Build Router with gRPC clients
+	// ==========================================
+	handler := router.NewRouter(cfg.JWTSecret, rideClient, orderClient, merchantClient)
 
 	// ==========================================
 	// HTTP Server
@@ -34,10 +56,10 @@ func main() {
 
 	go func() {
 		logger.Printf("🚀 API Gateway listening on http://localhost:%s", cfg.HTTPPort)
-		logger.Println("📍 Health: GET /health")
-		logger.Println("📍 Rides:  POST/GET /api/v1/rides")
-		logger.Println("📍 Orders: POST/GET /api/v1/orders")
-		logger.Println("📍 Merchants: GET /api/v1/merchants/nearby")
+		logger.Println("📍 Health:    GET  /health")
+		logger.Println("📍 Rides:     POST /api/v1/rides")
+		logger.Println("📍 Orders:    POST /api/v1/orders")
+		logger.Println("📍 Merchants: GET  /api/v1/merchants/nearby")
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatalf("Server failed: %v", err)
 		}
@@ -51,9 +73,9 @@ func main() {
 	<-quit
 	logger.Println("Shutting down API Gateway...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	server.Shutdown(ctx)
+	server.Shutdown(shutdownCtx)
 	logger.Println("API Gateway stopped")
 }
 

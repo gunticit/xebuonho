@@ -3,22 +3,28 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
 )
 
-// OrderHandler handles unified order REST endpoints
-type OrderHandler struct{}
+// OrderHandler handles unified order REST endpoints via gRPC
+type OrderHandler struct {
+	client *grpcclient.OrderClient
+}
 
-func NewOrderHandler() *OrderHandler { return &OrderHandler{} }
+func NewOrderHandler(client *grpcclient.OrderClient) *OrderHandler {
+	return &OrderHandler{client: client}
+}
 
 // POST /api/v1/orders
 func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 
 	var req struct {
-		ServiceType    string  `json:"service_type"` // food_delivery, grocery, designated_driver
+		ServiceType    string  `json:"service_type"`
 		MerchantID     string  `json:"merchant_id,omitempty"`
 		PickupLat      float64 `json:"pickup_lat"`
 		PickupLng      float64 `json:"pickup_lng"`
@@ -28,24 +34,19 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		DropoffAddress string  `json:"dropoff_address"`
 		PaymentMethod  string  `json:"payment_method"`
 		PromoCode      string  `json:"promo_code,omitempty"`
+		VehicleType    string  `json:"vehicle_type,omitempty"`
 		Items          []struct {
 			MenuItemID string `json:"menu_item_id"`
 			Quantity   int32  `json:"quantity"`
 			Notes      string `json:"notes,omitempty"`
 		} `json:"items,omitempty"`
 		ShoppingList []struct {
-			Name              string  `json:"name"`
-			Quantity          int32   `json:"quantity"`
-			Unit              string  `json:"unit"`
-			EstimatedPrice    float64 `json:"estimated_price"`
-			Notes             string  `json:"notes,omitempty"`
-			AllowSubstitution bool    `json:"allow_substitution"`
+			Name           string  `json:"name"`
+			Quantity       int32   `json:"quantity"`
+			Unit           string  `json:"unit"`
+			EstimatedPrice float64 `json:"estimated_price"`
+			Notes          string  `json:"notes,omitempty"`
 		} `json:"shopping_list,omitempty"`
-		DesignatedOptions *struct {
-			ShadowMode   string `json:"shadow_mode"`
-			VehicleType  string `json:"vehicle_type"`
-			LicensePlate string `json:"license_plate"`
-		} `json:"designated_options,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -58,24 +59,55 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validTypes := map[string]bool{"food_delivery": true, "grocery": true, "designated_driver": true}
-	if !validTypes[req.ServiceType] {
-		writeError(w, http.StatusBadRequest, "service_type must be: food_delivery, grocery, or designated_driver")
-		return
-	}
-
 	idempotencyKey := r.Header.Get("X-Idempotency-Key")
 	if idempotencyKey == "" {
 		writeError(w, http.StatusBadRequest, "X-Idempotency-Key header is required")
 		return
 	}
 
-	// In production: call order-service via gRPC
+	// Build gRPC request
+	grpcReq := grpcclient.CreateOrderReq{
+		ServiceType:    req.ServiceType,
+		CustomerID:     userID,
+		IdempotencyKey: idempotencyKey,
+		PickupLat:      req.PickupLat,
+		PickupLng:      req.PickupLng,
+		PickupAddress:  req.PickupAddress,
+		DropoffLat:     req.DropoffLat,
+		DropoffLng:     req.DropoffLng,
+		DropoffAddress: req.DropoffAddress,
+		VehicleType:    req.VehicleType,
+		MerchantID:     req.MerchantID,
+		PaymentMethod:  req.PaymentMethod,
+		PromoCode:      req.PromoCode,
+	}
+
+	for _, item := range req.Items {
+		grpcReq.Items = append(grpcReq.Items, grpcclient.OrderItemReq{
+			MenuItemID: item.MenuItemID,
+			Quantity:   item.Quantity,
+			Notes:      item.Notes,
+		})
+	}
+	for _, sl := range req.ShoppingList {
+		grpcReq.ShoppingList = append(grpcReq.ShoppingList, grpcclient.ShoppingListReq{
+			Name:           sl.Name,
+			Quantity:       sl.Quantity,
+			Unit:           sl.Unit,
+			EstimatedPrice: sl.EstimatedPrice,
+			Notes:          sl.Notes,
+		})
+	}
+
+	order, price, err := h.client.CreateOrder(r.Context(), grpcReq)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"id":           "order-generated-uuid",
-		"customer_id":  userID,
-		"service_type": req.ServiceType,
-		"status":       initialStatus(req.ServiceType),
+		"order":           order,
+		"price_breakdown": price,
 	})
 }
 
@@ -87,11 +119,12 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In production: call order-service via gRPC
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"id":     orderID,
-		"status": "created",
-	})
+	order, err := h.client.GetOrder(r.Context(), orderID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, order)
 }
 
 // PATCH /api/v1/orders/{id}/status
@@ -102,26 +135,19 @@ func (h *OrderHandler) UpdateOrderStatus(w http.ResponseWriter, r *http.Request)
 	userRole := middleware.GetUserRole(r)
 
 	var req struct {
-		Event string `json:"event"` // driver_found, driver_accepted, etc.
+		Event string `json:"event"`
 	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	if req.Event == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Event == "" {
 		writeError(w, http.StatusBadRequest, "event is required")
 		return
 	}
 
-	// In production: call order-service UpdateOrderStatus via gRPC
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"id":         orderID,
-		"event":      req.Event,
-		"actor_id":   userID,
-		"actor_role": userRole,
-	})
+	order, err := h.client.UpdateOrderStatus(r.Context(), orderID, userID, userRole, req.Event)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, order)
 }
 
 // PATCH /api/v1/orders/{id}/cancel
@@ -140,12 +166,12 @@ func (h *OrderHandler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		cancelledBy = "driver"
 	}
 
-	// In production: call order-service CancelOrder via gRPC
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"id":            orderID,
-		"status":        "cancelled_by_" + cancelledBy,
-		"cancel_reason": req.Reason,
-	})
+	order, err := h.client.CancelOrder(r.Context(), orderID, cancelledBy, req.Reason)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, order)
 }
 
 // GET /api/v1/orders?service_type=food_delivery&page=1&limit=20
@@ -153,14 +179,26 @@ func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	userRole := middleware.GetUserRole(r)
 	serviceType := r.URL.Query().Get("service_type")
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 20
+	}
 
-	// In production: call order-service ListOrders via gRPC
+	orders, total, err := h.client.ListOrders(r.Context(), userID, userRole, serviceType, page, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"orders":       []interface{}{},
-		"total":        0,
-		"user_id":      userID,
-		"role":         userRole,
-		"service_type": serviceType,
+		"orders": orders,
+		"total":  total,
+		"page":   page,
+		"limit":  limit,
 	})
 }
 
@@ -170,10 +208,7 @@ func (h *OrderHandler) EstimatePrice(w http.ResponseWriter, r *http.Request) {
 		ServiceType string  `json:"service_type"`
 		VehicleType string  `json:"vehicle_type,omitempty"`
 		DistanceKm  float64 `json:"distance_km"`
-		DurationMin int     `json:"duration_minutes"`
 		ItemsTotal  float64 `json:"items_total,omitempty"`
-		IsDuo       bool    `json:"is_duo,omitempty"`
-		IsNight     bool    `json:"is_night,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -181,17 +216,10 @@ func (h *OrderHandler) EstimatePrice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In production: call order-service EstimatePrice via gRPC
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"service_type":   req.ServiceType,
-		"total_estimate": 0,
-		"currency":       "VND",
-	})
-}
-
-func initialStatus(serviceType string) string {
-	if serviceType == "food_delivery" {
-		return "placed"
+	price, err := h.client.EstimatePrice(r.Context(), req.ServiceType, req.VehicleType, req.DistanceKm, req.ItemsTotal)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
-	return "created"
+	writeJSON(w, http.StatusOK, price)
 }
