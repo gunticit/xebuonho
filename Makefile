@@ -16,7 +16,8 @@ docker-down:
 run-all:
 	@echo "Starting all services..."
 	@for service in ride-service driver-service user-service payment-service \
-		matching-service location-service trip-service notification-service; do \
+		matching-service location-service trip-service notification-service \
+		order-service merchant-service; do \
 		echo "Starting $$service..."; \
 		cd services/$$service && go run cmd/main.go & \
 		cd ../..; \
@@ -30,7 +31,8 @@ run-all:
 ## Build all services
 build:
 	@for service in ride-service driver-service user-service payment-service \
-		matching-service location-service trip-service notification-service; do \
+		matching-service location-service trip-service notification-service \
+		order-service merchant-service; do \
 		echo "Building $$service..."; \
 		cd services/$$service && go build -o ../../bin/$$service ./cmd/main.go; \
 		cd ../..; \
@@ -92,7 +94,8 @@ tidy:
 
 ## Run migrations up
 migrate-up:
-	@for service in ride-service driver-service user-service payment-service trip-service; do \
+	@for service in ride-service driver-service user-service payment-service trip-service \
+		order-service merchant-service; do \
 		echo "Migrating $$service..."; \
 		migrate -path services/$$service/migrations \
 			-database "$(DATABASE_URL)" up; \

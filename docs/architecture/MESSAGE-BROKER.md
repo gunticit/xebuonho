@@ -36,11 +36,22 @@ Request xếp hàng → Server từ từ xử lý → KHÔNG SẬP
 │                 KAFKA CLUSTER                    │
 ├─────────────────────────────────────────────────┤
 │                                                  │
+│  Topic: order.events (6 partitions)              │
+│  ├── P0: [CREATED, ASSIGNED, DELIVERED, ...]     │
+│  ├── P1: [CREATED, CANCELLED, PLACED, ...]       │
+│  └── ...                                         │
+│  Key: order_id → Same order always same partition│
+│                                                  │
 │  Topic: ride.events (3 partitions)               │
 │  ├── P0: [CREATED, ASSIGNED, ARRIVED, ...]       │
 │  ├── P1: [CREATED, CANCELLED, CREATED, ...]      │
 │  └── P2: [COMPLETED, PAID, CREATED, ...]         │
 │  Key: ride_id → Same ride always same partition   │
+│                                                  │
+│  Topic: merchant.events (3 partitions)           │
+│  ├── P0: [CONFIRMED, PREPARING, READY, ...]      │
+│  └── ...                                         │
+│  Key: merchant_id                                 │
 │                                                  │
 │  Topic: driver.events (3 partitions)              │
 │  ├── P0: [ONLINE, LOCATION, OFFLINE, ...]        │
@@ -51,7 +62,7 @@ Request xếp hàng → Server từ từ xử lý → KHÔNG SẬP
 │  Topic: payment.events (2 partitions)             │
 │  ├── P0: [INITIATED, COMPLETED, ...]             │
 │  └── P1: [INITIATED, FAILED, RETRY, ...]         │
-│  Key: ride_id                                     │
+│  Key: order_id                                    │
 │                                                  │
 │  Topic: notification.commands (2 partitions)      │
 │  ├── P0: [PUSH, SMS, EMAIL, ...]                 │
