@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package driver;
+
+option go_package = "github.com/xebuonho/proto/driver";
+
+import "proto/common/common.proto";
+import "google/protobuf/timestamp.proto";
+
+service DriverService {
+    rpc GetDriver(GetDriverRequest) returns (Driver);
+    rpc UpdateDriverStatus(UpdateDriverStatusRequest) returns (Driver);
+    rpc GetDriverEarnings(GetDriverEarningsRequest) returns (DriverEarnings);
+    rpc NotifyDriver(NotifyDriverRequest) returns (NotifyDriverResponse);
+}
+
+message GetDriverRequest {
+    string driver_id = 1;
+}
+
+message UpdateDriverStatusRequest {
+    string driver_id = 1;
+    DriverStatus status = 2;
+}
+
+message GetDriverEarningsRequest {
+    string driver_id = 1;
+    string period = 2; // "today", "week", "month"
+}
+
+message NotifyDriverRequest {
+    string driver_id = 1;
+    string ride_id = 2;
+    string notification_type = 3; // "new_ride", "cancelled"
+    string payload = 4; // JSON
+}
+
+message NotifyDriverResponse {}
+
+message Driver {
+    string id = 1;
+    string full_name = 2;
+    string phone = 3;
+    string license_plate = 4;
+    common.VehicleType vehicle_type = 5;
+    string vehicle_model = 6;
+    string vehicle_color = 7;
+    float rating = 8;
+    int32 total_trips = 9;
+    DriverStatus status = 10;
+    bool is_verified = 11;
+}
+
+message DriverEarnings {
+    double total = 1;
+    int32 trip_count = 2;
+    double average_per_trip = 3;
+    string period = 4;
+    string currency = 5;
+}
+
+enum DriverStatus {
+    DRIVER_STATUS_UNSPECIFIED = 0;
+    OFFLINE = 1;
+    ONLINE = 2;
+    BUSY = 3;
+}

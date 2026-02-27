@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package ride;
+
+option go_package = "github.com/xebuonho/proto/ride";
+
+import "proto/common/common.proto";
+import "google/protobuf/timestamp.proto";
+
+service RideService {
+    // Tạo cuốc xe mới
+    rpc CreateRide(CreateRideRequest) returns (CreateRideResponse);
+
+    // Lấy thông tin cuốc xe
+    rpc GetRide(GetRideRequest) returns (Ride);
+
+    // Cập nhật trạng thái cuốc xe
+    rpc UpdateRideStatus(UpdateRideStatusRequest) returns (Ride);
+
+    // Hủy cuốc xe
+    rpc CancelRide(CancelRideRequest) returns (Ride);
+
+    // Lịch sử cuốc xe
+    rpc ListRides(ListRidesRequest) returns (ListRidesResponse);
+
+    // Ước tính giá cước
+    rpc EstimateFare(EstimateFareRequest) returns (EstimateFareResponse);
+}
+
+// ==========================================
+// Messages
+// ==========================================
+
+message CreateRideRequest {
+    string rider_id = 1;
+    common.Address pickup = 2;
+    common.Address dropoff = 3;
+    common.VehicleType vehicle_type = 4;
+    string idempotency_key = 5;      // CRITICAL: chống duplicate booking
+    string payment_method = 6;
+    string promo_code = 7;
+}
+
+message CreateRideResponse {
+    Ride ride = 1;
+    FareEstimate fare_estimate = 2;
+}
+
+message GetRideRequest {
+    string ride_id = 1;
+}
+
+message UpdateRideStatusRequest {
+    string ride_id = 1;
+    string driver_id = 2;
+    RideStatus new_status = 3;
+    common.Location current_location = 4;
+}
+
+message CancelRideRequest {
+    string ride_id = 1;
+    string cancelled_by = 2;       // "rider" or "driver"
+    string cancel_reason = 3;
+}
+
+message ListRidesRequest {
+    string user_id = 1;
+    string role = 2;               // "rider" or "driver"
+    common.PaginationRequest pagination = 3;
+}
+
+message ListRidesResponse {
+    repeated Ride rides = 1;
+    common.PaginationResponse pagination = 2;
+}
+
+message EstimateFareRequest {
+    common.Location pickup = 1;
+    common.Location dropoff = 2;
+    common.VehicleType vehicle_type = 3;
+}
+
+message EstimateFareResponse {
+    repeated FareEstimate estimates = 1;  // Giá cho nhiều loại xe
+}
+
+// ==========================================
+// Domain Models
+// ==========================================
+
+message Ride {
+    string id = 1;
+    string rider_id = 2;
+    string driver_id = 3;
+    common.Address pickup = 4;
+    common.Address dropoff = 5;
+    common.VehicleType vehicle_type = 6;
+    RideStatus status = 7;
+    FareEstimate fare_estimate = 8;
+    double fare_final = 9;
+    double distance_km = 10;
+    int32 duration_minutes = 11;
+    google.protobuf.Timestamp requested_at = 12;
+    google.protobuf.Timestamp accepted_at = 13;
+    google.protobuf.Timestamp picked_up_at = 14;
+    google.protobuf.Timestamp completed_at = 15;
+    string idempotency_key = 16;
+}
+
+message FareEstimate {
+    common.VehicleType vehicle_type = 1;
+    double base_fare = 2;
+    double distance_fare = 3;
+    double time_fare = 4;
+    double surge_multiplier = 5;
+    double surge_amount = 6;
+    double platform_fee = 7;
+    double discount = 8;
+    double total = 9;
+    string currency = 10;
+    int32 eta_minutes = 11;
+}
+
+enum RideStatus {
+    RIDE_STATUS_UNSPECIFIED = 0;
+    SEARCHING = 1;
+    NO_DRIVER = 2;
+    DRIVER_ASSIGNED = 3;
+    DRIVER_ARRIVING = 4;
+    ARRIVED = 5;
+    WAITING_PASSENGER = 6;
+    IN_PROGRESS = 7;
+    COMPLETED = 8;
+    PAYMENT_PENDING = 9;
+    PAID = 10;
+    CANCELLED_BY_RIDER = 11;
+    CANCELLED_BY_DRIVER = 12;
+}

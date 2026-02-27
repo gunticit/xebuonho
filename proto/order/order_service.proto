@@ -1,0 +1,299 @@
+syntax = "proto3";
+
+package order;
+
+option go_package = "github.com/xebuonho/proto/order";
+
+import "proto/common/common.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+// ==========================================
+// Order Service - Unified cho 4 service types
+// ==========================================
+service OrderService {
+    // Tạo đơn hàng mới (tất cả service types)
+    rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+
+    // Lấy thông tin đơn hàng
+    rpc GetOrder(GetOrderRequest) returns (Order);
+
+    // Cập nhật trạng thái đơn hàng
+    rpc UpdateOrderStatus(UpdateOrderStatusRequest) returns (Order);
+
+    // Hủy đơn hàng
+    rpc CancelOrder(CancelOrderRequest) returns (Order);
+
+    // Lịch sử đơn hàng
+    rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+
+    // Ước tính giá
+    rpc EstimatePrice(EstimatePriceRequest) returns (EstimatePriceResponse);
+
+    // === Grocery specific ===
+    // Thay thế sản phẩm (tài xế đề xuất)
+    rpc ProposeSubstitution(ProposeSubstitutionRequest) returns (ProposeSubstitutionResponse);
+    // Khách xác nhận thay thế
+    rpc ConfirmSubstitution(ConfirmSubstitutionRequest) returns (Order);
+    // Upload hóa đơn chợ
+    rpc UploadReceipt(UploadReceiptRequest) returns (Order);
+
+    // === Designated Driver specific ===
+    // Upload ảnh kiểm tra xe
+    rpc SubmitVehicleInspection(SubmitVehicleInspectionRequest) returns (VehicleInspection);
+}
+
+// ==========================================
+// Create Order
+// ==========================================
+message CreateOrderRequest {
+    common.ServiceType service_type = 1;
+    string customer_id = 2;
+    string idempotency_key = 3;
+
+    // Locations
+    common.Address pickup = 4;
+    common.Address dropoff = 5;
+
+    // For ride & designated_driver
+    common.VehicleType vehicle_type = 6;
+
+    // For food_delivery
+    string merchant_id = 7;
+    repeated OrderItemRequest items = 8;
+
+    // For grocery
+    repeated ShoppingListItem shopping_list = 9;
+    string store_preference = 10; // "any", merchant_id, or store name
+
+    // For designated_driver
+    DesignatedDriverOptions designated_options = 11;
+
+    // Payment
+    string payment_method = 12;
+    string promo_code = 13;
+}
+
+message OrderItemRequest {
+    string menu_item_id = 1;
+    int32 quantity = 2;
+    repeated OptionSelection options = 3;
+    string notes = 4;
+}
+
+message OptionSelection {
+    string option_name = 1;
+    string value = 2;
+    double extra_price = 3;
+}
+
+message ShoppingListItem {
+    string name = 1;
+    int32 quantity = 2;
+    string unit = 3;           // "kg", "gram", "cái", "bó", "lít"
+    double estimated_price = 4;
+    string notes = 5;          // "Chọn quả chín", "Loại nhập khẩu"
+    bool allow_substitution = 6;
+}
+
+message DesignatedDriverOptions {
+    string shadow_mode = 1;    // "solo" or "duo"
+    string customer_vehicle_type = 2; // "sedan", "suv", "mpv"
+    string customer_license_plate = 3;
+    bool has_parking_space = 4;
+}
+
+message CreateOrderResponse {
+    Order order = 1;
+    PriceBreakdown price_breakdown = 2;
+}
+
+// ==========================================
+// Other RPCs
+// ==========================================
+message GetOrderRequest {
+    string order_id = 1;
+}
+
+message UpdateOrderStatusRequest {
+    string order_id = 1;
+    string actor_id = 2;       // driver_id, merchant_id, or customer_id
+    string actor_role = 3;     // "driver", "merchant", "customer"
+    string new_status = 4;
+    common.Location current_location = 5;
+    google.protobuf.Struct metadata = 6; // Extra data per status change
+}
+
+message CancelOrderRequest {
+    string order_id = 1;
+    string cancelled_by = 2;
+    string cancel_reason = 3;
+}
+
+message ListOrdersRequest {
+    string user_id = 1;
+    string role = 2;
+    common.ServiceType service_type = 3; // Filter by service type (0 = all)
+    common.PaginationRequest pagination = 4;
+}
+
+message ListOrdersResponse {
+    repeated Order orders = 1;
+    common.PaginationResponse pagination = 2;
+}
+
+message EstimatePriceRequest {
+    common.ServiceType service_type = 1;
+    common.Location pickup = 2;
+    common.Location dropoff = 3;
+    common.VehicleType vehicle_type = 4;
+    string merchant_id = 5;
+    repeated OrderItemRequest items = 6;
+    repeated ShoppingListItem shopping_list = 7;
+    DesignatedDriverOptions designated_options = 8;
+}
+
+message EstimatePriceResponse {
+    repeated PriceBreakdown estimates = 1;
+}
+
+// ==========================================
+// Grocery Specific RPCs
+// ==========================================
+message ProposeSubstitutionRequest {
+    string order_id = 1;
+    string order_item_id = 2;
+    string driver_id = 3;
+    string substitute_name = 4;
+    double substitute_price = 5;
+    string photo_url = 6; // Ảnh sản phẩm thay thế
+}
+
+message ProposeSubstitutionResponse {
+    bool requires_customer_approval = 1;
+}
+
+message ConfirmSubstitutionRequest {
+    string order_id = 1;
+    string order_item_id = 2;
+    string customer_id = 3;
+    bool approved = 4; // true = chấp nhận, false = bỏ qua
+}
+
+message UploadReceiptRequest {
+    string order_id = 1;
+    string driver_id = 2;
+    string receipt_photo_url = 3;
+    double actual_total = 4; // Tổng tiền thực tế từ hóa đơn
+    repeated ReceiptItem items = 5;
+}
+
+message ReceiptItem {
+    string name = 1;
+    int32 quantity = 2;
+    double price = 3;
+}
+
+// ==========================================
+// Designated Driver Specific
+// ==========================================
+message SubmitVehicleInspectionRequest {
+    string order_id = 1;
+    string driver_id = 2;
+    string type = 3; // "pickup" or "dropoff"
+    string license_plate = 4;
+    string vehicle_model = 5;
+    string vehicle_color = 6;
+    int32 odometer_km = 7;
+    string fuel_level = 8;
+    string photo_front_url = 9;
+    string photo_back_url = 10;
+    string photo_left_url = 11;
+    string photo_right_url = 12;
+    string existing_damages = 13;
+}
+
+message VehicleInspection {
+    string id = 1;
+    string order_id = 2;
+    string type = 3;
+    google.protobuf.Timestamp inspected_at = 4;
+}
+
+// ==========================================
+// Domain Models
+// ==========================================
+message Order {
+    string id = 1;
+    common.ServiceType service_type = 2;
+    string customer_id = 3;
+    string driver_id = 4;
+    string merchant_id = 5;
+    string shadow_driver_id = 6;
+
+    common.Address pickup = 7;
+    common.Address dropoff = 8;
+    common.VehicleType vehicle_type = 9;
+
+    string status = 10;
+    PriceBreakdown price = 11;
+
+    repeated OrderItem items = 12;
+    DesignatedDriverOptions designated_options = 13;
+
+    double distance_km = 14;
+    int32 duration_minutes = 15;
+    int32 eta_minutes = 16;
+
+    string payment_method = 17;
+    string promo_code = 18;
+    string idempotency_key = 19;
+
+    // Timestamps
+    google.protobuf.Timestamp created_at = 20;
+    google.protobuf.Timestamp accepted_at = 21;
+    google.protobuf.Timestamp picked_up_at = 22;
+    google.protobuf.Timestamp delivered_at = 23;
+    google.protobuf.Timestamp completed_at = 24;
+    google.protobuf.Timestamp cancelled_at = 25;
+    string cancelled_by = 26;
+
+    google.protobuf.Struct metadata = 27;
+}
+
+message OrderItem {
+    string id = 1;
+    string menu_item_id = 2;
+    string name = 3;
+    int32 quantity = 4;
+    double unit_price = 5;
+    double total_price = 6;
+    repeated OptionSelection options_selected = 7;
+    string unit = 8;
+    string notes = 9;
+    string status = 10;
+
+    // Substitution
+    bool is_substituted = 11;
+    string original_name = 12;
+    bool substitution_approved = 13;
+}
+
+message PriceBreakdown {
+    double items_total = 1;       // Tổng tiền món/hàng
+    double delivery_fee = 2;      // Phí giao hàng
+    double service_fee = 3;       // Phí dịch vụ/mua hộ
+    double packaging_fee = 4;     // Phí đóng gói (food)
+    double distance_fare = 5;     // Giá theo km (ride/designated)
+    double time_fare = 6;         // Giá theo thời gian
+    double base_fare = 7;         // Giá mở cửa
+    double surge_multiplier = 8;
+    double surge_amount = 9;
+    double shadow_driver_fee = 10; // Phí tài xế shadow (designated)
+    double night_surcharge = 11;  // Phụ thu đêm khuya
+    double discount = 12;
+    double platform_fee = 13;
+    double total_estimate = 14;
+    double total_final = 15;
+    string currency = 16;
+}

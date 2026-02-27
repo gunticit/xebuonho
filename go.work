@@ -1,0 +1,15 @@
+go 1.22
+
+use (
+	./services/ride-service
+	./services/driver-service
+	./services/user-service
+	./services/payment-service
+	./services/matching-service
+	./services/location-service
+	./services/trip-service
+	./services/notification-service
+	./services/order-service
+	./services/merchant-service
+	./pkg
+)

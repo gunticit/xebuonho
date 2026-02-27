@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package location;
+
+option go_package = "github.com/xebuonho/proto/location";
+
+import "proto/common/common.proto";
+import "google/protobuf/timestamp.proto";
+
+service LocationService {
+    // Lấy vị trí tài xế
+    rpc GetDriverLocation(GetDriverLocationRequest) returns (DriverLocation);
+
+    // Tìm tài xế gần
+    rpc FindNearbyDrivers(FindNearbyDriversRequest) returns (FindNearbyDriversResponse);
+
+    // Cập nhật vị trí tài xế (từ MQTT handler)
+    rpc UpdateDriverLocation(UpdateDriverLocationRequest) returns (UpdateDriverLocationResponse);
+
+    // Stream vị trí tài xế (cho live tracking)
+    rpc StreamDriverLocation(StreamDriverLocationRequest) returns (stream DriverLocation);
+
+    // Batch cập nhật locations (offline sync)
+    rpc BatchUpdateLocations(BatchUpdateLocationsRequest) returns (BatchUpdateLocationsResponse);
+}
+
+message GetDriverLocationRequest {
+    string driver_id = 1;
+}
+
+message FindNearbyDriversRequest {
+    double latitude = 1;
+    double longitude = 2;
+    double radius_km = 3;
+    int32 max_results = 4;
+    repeated common.VehicleType vehicle_types = 5;
+    bool only_available = 6;
+}
+
+message FindNearbyDriversResponse {
+    repeated NearbyDriver drivers = 1;
+}
+
+message NearbyDriver {
+    string driver_id = 1;
+    double latitude = 2;
+    double longitude = 3;
+    double distance_km = 4;
+    int32 eta_seconds = 5;
+    common.VehicleType vehicle_type = 6;
+    float rating = 7;
+    double heading = 8;
+    double speed = 9;
+}
+
+message UpdateDriverLocationRequest {
+    string driver_id = 1;
+    double latitude = 2;
+    double longitude = 3;
+    double heading = 4;
+    double speed = 5;
+    int32 battery = 6;
+    google.protobuf.Timestamp timestamp = 7;
+}
+
+message UpdateDriverLocationResponse {}
+
+message StreamDriverLocationRequest {
+    string driver_id = 1;
+}
+
+message DriverLocation {
+    string driver_id = 1;
+    double latitude = 2;
+    double longitude = 3;
+    double heading = 4;
+    double speed = 5;
+    google.protobuf.Timestamp timestamp = 6;
+}
+
+message BatchUpdateLocationsRequest {
+    string driver_id = 1;
+    repeated DriverLocation locations = 2;
+    int64 offline_duration_ms = 3;
+}
+
+message BatchUpdateLocationsResponse {
+    int32 processed_count = 1;
+}

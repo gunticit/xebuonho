@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "github.com/xebuonho/proto/common";
+
+import "google/protobuf/timestamp.proto";
+
+// Location represents a geographic point
+message Location {
+    double latitude = 1;
+    double longitude = 2;
+}
+
+// Address represents a full address with location
+message Address {
+    Location location = 1;
+    string formatted_address = 2;
+    string place_id = 3;
+}
+
+// Pagination for list requests
+message PaginationRequest {
+    int32 page = 1;
+    int32 page_size = 2;
+}
+
+message PaginationResponse {
+    int32 total = 1;
+    int32 page = 2;
+    int32 page_size = 3;
+    int32 total_pages = 4;
+}
+
+// Vehicle types
+enum VehicleType {
+    VEHICLE_TYPE_UNSPECIFIED = 0;
+    BIKE = 1;
+    CAR = 2;
+    PREMIUM = 3;
+    SUV = 4;
+}
+
+// ==========================================
+// Service types (4 dịch vụ chính)
+// ==========================================
+enum ServiceType {
+    SERVICE_TYPE_UNSPECIFIED = 0;
+    RIDE = 1;                // 🚗 Chở khách
+    FOOD_DELIVERY = 2;       // 🍔 Đặt đồ ăn
+    GROCERY = 3;             // 🛒 Đi chợ hộ
+    DESIGNATED_DRIVER = 4;   // 🚙 Lái xe hộ
+}
+
+// Money represents a monetary value with currency
+message Money {
+    double amount = 1;
+    string currency = 2; // "VND"
+}
+
+// Common response wrapper
+message ErrorDetail {
+    string code = 1;
+    string message = 2;
+    string detail = 3;
+}

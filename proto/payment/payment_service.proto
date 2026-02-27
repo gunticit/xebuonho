@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package payment;
+
+option go_package = "github.com/xebuonho/proto/payment";
+
+import "google/protobuf/timestamp.proto";
+
+service PaymentService {
+    rpc CreatePayment(CreatePaymentRequest) returns (Payment);
+    rpc GetPayment(GetPaymentRequest) returns (Payment);
+    rpc ProcessPayment(ProcessPaymentRequest) returns (Payment);
+    rpc GetWalletBalance(GetWalletBalanceRequest) returns (WalletBalance);
+    rpc TopUpWallet(TopUpWalletRequest) returns (WalletBalance);
+}
+
+message CreatePaymentRequest {
+    string ride_id = 1;
+    string rider_id = 2;
+    double amount = 3;
+    string method = 4; // "cash", "wallet", "card", "momo", "zalopay"
+    string currency = 5;
+}
+
+message GetPaymentRequest {
+    string payment_id = 1;
+}
+
+message ProcessPaymentRequest {
+    string payment_id = 1;
+    string transaction_id = 2;
+}
+
+message GetWalletBalanceRequest {
+    string user_id = 1;
+}
+
+message TopUpWalletRequest {
+    string user_id = 1;
+    double amount = 2;
+    string method = 3;
+}
+
+message Payment {
+    string id = 1;
+    string ride_id = 2;
+    string rider_id = 3;
+    double amount = 4;
+    string method = 5;
+    string status = 6; // "pending", "completed", "failed", "refunded"
+    string transaction_id = 7;
+    google.protobuf.Timestamp created_at = 8;
+    google.protobuf.Timestamp paid_at = 9;
+}
+
+message WalletBalance {
+    string user_id = 1;
+    double balance = 2;
+    string currency = 3;
+}
