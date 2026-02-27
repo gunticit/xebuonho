@@ -1,0 +1,11 @@
+.git
+.github
+.agents
+docs
+*.md
+LICENSE
+.env*
+.vscode
+.idea
+tmp/
+deployments/

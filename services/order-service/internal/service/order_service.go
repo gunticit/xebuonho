@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/xebuonho/pkg/kafka"
 	"github.com/xebuonho/pkg/statemachine"
 	"github.com/xebuonho/services/order-service/internal/model"
 	"github.com/xebuonho/services/order-service/internal/repository"
@@ -16,10 +17,11 @@ type OrderService struct {
 	itemRepo      *repository.OrderItemRepository
 	pricing       *PricingEngine
 	stateMachines map[string]*statemachine.StateMachine
+	eventProducer *kafka.Producer
 }
 
 // NewOrderService creates a new order service
-func NewOrderService(orderRepo *repository.OrderRepository, itemRepo *repository.OrderItemRepository) *OrderService {
+func NewOrderService(orderRepo *repository.OrderRepository, itemRepo *repository.OrderItemRepository, producer *kafka.Producer) *OrderService {
 	return &OrderService{
 		orderRepo: orderRepo,
 		itemRepo:  itemRepo,
@@ -30,6 +32,7 @@ func NewOrderService(orderRepo *repository.OrderRepository, itemRepo *repository
 			"grocery":           statemachine.NewStateMachine(statemachine.ServiceTypeGrocery),
 			"designated_driver": statemachine.NewStateMachine(statemachine.ServiceTypeDesignatedDriver),
 		},
+		eventProducer: producer,
 	}
 }
 
@@ -158,6 +161,17 @@ func (s *OrderService) CreateOrder(ctx context.Context, input model.CreateOrderI
 		s.itemRepo.CreateBatch(ctx, order.ID, items)
 	}
 
+	// Publish order.created event
+	if s.eventProducer != nil {
+		s.eventProducer.PublishAsync(ctx, order.ID, kafka.EventOrderCreated, kafka.OrderEventData{
+			OrderID:      order.ID,
+			ServiceType:  order.ServiceType,
+			CustomerID:   order.CustomerID,
+			Status:       order.Status,
+			FareEstimate: order.FareEstimate,
+		})
+	}
+
 	return order, &price, nil
 }
 
@@ -212,6 +226,22 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, orderID, actorID, 
 	}
 
 	order.Status = string(smOrder.Status)
+
+	// Publish status change event
+	if s.eventProducer != nil {
+		driverID := ""
+		if order.DriverID != nil {
+			driverID = *order.DriverID
+		}
+		s.eventProducer.PublishAsync(ctx, order.ID, kafka.EventOrderStatusChanged, kafka.OrderEventData{
+			OrderID:     order.ID,
+			ServiceType: order.ServiceType,
+			CustomerID:  order.CustomerID,
+			DriverID:    driverID,
+			Status:      order.Status,
+		})
+	}
+
 	return order, nil
 }
 
@@ -246,6 +276,19 @@ func (s *OrderService) CancelOrder(ctx context.Context, orderID, cancelledBy, re
 	}
 
 	order.Status = string(smOrder.Status)
+
+	// Publish cancellation event
+	if s.eventProducer != nil {
+		s.eventProducer.PublishAsync(ctx, order.ID, kafka.EventOrderCancelled, kafka.OrderEventData{
+			OrderID:      order.ID,
+			ServiceType:  order.ServiceType,
+			CustomerID:   order.CustomerID,
+			CancelledBy:  cancelledBy,
+			CancelReason: reason,
+			Status:       order.Status,
+		})
+	}
+
 	return order, nil
 }
 

@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/xebuonho/pkg/database"
+	"github.com/xebuonho/pkg/kafka"
 	"github.com/xebuonho/services/order-service/internal/handler"
 	"github.com/xebuonho/services/order-service/internal/repository"
 	"github.com/xebuonho/services/order-service/internal/service"
@@ -35,12 +36,18 @@ func main() {
 	defer db.Close()
 	logger.Println("Connected to PostgreSQL")
 
+	// Kafka producer
+	kafkaBrokers := []string{cfg.KafkaBrokers}
+	orderProducer := kafka.NewProducer(kafkaBrokers, kafka.TopicOrderEvents, "/services/order-service")
+	defer orderProducer.Close()
+	logger.Println("Kafka producer initialized")
+
 	// ==========================================
 	// Initialize Layers: Repo → Service → Handler
 	// ==========================================
 	orderRepo := repository.NewOrderRepository(db)
 	itemRepo := repository.NewOrderItemRepository(db)
-	orderSvc := service.NewOrderService(orderRepo, itemRepo)
+	orderSvc := service.NewOrderService(orderRepo, itemRepo, orderProducer)
 	orderHandler := handler.NewOrderGRPCHandler(orderSvc)
 
 	_ = orderHandler // Will be registered when proto-gen is ready
