@@ -13,17 +13,37 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
+
+	"github.com/xebuonho/pkg/database"
+	"github.com/xebuonho/services/merchant-service/internal/handler"
+	"github.com/xebuonho/services/merchant-service/internal/repository"
+	"github.com/xebuonho/services/merchant-service/internal/service"
 )
 
 func main() {
 	cfg := loadConfig()
 	logger := setupLogger()
+	ctx := context.Background()
 
 	// ==========================================
 	// Initialize Dependencies
 	// ==========================================
-	// db := connectPostgres(cfg.DatabaseURL)
-	// redisClient := connectRedis(cfg.RedisURL)
+	db, err := database.ConnectPostgres(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("Failed to connect PostgreSQL: %v", err)
+	}
+	defer db.Close()
+	logger.Println("Connected to PostgreSQL")
+
+	// ==========================================
+	// Initialize Layers: Repo → Service → Handler
+	// ==========================================
+	merchantRepo := repository.NewMerchantRepository(db)
+	menuRepo := repository.NewMenuRepository(db)
+	merchantSvc := service.NewMerchantService(merchantRepo, menuRepo)
+	merchantHandler := handler.NewMerchantGRPCHandler(merchantSvc)
+
+	_ = merchantHandler // Will be registered when proto-gen is ready
 
 	// ==========================================
 	// gRPC Server
@@ -34,7 +54,7 @@ func main() {
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
 
 	// ==========================================
-	// HTTP Server
+	// HTTP Server (REST + Health check)
 	// ==========================================
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -49,6 +69,9 @@ func main() {
 		WriteTimeout: 30 * time.Second,
 	}
 
+	// ==========================================
+	// Start Servers
+	// ==========================================
 	go func() {
 		lis, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 		if err != nil {
@@ -67,15 +90,18 @@ func main() {
 		}
 	}()
 
+	// ==========================================
+	// Graceful Shutdown
+	// ==========================================
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	logger.Println("Shutting down...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	grpcServer.GracefulStop()
-	httpServer.Shutdown(ctx)
+	httpServer.Shutdown(shutdownCtx)
 	logger.Println("Stopped")
 }
 

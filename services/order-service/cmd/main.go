@@ -13,29 +13,37 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
+
+	"github.com/xebuonho/pkg/database"
+	"github.com/xebuonho/services/order-service/internal/handler"
+	"github.com/xebuonho/services/order-service/internal/repository"
+	"github.com/xebuonho/services/order-service/internal/service"
 )
 
 func main() {
 	cfg := loadConfig()
 	logger := setupLogger()
+	ctx := context.Background()
 
 	// ==========================================
 	// Initialize Dependencies
 	// ==========================================
-	// db := connectPostgres(cfg.DatabaseURL)
-	// redisClient := connectRedis(cfg.RedisURL)
-	// kafkaProducer := connectKafka(cfg.KafkaBrokers)
-	// mqttClient := connectMQTT(cfg.MQTTBroker)
-	// merchantClient := connectMerchantService(cfg.MerchantServiceAddr)
-	// matchingClient := connectMatchingService(cfg.MatchingServiceAddr)
+	db, err := database.ConnectPostgres(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("Failed to connect PostgreSQL: %v", err)
+	}
+	defer db.Close()
+	logger.Println("Connected to PostgreSQL")
 
 	// ==========================================
-	// Initialize State Machines (per service type)
+	// Initialize Layers: Repo → Service → Handler
 	// ==========================================
-	// rideSM := statemachine.NewStateMachine(statemachine.ServiceTypeRide)
-	// foodSM := statemachine.NewStateMachine(statemachine.ServiceTypeFoodDelivery)
-	// grocerySM := statemachine.NewStateMachine(statemachine.ServiceTypeGrocery)
-	// designatedSM := statemachine.NewStateMachine(statemachine.ServiceTypeDesignatedDriver)
+	orderRepo := repository.NewOrderRepository(db)
+	itemRepo := repository.NewOrderItemRepository(db)
+	orderSvc := service.NewOrderService(orderRepo, itemRepo)
+	orderHandler := handler.NewOrderGRPCHandler(orderSvc)
+
+	_ = orderHandler // Will be registered when proto-gen is ready
 
 	// ==========================================
 	// gRPC Server
@@ -61,9 +69,7 @@ func main() {
 		WriteTimeout: 30 * time.Second,
 	}
 
-	// ==========================================
-	// Start Servers
-	// ==========================================
+	// Start servers
 	go func() {
 		lis, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 		if err != nil {
@@ -88,10 +94,10 @@ func main() {
 	<-quit
 	logger.Println("Shutting down...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	grpcServer.GracefulStop()
-	httpServer.Shutdown(ctx)
+	httpServer.Shutdown(shutdownCtx)
 	logger.Println("Stopped")
 }
 
@@ -101,9 +107,7 @@ type Config struct {
 	DatabaseURL         string
 	RedisURL            string
 	KafkaBrokers        string
-	MQTTBroker          string
 	MerchantServiceAddr string
-	MatchingServiceAddr string
 	JWTSecret           string
 }
 
@@ -114,9 +118,7 @@ func loadConfig() Config {
 		DatabaseURL:         getEnv("DATABASE_URL", "postgresql://app:secret@localhost:5432/xebuonho?sslmode=disable"),
 		RedisURL:            getEnv("REDIS_URL", "localhost:6379"),
 		KafkaBrokers:        getEnv("KAFKA_BROKERS", "localhost:9092"),
-		MQTTBroker:          getEnv("MQTT_BROKER", "tcp://localhost:1883"),
 		MerchantServiceAddr: getEnv("MERCHANT_SERVICE", "localhost:50059"),
-		MatchingServiceAddr: getEnv("MATCHING_SERVICE", "localhost:50055"),
 		JWTSecret:           getEnv("JWT_SECRET", "dev-secret"),
 	}
 }
