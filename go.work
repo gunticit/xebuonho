@@ -11,5 +11,6 @@ use (
 	./services/notification-service
 	./services/order-service
 	./services/merchant-service
+	./services/api-gateway
 	./pkg
 )

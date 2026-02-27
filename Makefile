@@ -15,7 +15,7 @@ docker-down:
 ## Run all services (development mode)
 run-all:
 	@echo "Starting all services..."
-	@for service in ride-service driver-service user-service payment-service \
+	@for service in api-gateway ride-service driver-service user-service payment-service \
 		matching-service location-service trip-service notification-service \
 		order-service merchant-service; do \
 		echo "Starting $$service..."; \
