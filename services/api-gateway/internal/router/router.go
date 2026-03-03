@@ -1,6 +1,8 @@
 package router
 
 import (
+	"embed"
+	"io/fs"
 	"net/http"
 	"strings"
 
@@ -9,6 +11,9 @@ import (
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
 )
 
+//go:embed static
+var staticFiles embed.FS
+
 // NewRouter creates the main API router with all routes
 func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient *grpcclient.OrderClient, merchantClient *grpcclient.MerchantClient) http.Handler {
 	mux := http.NewServeMux()
@@ -16,6 +21,27 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	rideH := handler.NewRideHandler(rideClient)
 	orderH := handler.NewOrderHandler(orderClient)
 	merchantH := handler.NewMerchantHandler(merchantClient)
+	adminH := handler.NewAdminHandler()
+	driverH := handler.NewDriverHandler()
+
+	// ==========================================
+	// Dashboard (root URL)
+	// ==========================================
+	staticFS, _ := fs.Sub(staticFiles, "static")
+	mux.Handle("/", http.FileServer(http.FS(staticFS)))
+
+	// ==========================================
+	// Admin API (no auth for dashboard access)
+	// ==========================================
+	mux.HandleFunc("/api/v1/admin/stats", adminH.GetStats)
+	mux.HandleFunc("/api/v1/admin/orders/recent", adminH.GetRecentOrders)
+	mux.HandleFunc("/api/v1/admin/revenue", adminH.GetRevenueChart)
+	mux.HandleFunc("/api/v1/admin/drivers", adminH.GetDriverStats)
+
+	// ==========================================
+	// Driver API
+	// ==========================================
+	mux.Handle("/api/v1/driver/", driverH)
 
 	// ==========================================
 	// Public endpoints (no auth)

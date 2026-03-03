@@ -5,18 +5,23 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/xebuonho/pkg/kafka"
 	"github.com/xebuonho/services/ride-service/internal/model"
 	"github.com/xebuonho/services/ride-service/internal/repository"
 )
 
 // RideService handles ride business logic
 type RideService struct {
-	rideRepo *repository.RideRepository
+	rideRepo      *repository.RideRepository
+	eventProducer *kafka.Producer
 }
 
 // NewRideService creates a new ride service
-func NewRideService(rideRepo *repository.RideRepository) *RideService {
-	return &RideService{rideRepo: rideRepo}
+func NewRideService(rideRepo *repository.RideRepository, producer *kafka.Producer) *RideService {
+	return &RideService{
+		rideRepo:      rideRepo,
+		eventProducer: producer,
+	}
 }
 
 // CreateRide creates a new ride request
@@ -62,6 +67,21 @@ func (s *RideService) CreateRide(ctx context.Context, riderID string, pickupLat,
 
 	if err := s.rideRepo.Create(ctx, ride); err != nil {
 		return nil, nil, fmt.Errorf("create ride: %w", err)
+	}
+
+	// Publish ride.created event to Kafka
+	if s.eventProducer != nil {
+		s.eventProducer.PublishAsync(ctx, ride.ID, kafka.EventRideCreated, kafka.RideEventData{
+			RideID:       ride.ID,
+			RiderID:      ride.RiderID,
+			PickupLat:    ride.PickupLat,
+			PickupLng:    ride.PickupLng,
+			DropoffLat:   ride.DropoffLat,
+			DropoffLng:   ride.DropoffLng,
+			VehicleType:  ride.VehicleType,
+			FareEstimate: ride.FareEstimate,
+			Status:       ride.Status,
+		})
 	}
 
 	return ride, &fareEst, nil

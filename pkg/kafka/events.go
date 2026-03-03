@@ -119,6 +119,34 @@ const (
 )
 
 // ==========================================
+// Driver Events
+// ==========================================
+const (
+	EventDriverLocationUpdated = "driver.location_updated"
+	EventDriverWentOnline      = "driver.went_online"
+	EventDriverWentOffline     = "driver.went_offline"
+	EventDriverSOSActivated    = "driver.sos_activated"
+	EventDriverSOSDeactivated  = "driver.sos_deactivated"
+	EventDriverTripStarted     = "driver.trip_started"
+	EventDriverTripCompleted   = "driver.trip_completed"
+)
+
+// DriverEventData is the data payload for driver events
+type DriverEventData struct {
+	DriverID    string  `json:"driver_id"`
+	DriverName  string  `json:"driver_name,omitempty"`
+	Lat         float64 `json:"lat"`
+	Lng         float64 `json:"lng"`
+	Speed       float64 `json:"speed,omitempty"`
+	Heading     float64 `json:"heading,omitempty"`
+	Battery     float64 `json:"battery,omitempty"`
+	Status      string  `json:"status"`
+	VehicleType string  `json:"vehicle_type,omitempty"`
+	RideID      string  `json:"ride_id,omitempty"`
+	SOSReason   string  `json:"sos_reason,omitempty"`
+}
+
+// ==========================================
 // Notification Commands
 // ==========================================
 const (

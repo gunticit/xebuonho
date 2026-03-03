@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/xebuonho/pkg/database"
+	"github.com/xebuonho/pkg/kafka"
 	"github.com/xebuonho/services/ride-service/internal/handler"
 	"github.com/xebuonho/services/ride-service/internal/repository"
 	"github.com/xebuonho/services/ride-service/internal/service"
@@ -35,11 +36,17 @@ func main() {
 	defer db.Close()
 	logger.Println("Connected to PostgreSQL")
 
+	// Kafka producer
+	kafkaBrokers := []string{cfg.KafkaBrokers}
+	rideProducer := kafka.NewProducer(kafkaBrokers, kafka.TopicRideEvents, "/services/ride-service")
+	defer rideProducer.Close()
+	logger.Println("Kafka producer initialized")
+
 	// ==========================================
 	// Initialize Layers: Repo → Service → Handler
 	// ==========================================
 	rideRepo := repository.NewRideRepository(db)
-	rideSvc := service.NewRideService(rideRepo)
+	rideSvc := service.NewRideService(rideRepo, rideProducer)
 	rideHandler := handler.NewRideGRPCHandler(rideSvc)
 
 	_ = rideHandler // Will be registered when proto-gen is ready

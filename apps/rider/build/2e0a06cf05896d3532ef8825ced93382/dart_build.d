@@ -1,0 +1,1 @@
+ /Users/hwg/Documents/xebuonho/apps/rider/build/2e0a06cf05896d3532ef8825ced93382/dart_build_result.json:  /Users/hwg/Documents/xebuonho/apps/rider/.dart_tool/package_config.json /Users/hwg/Documents/xebuonho/apps/rider/pubspec.yaml /opt/homebrew/share/flutter/bin/cache/dart-sdk/version

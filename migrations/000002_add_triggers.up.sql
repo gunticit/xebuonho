@@ -2,17 +2,20 @@
 -- Apply updated_at triggers to merchant and order tables
 
 -- Merchants
-CREATE TRIGGER IF NOT EXISTS trg_merchants_updated_at
+DROP TRIGGER IF EXISTS trg_merchants_updated_at ON merchants;
+CREATE TRIGGER trg_merchants_updated_at
     BEFORE UPDATE ON merchants
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- Menu Items
-CREATE TRIGGER IF NOT EXISTS trg_menu_items_updated_at
+DROP TRIGGER IF EXISTS trg_menu_items_updated_at ON menu_items;
+CREATE TRIGGER trg_menu_items_updated_at
     BEFORE UPDATE ON menu_items
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- Orders
-CREATE TRIGGER IF NOT EXISTS trg_orders_updated_at
+DROP TRIGGER IF EXISTS trg_orders_updated_at ON orders;
+CREATE TRIGGER trg_orders_updated_at
     BEFORE UPDATE ON orders
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 

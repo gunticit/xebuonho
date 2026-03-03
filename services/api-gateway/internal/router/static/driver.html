@@ -1,0 +1,1736 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Xebuonho Driver</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg: #0b0f1a;
+            --bg2: #111827;
+            --bg3: rgba(17, 24, 39, 0.95);
+            --card: rgba(17, 24, 39, 0.85);
+            --border: rgba(75, 85, 99, 0.25);
+            --text: #f9fafb;
+            --text2: #9ca3af;
+            --text3: #6b7280;
+            --green: #10b981;
+            --green-bg: rgba(16, 185, 129, 0.12);
+            --blue: #3b82f6;
+            --blue-bg: rgba(59, 130, 246, 0.12);
+            --orange: #f59e0b;
+            --orange-bg: rgba(245, 158, 11, 0.12);
+            --purple: #8b5cf6;
+            --purple-bg: rgba(139, 92, 246, 0.12);
+            --red: #ef4444;
+            --red-bg: rgba(239, 68, 68, 0.12);
+            --cyan: #06b6d4;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            max-width: 480px;
+            margin: 0 auto;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at 30% 20%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(11, 15, 26, 0.92);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo {
+            font-weight: 800;
+            font-size: 1.1rem;
+        }
+
+        .logo span {
+            color: var(--blue);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .battery {
+            font-size: 0.72rem;
+            color: var(--text3);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .clock {
+            font-size: 0.78rem;
+            color: var(--text2);
+            font-weight: 500;
+        }
+
+        /* Main */
+        .main {
+            position: relative;
+            z-index: 1;
+            padding: 12px 16px 100px;
+        }
+
+        /* Online Toggle */
+        .toggle-section {
+            text-align: center;
+            padding: 20px 0 16px;
+        }
+
+        .toggle-btn {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid var(--border);
+            background: var(--card);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            box-shadow: 0 0 0 0 transparent;
+        }
+
+        .toggle-btn.online {
+            border-color: var(--green);
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.25), 0 0 60px rgba(16, 185, 129, 0.1);
+        }
+
+        .toggle-btn:active {
+            transform: scale(0.95);
+        }
+
+        .toggle-label {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .toggle-label.online {
+            color: var(--green);
+        }
+
+        .toggle-sub {
+            font-size: 0.72rem;
+            color: var(--text3);
+            margin-top: 4px;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin: 12px 0;
+        }
+
+        .status-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .status-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .status-label {
+            font-size: 0.65rem;
+            color: var(--text3);
+            margin-top: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Request Card */
+        .request-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 12px 0;
+            animation: slideUp 0.4s ease;
+            display: none;
+        }
+
+        .request-card.visible {
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .request-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .request-type {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .request-type-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .request-type-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .request-type-sub {
+            font-size: 0.7rem;
+            color: var(--text3);
+        }
+
+        .request-fare {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--green);
+        }
+
+        .request-route {
+            margin: 10px 0;
+        }
+
+        .route-point {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 6px 0;
+            font-size: 0.82rem;
+        }
+
+        .route-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+
+        .route-dot.pickup {
+            background: var(--green);
+        }
+
+        .route-dot.dropoff {
+            background: var(--red);
+        }
+
+        .route-line {
+            width: 2px;
+            height: 16px;
+            background: var(--border);
+            margin-left: 4px;
+        }
+
+        .request-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 0.72rem;
+            color: var(--text3);
+            margin: 8px 0;
+        }
+
+        .request-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .request-actions {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-decline {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-accept {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+        }
+
+        .request-timer {
+            text-align: center;
+            margin-top: 8px;
+            font-size: 0.72rem;
+            color: var(--text3);
+        }
+
+        .timer-bar {
+            height: 3px;
+            background: rgba(75, 85, 99, 0.3);
+            border-radius: 2px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .timer-fill {
+            height: 100%;
+            background: var(--orange);
+            border-radius: 2px;
+            transition: width 1s linear;
+        }
+
+        /* Active Trip Card */
+        .trip-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 12px 0;
+            display: none;
+        }
+
+        .trip-card.visible {
+            display: block;
+        }
+
+        .trip-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .trip-step {
+            flex: 1;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(75, 85, 99, 0.3);
+            transition: background 0.3s;
+        }
+
+        .trip-step.active {
+            background: var(--green);
+        }
+
+        .trip-step.current {
+            background: var(--orange);
+            animation: pulse-bar 1.5s infinite;
+        }
+
+        @keyframes pulse-bar {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .trip-customer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .customer-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .customer-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--blue-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .customer-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .customer-rating {
+            font-size: 0.72rem;
+            color: var(--text3);
+        }
+
+        .trip-action-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--green-bg);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+
+        .trip-next-action {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 12px;
+            width: 100%;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 12px;
+            font-family: inherit;
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+            transition: all 0.2s;
+        }
+
+        .trip-next-action:active {
+            transform: scale(0.97);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 4px;
+            margin: 16px 0 8px;
+            gap: 2px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--text3);
+            border-radius: 9px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--blue);
+            font-weight: 600;
+        }
+
+        /* Earnings Panel */
+        .panel {
+            display: none;
+        }
+
+        .panel.visible {
+            display: block;
+        }
+
+        .earnings-hero {
+            text-align: center;
+            padding: 16px 0;
+        }
+
+        .earnings-amount {
+            font-size: 2.2rem;
+            font-weight: 900;
+            letter-spacing: -1px;
+        }
+
+        .earnings-goal {
+            margin-top: 6px;
+            font-size: 0.75rem;
+            color: var(--text3);
+        }
+
+        .goal-bar {
+            height: 6px;
+            background: rgba(75, 85, 99, 0.3);
+            border-radius: 3px;
+            margin-top: 6px;
+            overflow: hidden;
+            max-width: 200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .goal-fill {
+            height: 100%;
+            border-radius: 3px;
+            background: linear-gradient(90deg, var(--green), var(--cyan));
+            transition: width 1s ease;
+        }
+
+        .earnings-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin: 12px 0;
+        }
+
+        .earnings-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .earnings-item-value {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .earnings-item-label {
+            font-size: 0.65rem;
+            color: var(--text3);
+            margin-top: 2px;
+        }
+
+        .chart-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            margin: 10px 0;
+        }
+
+        .chart-title {
+            font-size: 0.82rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .chart-wrap {
+            height: 180px;
+        }
+
+        /* History */
+        .history-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(75, 85, 99, 0.15);
+        }
+
+        .history-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .history-icon.ride {
+            background: var(--blue-bg);
+        }
+
+        .history-icon.food_delivery {
+            background: var(--orange-bg);
+        }
+
+        .history-icon.grocery {
+            background: var(--green-bg);
+        }
+
+        .history-icon.designated_driver {
+            background: var(--purple-bg);
+        }
+
+        .history-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .history-route {
+            font-size: 0.82rem;
+            font-weight: 500;
+        }
+
+        .history-detail {
+            font-size: 0.7rem;
+            color: var(--text3);
+        }
+
+        .history-meta {
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .history-fare {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .history-time {
+            font-size: 0.68rem;
+            color: var(--text3);
+        }
+
+        .history-status {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.6rem;
+            font-weight: 600;
+        }
+
+        .history-status.completed {
+            background: var(--green-bg);
+            color: var(--green);
+        }
+
+        .history-status.cancelled {
+            background: var(--red-bg);
+            color: var(--red);
+        }
+
+        /* Bottom Nav */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 480px;
+            background: rgba(11, 15, 26, 0.95);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            display: flex;
+            z-index: 100;
+        }
+
+        .nav-item {
+            flex: 1;
+            padding: 10px 0 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .nav-item.active {
+            color: var(--blue);
+        }
+
+        .nav-item:not(.active) {
+            color: var(--text3);
+        }
+
+        .nav-icon {
+            font-size: 1.2rem;
+        }
+
+        .nav-label {
+            font-size: 0.6rem;
+            font-weight: 500;
+            margin-top: 2px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 20px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            box-shadow: var(--shadow);
+            z-index: 200;
+            opacity: 0;
+            transition: opacity 0.3s;
+            max-width: 350px;
+            text-align: center;
+        }
+
+        .toast.visible {
+            opacity: 1;
+        }
+
+        /* Hide sections */
+        .section {
+            display: none;
+        }
+
+        .section.visible {
+            display: block;
+        }
+
+        /* Map Section */
+        .map-section {
+            position: relative;
+        }
+
+        #driverMap {
+            width: 100%;
+            height: calc(100vh - 160px);
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .map-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 16px;
+            right: 16px;
+            background: var(--card);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px;
+            z-index: 500;
+        }
+
+        .map-stats {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .map-stat {
+            flex: 1;
+            background: rgba(17, 24, 39, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px;
+            text-align: center;
+        }
+
+        .map-stat-val {
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .map-stat-label {
+            font-size: 0.58rem;
+            color: var(--text3);
+            text-transform: uppercase;
+        }
+
+        .gps-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+            color: var(--text3);
+            margin-bottom: 6px;
+        }
+
+        .gps-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .gps-dot.active {
+            background: var(--green);
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+            animation: pulse-bar 1.5s infinite;
+        }
+
+        .gps-dot.inactive {
+            background: var(--red);
+        }
+
+        /* SOS Button */
+        .sos-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 2px solid rgba(239, 68, 68, 0.4);
+            background: var(--red-bg);
+            color: var(--red);
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sos-btn:active {
+            transform: scale(0.97);
+        }
+
+        .sos-btn.active {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: var(--red);
+            animation: sos-pulse 1s infinite;
+        }
+
+        @keyframes sos-pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 20px 4px rgba(239, 68, 68, 0.3);
+            }
+        }
+
+        .sos-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            background: rgba(239, 68, 68, 0.2);
+            width: 0;
+            transition: width 3s linear;
+        }
+
+        .map-top-bar {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 500;
+        }
+
+        .map-badge {
+            background: var(--card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 5px 10px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .map-center-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            background: var(--card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        /* Leaflet overrides */
+        .leaflet-container {
+            background: var(--bg) !important;
+        }
+
+        .leaflet-control-zoom a {
+            background: var(--bg2) !important;
+            color: var(--text) !important;
+            border-color: var(--border) !important;
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: var(--bg2) !important;
+            color: var(--text) !important;
+            border-radius: 10px !important;
+        }
+
+        .leaflet-popup-tip {
+            background: var(--bg2) !important;
+        }
+
+        .leaflet-popup-content {
+            font-family: 'Inter', sans-serif !important;
+            font-size: 0.75rem !important;
+            margin: 6px 10px !important;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">🏍️ <span>Driver</span></div>
+        </div>
+        <div class="header-right">
+            <div class="battery" id="battery">🔋 ---%</div>
+            <div class="clock" id="clock"></div>
+        </div>
+    </header>
+
+    <main class="main">
+        <!-- HOME SECTION -->
+        <div class="section visible" id="section-home">
+            <!-- Toggle -->
+            <div class="toggle-section">
+                <div class="toggle-btn" id="toggleBtn" onclick="toggleOnline()">🔌</div>
+                <div class="toggle-label" id="toggleLabel">OFFLINE</div>
+                <div class="toggle-sub" id="toggleSub">Bấm để bắt đầu nhận chuyến</div>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="status-bar" id="statusBar">
+                <div class="status-item">
+                    <div class="status-value" id="s-trips">0</div>
+                    <div class="status-label">Chuyến</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-value" id="s-earnings">0đ</div>
+                    <div class="status-label">Thu nhập</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-value" id="s-rating">--</div>
+                    <div class="status-label">Đánh giá</div>
+                </div>
+            </div>
+
+            <!-- Request Card -->
+            <div class="request-card" id="requestCard">
+                <div class="request-header">
+                    <div class="request-type">
+                        <div class="request-type-icon" id="req-icon" style="background:var(--blue-bg)">🚗</div>
+                        <div>
+                            <div class="request-type-name" id="req-type">Chở khách</div>
+                            <div class="request-type-sub" id="req-customer"></div>
+                        </div>
+                    </div>
+                    <div class="request-fare" id="req-fare">0đ</div>
+                </div>
+                <div class="request-route">
+                    <div class="route-point">
+                        <div class="route-dot pickup"></div>
+                        <div id="req-pickup">--</div>
+                    </div>
+                    <div class="route-line" style="margin-left:4px"></div>
+                    <div class="route-point">
+                        <div class="route-dot dropoff"></div>
+                        <div id="req-dropoff">--</div>
+                    </div>
+                </div>
+                <div class="request-meta" id="req-meta"></div>
+                <div class="request-actions">
+                    <button class="btn btn-decline" onclick="declineRequest()">Từ chối</button>
+                    <button class="btn btn-accept" onclick="acceptRequest()">✓ Nhận chuyến</button>
+                </div>
+                <div class="request-timer">
+                    <span id="req-timer">30s</span>
+                    <div class="timer-bar">
+                        <div class="timer-fill" id="timerFill" style="width:100%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Trip -->
+            <div class="trip-card" id="tripCard">
+                <div class="trip-status-bar" id="tripSteps"></div>
+                <div class="trip-customer">
+                    <div class="customer-info">
+                        <div class="customer-avatar" id="trip-avatar">👤</div>
+                        <div>
+                            <div class="customer-name" id="trip-customer">--</div>
+                            <div class="customer-rating" id="trip-rating">⭐ --</div>
+                        </div>
+                    </div>
+                    <div class="trip-action-btn" onclick="callCustomer()">📞</div>
+                </div>
+                <div class="request-route">
+                    <div class="route-point">
+                        <div class="route-dot pickup"></div>
+                        <div id="trip-pickup">--</div>
+                    </div>
+                    <div class="route-line" style="margin-left:4px"></div>
+                    <div class="route-point">
+                        <div class="route-dot dropoff"></div>
+                        <div id="trip-dropoff">--</div>
+                    </div>
+                </div>
+                <div class="request-meta">
+                    <span id="trip-distance">📍 -- km</span>
+                    <span id="trip-duration">⏱ -- phút</span>
+                    <span id="trip-payment">💵 --</span>
+                </div>
+                <div id="trip-notes" style="font-size:0.72rem;color:var(--orange);margin-top:6px;display:none"></div>
+                <button class="trip-next-action" id="tripActionBtn" onclick="advanceTrip()">
+                    <span id="tripActionText">--</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- EARNINGS SECTION -->
+        <div class="section" id="section-earnings">
+            <div class="earnings-hero">
+                <div
+                    style="font-size:0.75rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">
+                    Thu nhập hôm nay</div>
+                <div class="earnings-amount" id="earn-today">0đ</div>
+                <div class="earnings-goal">
+                    <span id="earn-goal-text">Mục tiêu: 0% / 1.500.000đ</span>
+                    <div class="goal-bar">
+                        <div class="goal-fill" id="goalFill" style="width:0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="earnings-grid">
+                <div class="earnings-item">
+                    <div class="earnings-item-value" id="earn-trips">0</div>
+                    <div class="earnings-item-label">Chuyến</div>
+                </div>
+                <div class="earnings-item">
+                    <div class="earnings-item-value" id="earn-hours">0h</div>
+                    <div class="earnings-item-label">Online</div>
+                </div>
+                <div class="earnings-item">
+                    <div class="earnings-item-value" id="earn-avg">0đ</div>
+                    <div class="earnings-item-label">TB/Chuyến</div>
+                </div>
+            </div>
+
+            <div class="earnings-grid" style="grid-template-columns:1fr 1fr">
+                <div class="earnings-item">
+                    <div class="earnings-item-value" style="color:var(--green)" id="earn-tips">0đ</div>
+                    <div class="earnings-item-label">Tiền tip</div>
+                </div>
+                <div class="earnings-item">
+                    <div class="earnings-item-value" style="color:var(--orange)" id="earn-bonus">0đ</div>
+                    <div class="earnings-item-label">Thưởng</div>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-title">📊 Thu nhập 7 ngày</div>
+                <div class="chart-wrap"><canvas id="earningsChart"></canvas></div>
+            </div>
+
+            <div class="earnings-grid" style="grid-template-columns:1fr 1fr;margin-top:8px">
+                <div class="earnings-item">
+                    <div class="earnings-item-value" id="earn-week">0đ</div>
+                    <div class="earnings-item-label">Tuần này</div>
+                </div>
+                <div class="earnings-item">
+                    <div class="earnings-item-value" id="earn-month">0đ</div>
+                    <div class="earnings-item-label">Tháng này</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HISTORY SECTION -->
+        <div class="section" id="section-history">
+            <div style="font-size:0.85rem;font-weight:600;margin:8px 0 12px">📋 Lịch sử chuyến đi</div>
+            <div id="historyList"></div>
+        </div>
+
+        <!-- MAP SECTION -->
+        <div class="section" id="section-map">
+            <div class="map-section">
+                <div id="driverMap"></div>
+                <div class="map-top-bar">
+                    <div class="map-badge" id="mapGpsStatus">
+                        <div class="gps-dot inactive" id="gpsDot"></div>
+                        <span id="gpsText">GPS đang tắt</span>
+                    </div>
+                    <div style="display:flex;gap:6px">
+                        <div class="map-center-btn" onclick="centerMyLocation()" title="Vị trí tôi">🎯</div>
+                        <div class="map-center-btn" onclick="toggleTrail()" title="Lộ trình">🛤️</div>
+                    </div>
+                </div>
+                <div class="map-overlay">
+                    <div class="map-stats">
+                        <div class="map-stat">
+                            <div class="map-stat-val" id="map-speed">0</div>
+                            <div class="map-stat-label">km/h</div>
+                        </div>
+                        <div class="map-stat">
+                            <div class="map-stat-val" id="map-heading">--</div>
+                            <div class="map-stat-label">Hướng</div>
+                        </div>
+                        <div class="map-stat">
+                            <div class="map-stat-val" id="map-accuracy">--</div>
+                            <div class="map-stat-label">Độ chính xác</div>
+                        </div>
+                        <div class="map-stat">
+                            <div class="map-stat-val" id="map-updates">0</div>
+                            <div class="map-stat-label">Cập nhật</div>
+                        </div>
+                    </div>
+                    <button class="sos-btn" id="sosBtn" onmousedown="startSOS()" onmouseup="cancelSOS()"
+                        ontouchstart="startSOS()" ontouchend="cancelSOS()">
+                        <div class="sos-fill" id="sosFill"></div>
+                        🚨 GIỮ 3s ĐỂ GỌI SOS KHẨN CẤP
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="switchSection('home')" id="nav-home">
+            <div class="nav-icon">🏠</div>
+            <div class="nav-label">Trang chủ</div>
+        </div>
+        <div class="nav-item" onclick="switchSection('map')" id="nav-map">
+            <div class="nav-icon">🗺️</div>
+            <div class="nav-label">Bản đồ</div>
+        </div>
+        <div class="nav-item" onclick="switchSection('earnings')" id="nav-earnings">
+            <div class="nav-icon">💰</div>
+            <div class="nav-label">Thu nhập</div>
+        </div>
+        <div class="nav-item" onclick="switchSection('history')" id="nav-history">
+            <div class="nav-icon">📋</div>
+            <div class="nav-label">Lịch sử</div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const API = '';
+        let isOnline = false;
+        let onTrip = false;
+        let currentRequest = null;
+        let currentTrip = null;
+        let requestTimer = null;
+        let requestPollTimer = null;
+        let earningsChart = null;
+
+        const typeEmoji = { ride: '🚗', food_delivery: '🍔', grocery: '🛒', designated_driver: '🚙' };
+        const typeName = { ride: 'Chở khách', food_delivery: 'Giao đồ ăn', grocery: 'Đi chợ hộ', designated_driver: 'Lái xe hộ' };
+        const typeBg = { ride: 'var(--blue-bg)', food_delivery: 'var(--orange-bg)', grocery: 'var(--green-bg)', designated_driver: 'var(--purple-bg)' };
+        const statusSteps = ['driver_assigned', 'arriving', 'arrived', 'picked_up', 'in_progress'];
+        const stepActions = {
+            driver_assigned: 'Đã đến điểm đón',
+            arriving: 'Đã đến điểm đón',
+            arrived: 'Đã đón khách',
+            picked_up: 'Hoàn thành chuyến',
+            in_progress: 'Hoàn thành chuyến'
+        };
+        const stepApiActions = {
+            driver_assigned: 'arrived',
+            arriving: 'arrived',
+            arrived: 'picked_up',
+            picked_up: 'completed',
+            in_progress: 'completed'
+        };
+
+        function fmtVND(n) {
+            if (n >= 1e6) return (n / 1e6).toFixed(1) + ' tr';
+            if (n >= 1e3) return Math.round(n / 1e3) + 'k';
+            return n.toLocaleString('vi-VN');
+        }
+
+        // Clock
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Toast
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('visible');
+            setTimeout(() => t.classList.remove('visible'), 2500);
+        }
+
+        // Section switching
+        function switchSection(name) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('section-' + name).classList.add('visible');
+            document.getElementById('nav-' + name).classList.add('active');
+            if (name === 'earnings') loadEarnings();
+            if (name === 'history') loadHistory();
+            if (name === 'map') { initMap(); setTimeout(() => driverMap && driverMap.invalidateSize(), 200); }
+        }
+
+        // Toggle Online/Offline
+        async function toggleOnline() {
+            const res = await fetch(API + '/api/v1/driver/toggle', { method: 'POST' });
+            const data = await res.json();
+            isOnline = data.online;
+            onTrip = data.on_trip;
+            updateToggleUI();
+            if (isOnline) {
+                showToast('🟢 Đang online! Chờ chuyến mới...');
+                pollRequests();
+            } else {
+                showToast('🔴 Đã offline');
+                clearInterval(requestPollTimer);
+                document.getElementById('requestCard').classList.remove('visible');
+                document.getElementById('tripCard').classList.remove('visible');
+            }
+        }
+
+        function updateToggleUI() {
+            const btn = document.getElementById('toggleBtn');
+            const label = document.getElementById('toggleLabel');
+            const sub = document.getElementById('toggleSub');
+            if (onTrip) {
+                btn.className = 'toggle-btn online';
+                btn.textContent = '🚗';
+                label.textContent = 'ĐANG CHẠY';
+                label.className = 'toggle-label online';
+                sub.textContent = 'Đang thực hiện chuyến';
+            } else if (isOnline) {
+                btn.className = 'toggle-btn online';
+                btn.textContent = '📡';
+                label.textContent = 'ONLINE';
+                label.className = 'toggle-label online';
+                sub.textContent = 'Đang chờ chuyến mới...';
+            } else {
+                btn.className = 'toggle-btn';
+                btn.textContent = '🔌';
+                label.textContent = 'OFFLINE';
+                label.className = 'toggle-label';
+                sub.textContent = 'Bấm để bắt đầu nhận chuyến';
+            }
+        }
+
+        // Load Status
+        async function loadStatus() {
+            const res = await fetch(API + '/api/v1/driver/status');
+            const d = await res.json();
+            document.getElementById('s-trips').textContent = d.trips_completed;
+            document.getElementById('s-earnings').textContent = fmtVND(d.today_earnings) + 'đ';
+            document.getElementById('s-rating').textContent = '⭐ ' + d.rating.toFixed(1);
+            document.getElementById('battery').textContent = '🔋 ' + d.battery_level + '%';
+        }
+
+        // Poll for requests
+        function pollRequests() {
+            if (requestPollTimer) clearInterval(requestPollTimer);
+            fetchRequests();
+            requestPollTimer = setInterval(fetchRequests, 8000);
+        }
+
+        async function fetchRequests() {
+            if (!isOnline || onTrip) return;
+            const res = await fetch(API + '/api/v1/driver/requests');
+            const data = await res.json();
+            if (data.count > 0) {
+                currentRequest = data.requests[0];
+                showRequest(currentRequest);
+            }
+        }
+
+        function showRequest(req) {
+            const card = document.getElementById('requestCard');
+            document.getElementById('req-icon').textContent = typeEmoji[req.service_type] || '📦';
+            document.getElementById('req-icon').style.background = typeBg[req.service_type];
+            let name = typeName[req.service_type] || req.service_type;
+            if (req.merchant_name) name += ' · ' + req.merchant_name;
+            document.getElementById('req-type').textContent = name;
+            document.getElementById('req-customer').textContent = req.customer_name + ' · ⭐' + req.customer_rating.toFixed(1);
+            document.getElementById('req-fare').textContent = fmtVND(req.fare_estimate) + 'đ';
+            document.getElementById('req-pickup').textContent = req.pickup_address;
+            document.getElementById('req-dropoff').textContent = req.dropoff_address;
+
+            let meta = `📍 ${req.distance_km.toFixed(1)} km`;
+            meta += ` · 💳 ${req.payment_method}`;
+            if (req.items_count) meta += ` · 📦 ${req.items_count} món`;
+            if (req.notes) meta += ` · 📝 ${req.notes}`;
+            document.getElementById('req-meta').innerHTML = meta;
+
+            card.classList.add('visible');
+            startTimer(req.expires_in || 25);
+        }
+
+        function startTimer(secs) {
+            let remaining = secs;
+            const fill = document.getElementById('timerFill');
+            const label = document.getElementById('req-timer');
+            clearInterval(requestTimer);
+            requestTimer = setInterval(() => {
+                remaining--;
+                label.textContent = remaining + 's';
+                fill.style.width = (remaining / secs * 100) + '%';
+                if (remaining <= 0) {
+                    clearInterval(requestTimer);
+                    document.getElementById('requestCard').classList.remove('visible');
+                    showToast('⏰ Chuyến đã hết hạn');
+                }
+            }, 1000);
+        }
+
+        // Accept/Decline
+        async function acceptRequest() {
+            clearInterval(requestTimer);
+            const res = await fetch(API + '/api/v1/driver/accept', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ request_id: currentRequest?.id })
+            });
+            const data = await res.json();
+            onTrip = true;
+            document.getElementById('requestCard').classList.remove('visible');
+            clearInterval(requestPollTimer);
+            showToast('✅ ' + data.message);
+            updateToggleUI();
+            loadCurrentTrip();
+        }
+
+        async function declineRequest() {
+            clearInterval(requestTimer);
+            await fetch(API + '/api/v1/driver/decline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+            document.getElementById('requestCard').classList.remove('visible');
+            showToast('❌ Đã từ chối');
+        }
+
+        // Current Trip
+        async function loadCurrentTrip() {
+            const res = await fetch(API + '/api/v1/driver/trip/current');
+            const data = await res.json();
+            if (!data.trip) {
+                document.getElementById('tripCard').classList.remove('visible');
+                return;
+            }
+            currentTrip = data.trip;
+            const card = document.getElementById('tripCard');
+
+            // Status steps
+            const stepIdx = statusSteps.indexOf(data.trip.status);
+            document.getElementById('tripSteps').innerHTML = statusSteps.map((s, i) => {
+                let cls = 'trip-step';
+                if (i < stepIdx) cls += ' active';
+                else if (i === stepIdx) cls += ' current';
+                return `<div class="${cls}"></div>`;
+            }).join('');
+
+            document.getElementById('trip-avatar').textContent = typeEmoji[data.trip.service_type] || '👤';
+            document.getElementById('trip-customer').textContent = data.trip.customer_name;
+            document.getElementById('trip-rating').textContent = '⭐ ' + data.trip.customer_rating;
+            document.getElementById('trip-pickup').textContent = data.trip.pickup_address;
+            document.getElementById('trip-dropoff').textContent = data.trip.dropoff_address;
+            document.getElementById('trip-distance').textContent = '📍 ' + data.trip.distance_km.toFixed(1) + ' km';
+            document.getElementById('trip-duration').textContent = '⏱ ' + data.trip.duration_min + ' phút';
+            document.getElementById('trip-payment').textContent = '💵 ' + fmtVND(data.trip.fare_estimate) + 'đ';
+
+            if (data.trip.notes) {
+                document.getElementById('trip-notes').style.display = 'block';
+                document.getElementById('trip-notes').textContent = '📝 ' + data.trip.notes;
+            } else {
+                document.getElementById('trip-notes').style.display = 'none';
+            }
+
+            document.getElementById('tripActionText').textContent = stepActions[data.trip.status] || 'Tiếp tục';
+            card.classList.add('visible');
+        }
+
+        async function advanceTrip() {
+            if (!currentTrip) return;
+            const action = stepApiActions[currentTrip.status] || 'completed';
+            const res = await fetch(API + '/api/v1/driver/trip/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+            const data = await res.json();
+            showToast(data.message);
+
+            if (action === 'completed') {
+                onTrip = false;
+                document.getElementById('tripCard').classList.remove('visible');
+                updateToggleUI();
+                loadStatus();
+                if (isOnline) pollRequests();
+                if (data.fare_final > 0) {
+                    setTimeout(() => showToast('💰 Thu nhập: ' + fmtVND(data.fare_final) + 'đ'), 1500);
+                }
+            } else {
+                loadCurrentTrip();
+            }
+        }
+
+        function callCustomer() { showToast('📞 Đang gọi khách hàng...'); }
+
+        // Earnings
+        async function loadEarnings() {
+            const res = await fetch(API + '/api/v1/driver/earnings');
+            const d = await res.json();
+
+            document.getElementById('earn-today').textContent = fmtVND(d.today.earnings) + 'đ';
+            document.getElementById('earn-trips').textContent = d.today.trips;
+            document.getElementById('earn-hours').textContent = d.today.hours_online.toFixed(1) + 'h';
+            document.getElementById('earn-avg').textContent = fmtVND(d.today.avg_per_trip) + 'đ';
+            document.getElementById('earn-tips').textContent = fmtVND(d.today.tips) + 'đ';
+            document.getElementById('earn-bonus').textContent = fmtVND(d.today.bonus) + 'đ';
+            document.getElementById('earn-week').textContent = fmtVND(d.week.earnings) + 'đ';
+            document.getElementById('earn-month').textContent = fmtVND(d.month.earnings) + 'đ';
+
+            const pct = Math.min(100, d.goal.progress_pct);
+            document.getElementById('goalFill').style.width = pct + '%';
+            document.getElementById('earn-goal-text').textContent = `Mục tiêu: ${pct.toFixed(0)}% / 1.500.000đ`;
+
+            // Chart
+            const ctx = document.getElementById('earningsChart').getContext('2d');
+            if (earningsChart) earningsChart.destroy();
+            earningsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: d.week.days.map(x => x.day_name),
+                    datasets: [{
+                        data: d.week.days.map(x => x.earnings),
+                        backgroundColor: d.week.days.map((x, i) => i === 6 ? '#3b82f6' : 'rgba(59,130,246,0.4)'),
+                        borderRadius: 6,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1f2937',
+                            callbacks: { label: ctx => fmtVND(ctx.raw) + 'đ · ' + d.week.days[ctx.dataIndex].trips + ' chuyến' }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 11 } } },
+                        y: { grid: { color: 'rgba(75,85,99,0.15)' }, ticks: { color: '#6b7280', callback: v => fmtVND(v) } }
+                    }
+                }
+            });
+        }
+
+        // History
+        async function loadHistory() {
+            const res = await fetch(API + '/api/v1/driver/history');
+            const d = await res.json();
+
+            document.getElementById('historyList').innerHTML = d.trips.map(t => `
+            <div class="history-item">
+                <div class="history-icon ${t.service_type}">${typeEmoji[t.service_type] || '📦'}</div>
+                <div class="history-info">
+                    <div class="history-route">${t.pickup} → ${t.dropoff}</div>
+                    <div class="history-detail">${t.distance_km.toFixed(1)} km · ${t.duration_min} phút · ${t.payment} <span class="history-status ${t.status}">${t.status === 'completed' ? 'Hoàn thành' : 'Đã hủy'}</span></div>
+                </div>
+                <div class="history-meta">
+                    <div class="history-fare">${fmtVND(t.fare)}đ</div>
+                    <div class="history-time">${t.time} · ${t.date}</div>
+                </div>
+            </div>
+        `).join('');
+        }
+
+        // ==================== MAP & GPS TRACKING ====================
+        let driverMap = null;
+        let myMarker = null;
+        let trailLayer = null;
+        let trailCoords = [];
+        let watchId = null;
+        let locationUpdates = 0;
+        let sosTimer = null;
+        let sosIsActive = false;
+        let showTrail = true;
+        let nearbyMarkers = [];
+
+        function initMap() {
+            if (driverMap) return;
+            driverMap = L.map('driverMap', { center: [10.7769, 106.7009], zoom: 15, zoomControl: false });
+            L.control.zoom({ position: 'bottomright' }).addTo(driverMap);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; CARTO', maxZoom: 19
+            }).addTo(driverMap);
+
+            // Start GPS tracking
+            startGPS();
+            // Load nearby drivers
+            loadNearbyOnMap();
+            setInterval(loadNearbyOnMap, 8000);
+        }
+
+        function startGPS() {
+            if (!navigator.geolocation) {
+                showToast('⚠️ Trình duyệt không hỗ trợ GPS');
+                return;
+            }
+            watchId = navigator.geolocation.watchPosition(
+                pos => onLocationUpdate(pos),
+                err => {
+                    document.getElementById('gpsDot').className = 'gps-dot inactive';
+                    document.getElementById('gpsText').textContent = 'GPS lỗi: ' + err.message;
+                },
+                { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+            );
+        }
+
+        function onLocationUpdate(pos) {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const speed = (pos.coords.speed || 0) * 3.6; // m/s -> km/h
+            const heading = pos.coords.heading || 0;
+            const accuracy = pos.coords.accuracy || 0;
+            locationUpdates++;
+
+            // Update GPS status
+            document.getElementById('gpsDot').className = 'gps-dot active';
+            document.getElementById('gpsText').textContent = 'GPS hoạt động';
+            document.getElementById('map-speed').textContent = speed.toFixed(0);
+            document.getElementById('map-heading').textContent = headingToDir(heading);
+            document.getElementById('map-accuracy').textContent = accuracy < 1000 ? accuracy.toFixed(0) + 'm' : (accuracy / 1000).toFixed(1) + 'km';
+            document.getElementById('map-updates').textContent = locationUpdates;
+
+            // Update marker
+            if (!myMarker) {
+                myMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'my-marker',
+                        html: `<div style="width:42px;height:42px;border-radius:50%;background:rgba(59,130,246,0.15);border:3px solid #3b82f6;display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 0 20px rgba(59,130,246,0.4)">🏍️</div>`,
+                        iconSize: [42, 42], iconAnchor: [21, 21]
+                    })
+                }).addTo(driverMap);
+                driverMap.setView([lat, lng], 16);
+            } else {
+                myMarker.setLatLng([lat, lng]);
+            }
+
+            // Accuracy circle
+            if (window._accCircle) driverMap.removeLayer(window._accCircle);
+            if (accuracy < 200) {
+                window._accCircle = L.circle([lat, lng], {
+                    radius: accuracy, fillColor: '#3b82f6', fillOpacity: 0.08,
+                    stroke: true, color: '#3b82f6', weight: 1, opacity: 0.3
+                }).addTo(driverMap);
+            }
+
+            // Trail
+            trailCoords.push([lat, lng]);
+            if (trailCoords.length > 300) trailCoords = trailCoords.slice(-300);
+            if (showTrail) {
+                if (trailLayer) driverMap.removeLayer(trailLayer);
+                trailLayer = L.polyline(trailCoords, {
+                    color: '#06b6d4', weight: 3, opacity: 0.6, dashArray: '6,8', lineCap: 'round'
+                }).addTo(driverMap);
+            }
+
+            // Send to server every 3rd update
+            if (locationUpdates % 3 === 0) {
+                const battery = window._lastBattery || 50;
+                fetch(API + '/api/v1/driver/location/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lat, lng, speed, heading, battery })
+                }).catch(() => { });
+            }
+        }
+
+        function headingToDir(deg) {
+            const dirs = ['B', 'ĐB', 'Đ', 'ĐN', 'N', 'TN', 'T', 'TB'];
+            return dirs[Math.round(deg / 45) % 8];
+        }
+
+        function centerMyLocation() {
+            if (myMarker) driverMap.setView(myMarker.getLatLng(), 16, { animate: true });
+            else showToast('⏳ Đang chờ GPS...');
+        }
+
+        function toggleTrail() {
+            showTrail = !showTrail;
+            if (!showTrail && trailLayer) { driverMap.removeLayer(trailLayer); trailLayer = null; }
+            showToast(showTrail ? '🛤️ Hiện lộ trình' : '🛤️ Ẩn lộ trình');
+        }
+
+        // Nearby drivers on map
+        async function loadNearbyOnMap() {
+            if (!driverMap) return;
+            try {
+                const res = await fetch(API + '/api/v1/driver/location/nearby');
+                const data = await res.json();
+                nearbyMarkers.forEach(m => driverMap.removeLayer(m));
+                nearbyMarkers = [];
+                data.drivers.forEach(d => {
+                    if (d.id === 1) return; // skip self
+                    const color = d.status === 'on_trip' ? '#f59e0b' : '#10b981';
+                    const m = L.marker([d.lat, d.lng], {
+                        icon: L.divIcon({
+                            className: 'nearby-marker',
+                            html: `<div style="width:28px;height:28px;border-radius:50%;background:rgba(17,24,39,0.85);border:2px solid ${color};display:flex;align-items:center;justify-content:center;font-size:0.75rem;box-shadow:0 2px 8px rgba(0,0,0,0.3)">${d.vehicle === 'bike' ? '🏍️' : '🚗'}</div>`,
+                            iconSize: [28, 28], iconAnchor: [14, 14]
+                        })
+                    }).addTo(driverMap);
+                    m.bindPopup(`<strong>${d.name}</strong><br>${d.license_plate}<br>⭐${d.rating.toFixed(1)} · 🔋${d.battery}%`);
+                    nearbyMarkers.push(m);
+                });
+            } catch (e) { }
+        }
+
+        // ==================== SOS ====================
+        function startSOS() {
+            if (sosIsActive) { cancelSOS_API(); return; }
+            const fill = document.getElementById('sosFill');
+            fill.style.transition = 'width 3s linear';
+            fill.style.width = '100%';
+            sosTimer = setTimeout(async () => {
+                sosIsActive = true;
+                document.getElementById('sosBtn').classList.add('active');
+                document.getElementById('sosBtn').innerHTML = '<div class="sos-fill" id="sosFill" style="width:100%;background:rgba(239,68,68,0.3)"></div>🚨 SOS ĐÃ KÍCH HOẠT — Bấm để tắt';
+                try {
+                    const res = await fetch(API + '/api/v1/driver/sos', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'activate' })
+                    });
+                    const data = await res.json();
+                    showToast(data.message);
+                } catch (e) { showToast('🚨 SOS — Đã gửi cảnh báo!'); }
+            }, 3000);
+        }
+
+        function cancelSOS() {
+            if (sosIsActive) return;
+            clearTimeout(sosTimer);
+            const fill = document.getElementById('sosFill');
+            fill.style.transition = 'none';
+            fill.style.width = '0';
+        }
+
+        async function cancelSOS_API() {
+            sosIsActive = false;
+            document.getElementById('sosBtn').classList.remove('active');
+            document.getElementById('sosBtn').innerHTML = '<div class="sos-fill" id="sosFill"></div>🚨 GIỮ 3s ĐỂ GỌI SOS KHẨN CẤP';
+            await fetch(API + '/api/v1/driver/sos', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'cancel' })
+            });
+            showToast('🟢 SOS đã tắt');
+        }
+
+        // Battery API
+        if (navigator.getBattery) {
+            navigator.getBattery().then(b => {
+                window._lastBattery = Math.round(b.level * 100);
+                b.addEventListener('levelchange', () => window._lastBattery = Math.round(b.level * 100));
+            });
+        }
+
+        // Init
+        loadStatus();
+    </script>
+</body>
+
+</html>

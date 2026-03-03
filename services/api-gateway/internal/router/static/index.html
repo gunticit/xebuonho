@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xebuonho Admin Dashboard</title>
+    <meta name="description" content="Admin dashboard for Xebuonho super-app platform">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0f1c;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.8);
+            --bg-card-hover: rgba(31, 41, 55, 0.9);
+            --border: rgba(75, 85, 99, 0.3);
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-purple: #8b5cf6;
+            --accent-red: #ef4444;
+            --accent-pink: #ec4899;
+            --accent-cyan: #06b6d4;
+            --gradient-blue: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            --gradient-green: linear-gradient(135deg, #10b981, #059669);
+            --gradient-orange: linear-gradient(135deg, #f59e0b, #d97706);
+            --gradient-purple: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+            --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.15);
+            --shadow-glow-green: 0 0 20px rgba(16, 185, 129, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Background Pattern */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.07) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.07) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Header */
+        .header {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(10, 15, 28, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem;
+        }
+
+        .header-inner {
+            max-width: 1440px; margin: 0 auto;
+            display: flex; align-items: center; justify-content: space-between;
+            height: 64px;
+        }
+
+        .logo {
+            display: flex; align-items: center; gap: 12px;
+            font-weight: 700; font-size: 1.25rem;
+        }
+
+        .logo-icon {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: var(--gradient-blue);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .logo span { color: var(--accent-blue); }
+
+        .header-right {
+            display: flex; align-items: center; gap: 20px;
+        }
+
+        .live-indicator {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 14px; border-radius: 20px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            font-size: 0.8rem; color: var(--accent-green);
+        }
+
+        .live-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.3); }
+        }
+
+        .timestamp { font-size: 0.85rem; color: var(--text-muted); }
+
+        /* Main Content */
+        .main {
+            position: relative; z-index: 1;
+            max-width: 1440px; margin: 0 auto;
+            padding: 1.5rem 2rem 3rem;
+        }
+
+        /* Stats Cards Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .stat-card:nth-child(1)::before { background: var(--gradient-blue); }
+        .stat-card:nth-child(2)::before { background: var(--gradient-green); }
+        .stat-card:nth-child(3)::before { background: var(--gradient-orange); }
+        .stat-card:nth-child(4)::before { background: var(--gradient-purple); }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(75, 85, 99, 0.5);
+            box-shadow: var(--shadow);
+        }
+
+        .stat-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+
+        .stat-label { font-size: 0.8rem; color: var(--text-secondary); font-weight: 500; }
+
+        .stat-icon {
+            width: 36px; height: 36px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .stat-icon.blue { background: rgba(59, 130, 246, 0.15); }
+        .stat-icon.green { background: rgba(16, 185, 129, 0.15); }
+        .stat-icon.orange { background: rgba(245, 158, 11, 0.15); }
+        .stat-icon.purple { background: rgba(139, 92, 246, 0.15); }
+
+        .stat-value {
+            font-size: 1.75rem; font-weight: 800;
+            letter-spacing: -0.5px; margin-bottom: 0.25rem;
+        }
+
+        .stat-change {
+            font-size: 0.75rem; font-weight: 500;
+            display: flex; align-items: center; gap: 4px;
+        }
+
+        .stat-change.up { color: var(--accent-green); }
+        .stat-change.down { color: var(--accent-red); }
+
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+        }
+
+        .card-title {
+            font-size: 0.95rem; font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        /* Service Breakdown */
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .service-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.15rem;
+            transition: all 0.3s ease;
+        }
+
+        .service-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .service-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .service-name {
+            font-size: 0.8rem; color: var(--text-secondary);
+            margin-bottom: 0.4rem; font-weight: 500;
+        }
+
+        .service-orders {
+            font-size: 1.3rem; font-weight: 700;
+            margin-bottom: 0.15rem;
+        }
+
+        .service-revenue {
+            font-size: 0.78rem; color: var(--accent-green); font-weight: 500;
+        }
+
+        .service-detail {
+            margin-top: 0.6rem; padding-top: 0.6rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.72rem; color: var(--text-muted);
+        }
+
+        /* Live Feed */
+        .feed {
+            max-height: 400px; overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+
+        .feed::-webkit-scrollbar { width: 4px; }
+        .feed::-webkit-scrollbar-track { background: transparent; }
+        .feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+        .feed-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 0.65rem 0;
+            border-bottom: 1px solid rgba(75, 85, 99, 0.15);
+            transition: background 0.2s;
+        }
+
+        .feed-item:hover { background: rgba(255, 255, 255, 0.02); border-radius: 8px; }
+
+        .feed-type {
+            width: 36px; height: 36px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; flex-shrink: 0;
+        }
+
+        .feed-type.ride { background: rgba(59, 130, 246, 0.12); }
+        .feed-type.food_delivery { background: rgba(245, 158, 11, 0.12); }
+        .feed-type.grocery { background: rgba(16, 185, 129, 0.12); }
+        .feed-type.designated_driver { background: rgba(139, 92, 246, 0.12); }
+
+        .feed-info { flex: 1; min-width: 0; }
+        .feed-name { font-size: 0.82rem; font-weight: 500; }
+        .feed-route { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .feed-meta { text-align: right; flex-shrink: 0; }
+        .feed-fare { font-size: 0.82rem; font-weight: 600; }
+        .feed-time { font-size: 0.7rem; color: var(--text-muted); }
+
+        .status-badge {
+            display: inline-block; padding: 2px 8px;
+            border-radius: 6px; font-size: 0.65rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+
+        .status-badge.created { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+        .status-badge.driver_assigned { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
+        .status-badge.picked_up, .status-badge.in_progress { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
+        .status-badge.completed { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+        .status-badge.cancelled_by_customer { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+
+        /* Chart */
+        .chart-container { position: relative; height: 280px; }
+
+        /* Donut */
+        .donut-container { position: relative; height: 220px; display: flex; align-items: center; justify-content: center; }
+
+        /* Driver List */
+        .driver-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 0.55rem 0;
+            border-bottom: 1px solid rgba(75, 85, 99, 0.15);
+        }
+
+        .driver-rank {
+            width: 24px; height: 24px; border-radius: 6px;
+            font-size: 0.7rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .driver-rank.gold { background: rgba(245, 158, 11, 0.2); color: var(--accent-orange); }
+        .driver-rank.silver { background: rgba(156, 163, 175, 0.2); color: var(--text-secondary); }
+
+        .driver-info { flex: 1; }
+        .driver-name { font-size: 0.82rem; font-weight: 500; }
+        .driver-trips { font-size: 0.7rem; color: var(--text-muted); }
+        .driver-revenue { font-size: 0.82rem; font-weight: 600; text-align: right; }
+
+        /* Bottom Grid */
+        .bottom-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            height: 6px; background: rgba(75, 85, 99, 0.3);
+            border-radius: 3px; margin-top: 0.5rem; overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%; border-radius: 3px;
+            transition: width 1s ease;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .stats-grid, .services-grid { grid-template-columns: repeat(2, 1fr); }
+            .content-grid { grid-template-columns: 1fr; }
+            .bottom-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid, .services-grid { grid-template-columns: 1fr; }
+            .main { padding: 1rem; }
+        }
+
+        /* Animations */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeUp 0.5s ease forwards;
+            opacity: 0;
+        }
+
+        .animate-in:nth-child(1) { animation-delay: 0.05s; }
+        .animate-in:nth-child(2) { animation-delay: 0.1s; }
+        .animate-in:nth-child(3) { animation-delay: 0.15s; }
+        .animate-in:nth-child(4) { animation-delay: 0.2s; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">🚀</div>
+                <div>Xe<span>buonho</span> <span style="color:var(--text-muted);font-weight:400;font-size:0.85rem">Admin</span></div>
+            </div>
+            <div class="header-right">
+                <div class="live-indicator">
+                    <div class="live-dot"></div>
+                    Live
+                </div>
+                <div class="timestamp" id="clock"></div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <!-- Stats Cards -->
+        <div class="stats-grid" id="stats-grid"></div>
+
+        <!-- Services Breakdown -->
+        <div class="services-grid" id="services-grid"></div>
+
+        <!-- Charts + Feed -->
+        <div class="content-grid">
+            <div class="card animate-in">
+                <div class="card-title">📊 Doanh thu 7 ngày</div>
+                <div class="chart-container">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+            <div class="card animate-in">
+                <div class="card-title">📋 Hoạt động gần đây</div>
+                <div class="feed" id="live-feed"></div>
+            </div>
+        </div>
+
+        <!-- Bottom section -->
+        <div class="bottom-grid">
+            <div class="card animate-in">
+                <div class="card-title">🍩 Tỷ lệ dịch vụ</div>
+                <div class="donut-container">
+                    <canvas id="donutChart"></canvas>
+                </div>
+            </div>
+            <div class="card animate-in">
+                <div class="card-title">🏆 Top tài xế hôm nay</div>
+                <div id="top-drivers"></div>
+            </div>
+            <div class="card animate-in">
+                <div class="card-title">⏰ Giờ cao điểm</div>
+                <div id="peak-hours"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API = '';
+        let revenueChart, donutChart;
+
+        // Format VND
+        function fmtVND(n) {
+            if (n >= 1e9) return (n / 1e9).toFixed(1) + ' tỷ';
+            if (n >= 1e6) return (n / 1e6).toFixed(1) + ' tr';
+            if (n >= 1e3) return (n / 1e3).toFixed(0) + 'k';
+            return n.toLocaleString('vi-VN');
+        }
+
+        function fmtNum(n) { return n.toLocaleString('vi-VN'); }
+
+        const typeEmoji = { ride: '🚗', food_delivery: '🍔', grocery: '🛒', designated_driver: '🚙' };
+        const typeName = { ride: 'Chở khách', food_delivery: 'Đồ ăn', grocery: 'Đi chợ', designated_driver: 'Lái xe hộ' };
+        const typeColor = { ride: '#3b82f6', food_delivery: '#f59e0b', grocery: '#10b981', designated_driver: '#8b5cf6' };
+
+        // Clock
+        function updateClock() {
+            document.getElementById('clock').textContent = new Date().toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Load Stats
+        async function loadStats() {
+            const res = await fetch(API + '/api/v1/admin/stats');
+            const data = await res.json();
+            const o = data.overview;
+
+            document.getElementById('stats-grid').innerHTML = [
+                { label: 'Đơn hàng hôm nay', value: fmtNum(o.total_orders_today), icon: '📦', cls: 'blue', change: '+12%', up: true, sub: `${o.active_orders} đang xử lý` },
+                { label: 'Doanh thu hôm nay', value: fmtVND(o.total_revenue_today) + 'đ', icon: '💰', cls: 'green', change: '+8%', up: true, sub: `TB ${fmtVND(o.average_order_value)}đ/đơn` },
+                { label: 'Tài xế online', value: fmtNum(o.total_drivers_online), icon: '🏍️', cls: 'orange', change: `${o.total_drivers_active} đang chạy`, up: true, sub: `Tỷ lệ: ${o.completion_rate.toFixed(1)}%` },
+                { label: 'Khách hàng', value: fmtNum(o.total_customers), icon: '👥', cls: 'purple', change: '+5%', up: true, sub: `${o.total_merchants} merchants` },
+            ].map(s => `
+                <div class="stat-card animate-in">
+                    <div class="stat-header">
+                        <div class="stat-label">${s.label}</div>
+                        <div class="stat-icon ${s.cls}">${s.icon}</div>
+                    </div>
+                    <div class="stat-value">${s.value}</div>
+                    <div class="stat-change ${s.up ? 'up' : 'down'}">▲ ${s.change}</div>
+                    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">${s.sub}</div>
+                </div>
+            `).join('');
+
+            // Services
+            const svc = data.by_service;
+            document.getElementById('services-grid').innerHTML = Object.entries(svc).map(([key, v]) => `
+                <div class="service-card animate-in">
+                    <div class="service-icon">${typeEmoji[key]}</div>
+                    <div class="service-name">${typeName[key]}</div>
+                    <div class="service-orders">${fmtNum(v.orders_today)} đơn</div>
+                    <div class="service-revenue">${fmtVND(v.revenue_today)}đ</div>
+                    <div class="service-detail">
+                        ${v.avg_fare ? 'TB: ' + fmtVND(v.avg_fare) + 'đ' : v.avg_order_value ? 'TB: ' + fmtVND(v.avg_order_value) + 'đ' : v.avg_basket_value ? 'TB: ' + fmtVND(v.avg_basket_value) + 'đ' : ''}
+                        ${v.cancel_rate ? ' · Hủy: ' + v.cancel_rate.toFixed(1) + '%' : ''}
+                        ${v.night_pct ? ' · Đêm: ' + v.night_pct.toFixed(0) + '%' : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            // Peak Hours
+            document.getElementById('peak-hours').innerHTML = data.peak_hours.map(p => `
+                <div style="display:flex;align-items:center;gap:10px;padding:0.5rem 0;border-bottom:1px solid rgba(75,85,99,0.15)">
+                    <span style="font-size:0.85rem;min-width:95px;color:var(--text-secondary)">${p.hour}</span>
+                    <div style="flex:1">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width:${Math.min(100, p.orders)}%;background:${typeColor[p.type]}"></div>
+                        </div>
+                    </div>
+                    <span style="font-size:0.8rem;font-weight:600;min-width:40px;text-align:right">${p.orders}</span>
+                    <span style="font-size:0.85rem">${typeEmoji[p.type]}</span>
+                </div>
+            `).join('');
+        }
+
+        // Load Revenue Chart
+        async function loadRevenue() {
+            const res = await fetch(API + '/api/v1/admin/revenue');
+            const data = await res.json();
+            const d = data.chart_data;
+
+            const ctx = document.getElementById('revenueChart').getContext('2d');
+            if (revenueChart) revenueChart.destroy();
+
+            revenueChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: d.map(x => x.day_name + '\n' + x.date),
+                    datasets: [
+                        { label: 'Chở khách', data: d.map(x => x.ride), backgroundColor: '#3b82f680', borderRadius: 4 },
+                        { label: 'Đồ ăn', data: d.map(x => x.food_delivery), backgroundColor: '#f59e0b80', borderRadius: 4 },
+                        { label: 'Đi chợ', data: d.map(x => x.grocery), backgroundColor: '#10b98180', borderRadius: 4 },
+                        { label: 'Lái xe hộ', data: d.map(x => x.designated_driver), backgroundColor: '#8b5cf680', borderRadius: 4 },
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 12, padding: 16 } },
+                        tooltip: {
+                            backgroundColor: '#1f2937', titleColor: '#f9fafb', bodyColor: '#d1d5db',
+                            borderColor: '#374151', borderWidth: 1, padding: 10,
+                            callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtVND(ctx.raw) + 'đ' }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { display: false }, ticks: { color: '#6b7280', font: { size: 11 } } },
+                        y: { stacked: true, grid: { color: 'rgba(75,85,99,0.15)' }, ticks: { color: '#6b7280', callback: v => fmtVND(v) + 'đ' } }
+                    }
+                }
+            });
+
+            // Donut
+            const totals = { ride: 0, food_delivery: 0, grocery: 0, designated_driver: 0 };
+            d.forEach(x => { totals.ride += x.ride; totals.food_delivery += x.food_delivery; totals.grocery += x.grocery; totals.designated_driver += x.designated_driver; });
+            const dCtx = document.getElementById('donutChart').getContext('2d');
+            if (donutChart) donutChart.destroy();
+
+            donutChart = new Chart(dCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(totals).map(k => typeName[k]),
+                    datasets: [{
+                        data: Object.values(totals),
+                        backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#8b5cf6'],
+                        borderWidth: 0, hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 10, padding: 12 } },
+                        tooltip: {
+                            backgroundColor: '#1f2937',
+                            callbacks: { label: ctx => ctx.label + ': ' + fmtVND(ctx.raw) + 'đ' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load Live Feed
+        async function loadFeed() {
+            const res = await fetch(API + '/api/v1/admin/orders/recent');
+            const data = await res.json();
+
+            document.getElementById('live-feed').innerHTML = data.orders.map(o => `
+                <div class="feed-item">
+                    <div class="feed-type ${o.service_type}">${typeEmoji[o.service_type]}</div>
+                    <div class="feed-info">
+                        <div class="feed-name">${o.customer_name} <span class="status-badge ${o.status}">${o.status.replace(/_/g, ' ')}</span></div>
+                        <div class="feed-route">${o.pickup} → ${o.dropoff}</div>
+                    </div>
+                    <div class="feed-meta">
+                        <div class="feed-fare">${fmtVND(o.fare)}đ</div>
+                        <div class="feed-time">${o.created_at} · ${o.payment_method}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Load Drivers
+        async function loadDrivers() {
+            const res = await fetch(API + '/api/v1/admin/drivers');
+            const data = await res.json();
+
+            document.getElementById('top-drivers').innerHTML = data.top_drivers.map((d, i) => `
+                <div class="driver-item">
+                    <div class="driver-rank ${i < 3 ? 'gold' : 'silver'}">${i + 1}</div>
+                    <div class="driver-info">
+                        <div class="driver-name">${d.name}</div>
+                        <div class="driver-trips">${d.trips_today} chuyến · ⭐ ${d.rating.toFixed(1)}</div>
+                    </div>
+                    <div class="driver-revenue">${fmtVND(d.revenue)}đ</div>
+                </div>
+            `).join('');
+        }
+
+        // Initial load
+        Promise.all([loadStats(), loadRevenue(), loadFeed(), loadDrivers()]);
+
+        // Auto-refresh every 30s
+        setInterval(() => { loadStats(); loadFeed(); loadDrivers(); }, 30000);
+        setInterval(loadRevenue, 60000);
+    </script>
+</body>
+</html>
