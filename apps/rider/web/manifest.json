@@ -1,0 +1,11 @@
+{
+  "name": "xebuonho",
+  "short_name": "Xebuonho",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0B0F1A",
+  "theme_color": "#3B82F6",
+  "description": "Xebuonho Rider App",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}

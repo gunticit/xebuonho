@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xebuonho - Trung Tâm Thông Báo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #0B0F1A;
+            color: #F9FAFB;
+            min-height: 100vh;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        .header {
+            background: #111827;
+            border-bottom: 1px solid rgba(75, 85, 99, 0.25);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 800;
+        }
+
+        .header h1 span {
+            color: #3B82F6;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 4px;
+        }
+
+        .status-dot.online {
+            background: #10B981;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+        }
+
+        .status-dot.offline {
+            background: #EF4444;
+        }
+
+        .badge {
+            background: #EF4444;
+            color: white;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 0;
+            height: calc(100vh - 60px);
+        }
+
+        /* Notification List */
+        .notif-list {
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid rgba(75, 85, 99, 0.25);
+        }
+
+        .notif-list h2 {
+            font-size: 14px;
+            color: #9CA3AF;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .notif-item {
+            background: #111827;
+            border: 1px solid rgba(75, 85, 99, 0.25);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .notif-item:hover {
+            border-color: #3B82F6;
+            transform: translateX(4px);
+        }
+
+        .notif-item.unread {
+            border-left: 3px solid #3B82F6;
+        }
+
+        .notif-item.unread .notif-title {
+            color: #F9FAFB;
+        }
+
+        .notif-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .notif-icon.system {
+            background: rgba(59, 130, 246, 0.12);
+        }
+
+        .notif-icon.ride {
+            background: rgba(16, 185, 129, 0.12);
+        }
+
+        .notif-icon.order {
+            background: rgba(245, 158, 11, 0.12);
+        }
+
+        .notif-icon.sos {
+            background: rgba(239, 68, 68, 0.12);
+        }
+
+        .notif-icon.promo {
+            background: rgba(139, 92, 246, 0.12);
+        }
+
+        .notif-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .notif-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #D1D5DB;
+            margin-bottom: 2px;
+        }
+
+        .notif-msg {
+            font-size: 13px;
+            color: #9CA3AF;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .notif-time {
+            font-size: 11px;
+            color: #6B7280;
+            margin-top: 4px;
+        }
+
+        .notif-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6B7280;
+        }
+
+        .notif-empty .emoji {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        /* Send Panel */
+        .send-panel {
+            padding: 20px;
+            background: #111827;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .send-panel h2 {
+            font-size: 14px;
+            color: #9CA3AF;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            color: #9CA3AF;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            background: #0B0F1A;
+            border: 1px solid rgba(75, 85, 99, 0.4);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #F9FAFB;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: border 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            border-color: #3B82F6;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .btn {
+            padding: 12px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #3B82F6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563EB;
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: #EF4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.25);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-group .btn {
+            flex: 1;
+        }
+
+        /* Stats */
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .stat-card {
+            background: #0B0F1A;
+            border: 1px solid rgba(75, 85, 99, 0.25);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 800;
+            color: #F9FAFB;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #6B7280;
+            margin-top: 2px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #111827;
+            border: 1px solid #3B82F6;
+            border-radius: 14px;
+            padding: 14px 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            transform: translateX(400px);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000;
+            max-width: 360px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast-icon {
+            font-size: 24px;
+        }
+
+        .toast-body {
+            flex: 1;
+        }
+
+        .toast-title {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .toast-msg {
+            font-size: 12px;
+            color: #9CA3AF;
+            margin-top: 2px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            .send-panel {
+                border-top: 1px solid rgba(75, 85, 99, 0.25);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>🔔 Trung Tâm <span>Thông Báo</span></h1>
+        <div class="status-bar">
+            <div><span class="status-dot" id="wsDot"></span> <span id="wsStatus">Đang kết nối...</span></div>
+            <span id="onlineCount" class="badge">0 online</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="notif-list" id="notifList">
+            <h2>Thông báo gần đây</h2>
+            <div class="notif-empty" id="emptyState">
+                <div class="emoji">🔕</div>
+                <div>Chưa có thông báo nào</div>
+                <div style="font-size:12px;margin-top:4px">Kết nối WebSocket để nhận thông báo realtime</div>
+            </div>
+        </div>
+
+        <div class="send-panel">
+            <h2>Gửi Thông Báo</h2>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalCount">0</div>
+                    <div class="stat-label">Tổng thông báo</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="unreadCount">0</div>
+                    <div class="stat-label">Chưa đọc</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Loại thông báo</label>
+                <select id="notifType">
+                    <option value="system">🔔 Hệ thống</option>
+                    <option value="ride">🚗 Cuốc xe</option>
+                    <option value="order">📦 Đơn hàng</option>
+                    <option value="promo">🎉 Khuyến mãi</option>
+                    <option value="sos">🚨 SOS</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Gửi đến (để trống = tất cả)</label>
+                <input type="text" id="targetUser" placeholder="User ID hoặc role (rider/driver)">
+            </div>
+
+            <div class="form-group">
+                <label>Tiêu đề</label>
+                <input type="text" id="notifTitle" placeholder="Tiêu đề thông báo" value="Thông báo mới">
+            </div>
+
+            <div class="form-group">
+                <label>Nội dung</label>
+                <textarea id="notifMessage" placeholder="Nội dung chi tiết..."></textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="sendNotification()">📤 Gửi Thông Báo</button>
+
+            <div class="btn-group">
+                <button class="btn btn-danger" onclick="clearAll()">🗑️ Xóa tất cả</button>
+                <button class="btn btn-primary" onclick="sendTestBurst()">⚡ Test 5 thông báo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div class="toast" id="toast">
+        <div class="toast-icon" id="toastIcon">🔔</div>
+        <div class="toast-body">
+            <div class="toast-title" id="toastTitle"></div>
+            <div class="toast-msg" id="toastMsg"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let notifications = [];
+        let reconnectDelay = 1000;
+
+        function connect() {
+            const wsUrl = `ws://${location.host}/ws?user_id=admin&role=admin`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                document.getElementById('wsDot').className = 'status-dot online';
+                document.getElementById('wsStatus').textContent = 'Đã kết nối';
+                reconnectDelay = 1000;
+                console.log('✅ WebSocket connected');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'init' && data.notifications) {
+                        notifications = data.notifications;
+                        renderNotifications();
+                    } else if (data.type === 'notification') {
+                        notifications.unshift(data.notification);
+                        renderNotifications();
+                        showToast(data.notification);
+                    }
+                } catch (e) {
+                    console.error('Parse error:', e);
+                }
+            };
+
+            ws.onclose = () => {
+                document.getElementById('wsDot').className = 'status-dot offline';
+                document.getElementById('wsStatus').textContent = 'Mất kết nối';
+                console.log('❌ WebSocket disconnected, reconnecting in', reconnectDelay + 'ms');
+                setTimeout(connect, reconnectDelay);
+                reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+            };
+
+            ws.onerror = () => ws.close();
+        }
+
+        function renderNotifications() {
+            const list = document.getElementById('notifList');
+            const empty = document.getElementById('emptyState');
+
+            if (notifications.length === 0) {
+                empty.style.display = 'block';
+                // Remove existing items
+                document.querySelectorAll('.notif-item').forEach(el => el.remove());
+                updateStats();
+                return;
+            }
+
+            empty.style.display = 'none';
+            // Remove old items
+            document.querySelectorAll('.notif-item').forEach(el => el.remove());
+
+            notifications.forEach(n => {
+                const item = document.createElement('div');
+                item.className = 'notif-item' + (n.read ? '' : ' unread');
+                item.onclick = () => markRead(n.id);
+
+                const iconClass = n.type || 'system';
+                const icons = { system: '🔔', ride: '🚗', order: '📦', promo: '🎉', sos: '🚨' };
+                const icon = icons[iconClass] || '🔔';
+
+                const time = n.timestamp ? timeAgo(n.timestamp) : 'vừa xong';
+
+                item.innerHTML = `
+                    <div class="notif-icon ${iconClass}">${icon}</div>
+                    <div class="notif-body">
+                        <div class="notif-title">${n.title || 'Thông báo'}</div>
+                        <div class="notif-msg">${n.message}</div>
+                        <div class="notif-time">${time}</div>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+
+            updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('totalCount').textContent = notifications.length;
+            document.getElementById('unreadCount').textContent = notifications.filter(n => !n.read).length;
+        }
+
+        function showToast(notif) {
+            const toast = document.getElementById('toast');
+            const icons = { system: '🔔', ride: '🚗', order: '📦', promo: '🎉', sos: '🚨' };
+            document.getElementById('toastIcon').textContent = icons[notif.type] || '🔔';
+            document.getElementById('toastTitle').textContent = notif.title || 'Thông báo';
+            document.getElementById('toastMsg').textContent = notif.message;
+            toast.className = 'toast show';
+            setTimeout(() => toast.className = 'toast', 4000);
+
+            // Play notification sound
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.frequency.value = 800; gain.gain.value = 0.1;
+                osc.start(); osc.stop(ctx.currentTime + 0.15);
+            } catch (e) { }
+        }
+
+        function markRead(id) {
+            const n = notifications.find(n => n.id === id);
+            if (n) { n.read = true; renderNotifications(); }
+            if (ws && ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'mark_read', id }));
+            }
+        }
+
+        function sendNotification() {
+            const target = document.getElementById('targetUser').value;
+            const body = {
+                type: document.getElementById('notifType').value,
+                title: document.getElementById('notifTitle').value,
+                message: document.getElementById('notifMessage').value,
+            };
+            if (target.includes('rider') || target.includes('driver') || target.includes('admin')) {
+                body.role = target;
+            } else if (target) {
+                body.user_id = target;
+            }
+
+            fetch('/api/v1/notifications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            }).then(r => r.json()).then(d => {
+                console.log('Sent:', d);
+                document.getElementById('notifMessage').value = '';
+            });
+        }
+
+        function sendTestBurst() {
+            const messages = [
+                { type: 'ride', title: 'Cuốc xe mới', message: 'Khách hàng yêu cầu xe từ Quận 1 → Quận 7' },
+                { type: 'order', title: 'Đơn hàng mới', message: 'Đơn GrabFood #1234 đang chờ xác nhận' },
+                { type: 'promo', title: 'Flash Sale!', message: 'Giảm 30% tất cả cuốc xe trong 1 giờ tới' },
+                { type: 'system', title: 'Cập nhật', message: 'Phiên bản 2.0 đã sẵn sàng cập nhật' },
+                { type: 'sos', title: 'SOS Alert', message: 'Tài xế Nguyễn Văn A kích hoạt SOS tại Q.3' },
+            ];
+            messages.forEach((m, i) => {
+                setTimeout(() => {
+                    fetch('/api/v1/notifications', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(m),
+                    });
+                }, i * 500);
+            });
+        }
+
+        function clearAll() {
+            notifications = [];
+            renderNotifications();
+        }
+
+        function timeAgo(ts) {
+            const diff = Date.now() - ts;
+            if (diff < 60000) return 'vừa xong';
+            if (diff < 3600000) return Math.floor(diff / 60000) + ' phút trước';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + ' giờ trước';
+            return Math.floor(diff / 86400000) + ' ngày trước';
+        }
+
+        // Fetch online count periodically
+        setInterval(() => {
+            fetch('/api/v1/notifications?user_id=admin').then(r => r.json()).then(d => {
+                document.getElementById('onlineCount').textContent = (d.online || 0) + ' online';
+            }).catch(() => { });
+        }, 5000);
+
+        connect();
+    </script>
+</body>
+
+</html>
