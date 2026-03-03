@@ -52,7 +52,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      _buildWalletBtn('Nạp tiền', Icons.add_circle_outline, AppColors.green),
+                      _buildWalletBtn('Nạp tiền', Icons.add_circle_outline, AppColors.green,
+                        onTap: () => Navigator.pushNamed(context, '/top-up')),
                       const SizedBox(width: 12),
                       _buildWalletBtn('Rút tiền', Icons.arrow_circle_down, AppColors.orange),
                       const SizedBox(width: 12),
@@ -109,20 +110,23 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
-  Widget _buildWalletBtn(String label, IconData icon, Color color) {
+  Widget _buildWalletBtn(String label, IconData icon, Color color, {VoidCallback? onTap}) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 4),
-            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
-          ],
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(height: 4),
+              Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+            ],
+          ),
         ),
       ),
     );
