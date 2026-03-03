@@ -2,8 +2,11 @@ package router
 
 import (
 	"embed"
+	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 
 	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
@@ -37,6 +40,14 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	mux.HandleFunc("/api/v1/admin/orders/recent", adminH.GetRecentOrders)
 	mux.HandleFunc("/api/v1/admin/revenue", adminH.GetRevenueChart)
 	mux.HandleFunc("/api/v1/admin/drivers", adminH.GetDriverStats)
+
+	// ==========================================
+	// Auth API (proxy to user-service, no JWT required)
+	// ==========================================
+	userServiceURL := getEnvDefault("USER_SERVICE_URL", "http://localhost:8091")
+	mux.HandleFunc("/api/v1/auth/", func(w http.ResponseWriter, r *http.Request) {
+		proxyToService(w, r, userServiceURL)
+	})
 
 	// ==========================================
 	// Driver API
@@ -149,4 +160,51 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"ok","service":"api-gateway","version":"1.0.0"}`))
+}
+
+// proxyToService forwards the request to an internal service
+func proxyToService(w http.ResponseWriter, r *http.Request, serviceURL string) {
+	target, err := url.Parse(serviceURL)
+	if err != nil {
+		http.Error(w, `{"error":"service unavailable"}`, http.StatusBadGateway)
+		return
+	}
+
+	// Build proxy request
+	proxyURL := target.ResolveReference(r.URL)
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, proxyURL.String(), r.Body)
+	if err != nil {
+		http.Error(w, `{"error":"proxy error"}`, http.StatusBadGateway)
+		return
+	}
+
+	// Copy headers
+	for key, values := range r.Header {
+		for _, v := range values {
+			proxyReq.Header.Add(key, v)
+		}
+	}
+
+	resp, err := http.DefaultClient.Do(proxyReq)
+	if err != nil {
+		http.Error(w, `{"error":"service unavailable"}`, http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Copy response headers
+	for key, values := range resp.Header {
+		for _, v := range values {
+			w.Header().Add(key, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
+}
+
+func getEnvDefault(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
