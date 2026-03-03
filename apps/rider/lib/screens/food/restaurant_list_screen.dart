@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../config/theme.dart';
-import '../models/app_models.dart';
+import '../../config/theme.dart';
+import '../../models/app_models.dart';
 
 class RestaurantListScreen extends StatefulWidget {
   const RestaurantListScreen({super.key});
@@ -66,8 +66,8 @@ class _RestaurantListScreenState extends State<RestaurantListScreen> {
             child: TextField(
               controller: _searchCtrl,
               onChanged: (_) => setState(() {}),
-              style: const TextStyle(color: AppColors.text),
-              decoration: const InputDecoration(
+              style: TextStyle(color: AppColors.text),
+              decoration: InputDecoration(
                 hintText: 'Tìm nhà hàng, món ăn...',
                 prefixIcon: Icon(Icons.search, color: AppColors.text3),
               ),
@@ -111,9 +111,13 @@ class _RestaurantListScreenState extends State<RestaurantListScreen> {
           // Restaurant list
           Expanded(
             child: _filtered.isEmpty
-                ? const Center(child: Column(
+                ? Center(child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: [Text('🔍', style: TextStyle(fontSize: 48)), SizedBox(height: 8), Text('Không tìm thấy', style: TextStyle(color: AppColors.text3))],
+                    children: [
+                      const Text('🔍', style: TextStyle(fontSize: 48)),
+                      const SizedBox(height: 8),
+                      Text('Không tìm thấy', style: TextStyle(color: AppColors.text3)),
+                    ],
                   ))
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -138,7 +142,6 @@ class _RestaurantListScreenState extends State<RestaurantListScreen> {
         ),
         child: Row(
           children: [
-            // Image placeholder
             Container(
               width: 72, height: 72,
               decoration: BoxDecoration(color: AppColors.bg3, borderRadius: BorderRadius.circular(14)),
@@ -149,25 +152,25 @@ class _RestaurantListScreenState extends State<RestaurantListScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(r.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.text)),
+                  Text(r.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.text)),
                   const SizedBox(height: 4),
                   Row(
                     children: [
                       const Text('⭐', style: TextStyle(fontSize: 12)),
                       const SizedBox(width: 4),
-                      Text('${r.rating}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.orange)),
-                      Text(' (${r.ratingCount})', style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+                      Text('${r.rating}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.orange)),
+                      Text(' (${r.ratingCount})', style: TextStyle(fontSize: 12, color: AppColors.text3)),
                       const SizedBox(width: 8),
-                      Text('• ${r.distance}', style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+                      Text('• ${r.distance}', style: TextStyle(fontSize: 12, color: AppColors.text3)),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Text('🕐 ${r.deliveryTime}', style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+                      Text('🕐 ${r.deliveryTime}', style: TextStyle(fontSize: 12, color: AppColors.text3)),
                       const Spacer(),
                       Text('Ship ${(r.deliveryFee / 1000).toStringAsFixed(0)}k',
-                        style: const TextStyle(fontSize: 12, color: AppColors.green, fontWeight: FontWeight.w600)),
+                        style: TextStyle(fontSize: 12, color: AppColors.green, fontWeight: FontWeight.w600)),
                     ],
                   ),
                   if (r.tags.isNotEmpty) ...[
@@ -179,7 +182,7 @@ class _RestaurantListScreenState extends State<RestaurantListScreen> {
                         decoration: BoxDecoration(
                           color: AppColors.orangeBg, borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.orange)),
+                        child: Text(t, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.orange)),
                       )).toList(),
                     ),
                   ],

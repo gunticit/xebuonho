@@ -97,20 +97,20 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                 children: [
                   Row(
                     children: [
-                      const Text('⭐ 4.8', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.orange)),
-                      const Text(' (1.250 đánh giá)', style: TextStyle(fontSize: 13, color: AppColors.text3)),
+                      Text('⭐ 4.8', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.orange)),
+                      Text(' (1.250 đánh giá)', style: TextStyle(fontSize: 13, color: AppColors.text3)),
                       const Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(color: AppColors.greenBg, borderRadius: BorderRadius.circular(8)),
-                        child: const Text('🟢 Đang mở', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.green)),
+                        child: Text('🟢 Đang mở', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.green)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  const Text('🕐 20-30 phút  •  📍 1.2 km  •  🚚 Ship 15k', style: TextStyle(fontSize: 13, color: AppColors.text3)),
+                  Text('🕐 20-30 phút  •  📍 1.2 km  •  🚚 Ship 15k', style: TextStyle(fontSize: 13, color: AppColors.text3)),
                   const SizedBox(height: 16),
-                  const Divider(color: AppColors.border),
+                  Divider(color: AppColors.border),
                 ],
               ),
             ),
@@ -121,7 +121,7 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Text(cat.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text)),
+                child: Text(cat.name, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text)),
               ),
             ),
             SliverList(
@@ -141,7 +141,7 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         decoration: BoxDecoration(
           color: AppColors.bg2,
-          border: const Border(top: BorderSide(color: AppColors.border)),
+          border: Border(top: BorderSide(color: AppColors.border)),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, -5))],
         ),
         child: Row(
@@ -149,12 +149,12 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(color: AppColors.orangeBg, borderRadius: BorderRadius.circular(10)),
-              child: Text('🛒 $_totalItems', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.orange)),
+              child: Text('🛒 $_totalItems', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.orange)),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Text('${_fmt.format(_totalPrice)}đ',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.text)),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.text)),
             ),
             GestureDetector(
               onTap: () {},
@@ -186,12 +186,12 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text)),
+                Text(item.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text)),
                 if (item.description.isNotEmpty)
-                  Text(item.description, style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+                  Text(item.description, style: TextStyle(fontSize: 12, color: AppColors.text3)),
                 const SizedBox(height: 4),
                 Text('${_fmt.format(item.price)}đ',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.orange)),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.orange)),
               ],
             ),
           ),
@@ -202,7 +202,7 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                 _buildQtyBtn(Icons.remove, () => _removeFromCart(item)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('$qty', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text)),
+                  child: Text('$qty', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text)),
                 ),
                 _buildQtyBtn(Icons.add, () => _addToCart(item)),
               ],
