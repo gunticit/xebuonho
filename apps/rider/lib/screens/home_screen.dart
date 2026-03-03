@@ -308,7 +308,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               _buildServiceBtn(
                 '🍔', 'Đồ ăn', AppColors.orangeBg, AppColors.orange,
-                () {},
+                () => Navigator.pushNamed(context, '/food'),
               ),
               _buildServiceBtn(
                 '🛒', 'Đi chợ', AppColors.purpleBg, AppColors.purple,

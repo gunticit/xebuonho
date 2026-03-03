@@ -6,21 +6,35 @@ import 'config/theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/location_provider.dart';
+
+// Core screens
+import 'screens/onboarding_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/otp_screen.dart';
 import 'screens/home_screen.dart';
+
+// Ride flow
 import 'screens/search_screen.dart';
 import 'screens/booking_screen.dart';
 import 'screens/tracking_screen.dart';
 import 'screens/trip_complete_screen.dart';
-import 'screens/history_screen.dart';
+import 'screens/ride_detail_screen.dart';
+
+// Account & Menu
 import 'screens/profile_screen.dart';
 import 'screens/payment_screen.dart';
 import 'screens/promotions_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/support_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/history_screen.dart';
+import 'screens/saved_addresses_screen.dart';
+import 'screens/chat_screen.dart';
+
+// Food delivery
+import 'screens/food/restaurant_list_screen.dart';
+import 'screens/food/restaurant_detail_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,21 +65,34 @@ class XebuonhoApp extends StatelessWidget {
         theme: AppTheme.darkTheme,
         initialRoute: '/',
         routes: {
+          // Core
           '/': (_) => const SplashScreen(),
+          '/onboarding': (_) => const OnboardingScreen(),
           '/login': (_) => const LoginScreen(),
           '/otp': (_) => const OtpScreen(),
           '/home': (_) => const HomeScreen(),
+
+          // Ride flow
           '/search': (_) => const SearchScreen(),
           '/booking': (_) => const BookingScreen(),
           '/tracking': (_) => const TrackingScreen(),
           '/complete': (_) => const TripCompleteScreen(),
-          '/history': (_) => const HistoryScreen(),
+          '/ride-detail': (_) => const RideDetailScreen(),
+
+          // Account & Menu
           '/profile': (_) => const ProfileScreen(),
           '/payment': (_) => const PaymentScreen(),
           '/promotions': (_) => const PromotionsScreen(),
           '/notifications': (_) => const NotificationsScreen(),
           '/support': (_) => const SupportScreen(),
           '/settings': (_) => const SettingsScreen(),
+          '/history': (_) => const HistoryScreen(),
+          '/saved-addresses': (_) => const SavedAddressesScreen(),
+          '/chat': (_) => const ChatScreen(),
+
+          // Food delivery
+          '/food': (_) => const RestaurantListScreen(),
+          '/restaurant-detail': (_) => const RestaurantDetailScreen(),
         },
       ),
     );
