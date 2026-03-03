@@ -22,6 +22,16 @@ class _SearchScreenState extends State<SearchScreen> {
   final List<Map<String, dynamic>> _savedPlaces = [
     {'name': 'Nhà', 'address': 'Landmark 81, Bình Thạnh', 'emoji': '🏠', 'lat': 10.7942, 'lng': 106.7217},
     {'name': 'Văn phòng', 'address': 'Bitexco Tower, Q.1', 'emoji': '🏢', 'lat': 10.7716, 'lng': 106.7043},
+    {'name': 'Phòng gym', 'address': 'California Fitness, Q.3', 'emoji': '💪', 'lat': 10.7838, 'lng': 106.6920},
+    {'name': 'Quán cà phê', 'address': 'The Workshop, Q.1', 'emoji': '☕', 'lat': 10.7780, 'lng': 106.6960},
+  ];
+
+  final List<Map<String, dynamic>> _recentTrips = [
+    {'name': 'Bệnh viện FV', 'address': '6 Nguyễn Lương Bằng, Q.7', 'emoji': '🏥', 'lat': 10.7290, 'lng': 106.7180, 'time': 'Hôm qua'},
+    {'name': 'Aeon Mall Bình Tân', 'address': 'Bình Tân, TP.HCM', 'emoji': '🛍️', 'lat': 10.7442, 'lng': 106.6140, 'time': '2 ngày trước'},
+    {'name': 'Sân bay Tân Sơn Nhất', 'address': 'Tân Bình, TP.HCM', 'emoji': '✈️', 'lat': 10.8184, 'lng': 106.6588, 'time': '3 ngày trước'},
+    {'name': 'Đại học Bách Khoa', 'address': '268 Lý Thường Kiệt, Q.10', 'emoji': '🎓', 'lat': 10.7730, 'lng': 106.6600, 'time': 'Tuần trước'},
+    {'name': 'Chợ Bến Thành', 'address': 'Quận 1, TP.HCM', 'emoji': '🏪', 'lat': 10.7721, 'lng': 106.6981, 'time': 'Tuần trước'},
   ];
 
   final List<Map<String, dynamic>> _popularPlaces = [
@@ -32,6 +42,25 @@ class _SearchScreenState extends State<SearchScreen> {
     {'name': 'Phú Mỹ Hưng', 'address': 'Quận 7, TP.HCM', 'emoji': '🌳', 'lat': 10.7290, 'lng': 106.7220},
     {'name': 'AEON Mall Bình Tân', 'address': 'Bình Tân, TP.HCM', 'emoji': '🏬', 'lat': 10.7442, 'lng': 106.6140},
   ];
+
+  /// Filter saved + recent by query text
+  List<Map<String, dynamic>> _filterLocal(String q) {
+    final lower = q.toLowerCase();
+    final combined = <Map<String, dynamic>>[];
+    for (final p in _savedPlaces) {
+      if (p['name'].toString().toLowerCase().contains(lower) ||
+          p['address'].toString().toLowerCase().contains(lower)) {
+        combined.add({...p, 'section': 'saved'});
+      }
+    }
+    for (final p in _recentTrips) {
+      if (p['name'].toString().toLowerCase().contains(lower) ||
+          p['address'].toString().toLowerCase().contains(lower)) {
+        combined.add({...p, 'section': 'recent'});
+      }
+    }
+    return combined;
+  }
 
   @override
   void initState() {
@@ -91,7 +120,7 @@ class _SearchScreenState extends State<SearchScreen> {
             // ========== Header ==========
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.bg2,
                 border: Border(bottom: BorderSide(color: AppColors.border)),
               ),
@@ -107,13 +136,13 @@ class _SearchScreenState extends State<SearchScreen> {
                             color: AppColors.bg3,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Icon(Icons.arrow_back, color: AppColors.text, size: 20),
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Expanded(
+                      Expanded(
                         child: Text('Chọn điểm đến',
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.text)),
                       ),
@@ -129,10 +158,10 @@ class _SearchScreenState extends State<SearchScreen> {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: AppColors.green.withValues(alpha: 0.2)),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Text('🟢', style: TextStyle(fontSize: 10)),
-                        SizedBox(width: 8),
+                        const Text('🟢', style: TextStyle(fontSize: 10)),
+                        const SizedBox(width: 8),
                         Text('Vị trí hiện tại',
                           style: TextStyle(fontSize: 13, color: AppColors.green, fontWeight: FontWeight.w500)),
                       ],
@@ -145,7 +174,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     controller: _controller,
                     focusNode: _focusNode,
                     onChanged: _search,
-                    style: const TextStyle(color: AppColors.text, fontSize: 15),
+                    style: TextStyle(color: AppColors.text, fontSize: 15),
                     decoration: InputDecoration(
                       hintText: 'Nhập điểm đến...',
                       prefixIcon: const Padding(
@@ -158,7 +187,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 _controller.clear();
                                 _search('');
                               },
-                              child: const Icon(Icons.close, color: AppColors.text3, size: 18),
+                              child: Icon(Icons.close, color: AppColors.text3, size: 18),
                             )
                           : null,
                     ),
@@ -169,7 +198,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
             // Loading indicator
             if (_isLoading)
-              const LinearProgressIndicator(
+              LinearProgressIndicator(
                 backgroundColor: AppColors.bg2,
                 color: AppColors.blue,
                 minHeight: 2,
@@ -186,86 +215,168 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildSearchResults() {
-    if (_results.isEmpty && !_isLoading) {
+    final q = _controller.text.trim();
+    final localMatches = _filterLocal(q);
+
+    if (_results.isEmpty && localMatches.isEmpty && !_isLoading) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('🔍', style: TextStyle(fontSize: 48)),
             const SizedBox(height: 12),
-            Text('Không tìm thấy "${_controller.text}"',
-              style: const TextStyle(color: AppColors.text2, fontSize: 14)),
+            Text('Không tìm thấy "$q"',
+              style: TextStyle(color: AppColors.text2, fontSize: 14)),
             const SizedBox(height: 4),
-            const Text('Thử nhập từ khóa khác',
+            Text('Thử nhập từ khóa khác',
               style: TextStyle(color: AppColors.text3, fontSize: 12)),
           ],
         ),
       );
     }
 
-    return ListView.builder(
+    return ListView(
       padding: const EdgeInsets.all(12),
-      itemCount: _results.length,
-      itemBuilder: (_, idx) {
-        final result = _results[idx];
-        // Split display name for primary & secondary text
-        final parts = result.displayName.split(',');
-        final primary = result.name;
-        final secondary = parts.length > 1
-            ? parts.sublist(1).take(3).join(',').trim()
-            : result.displayName;
+      children: [
+        // Local matches (saved + recent) shown first
+        if (localMatches.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6, left: 4),
+            child: Text('ĐỊA CHỈ CỦA BẠN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.text3, letterSpacing: 1)),
+          ),
+          ...localMatches.map((p) => _buildLocalMatch(p)),
+          if (_results.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Divider(color: AppColors.border),
+            const SizedBox(height: 4),
+          ],
+        ],
 
-        return GestureDetector(
-          onTap: () => _selectPlace(result.displayName, result.lat, result.lng),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.blueBg,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(
-                    child: Text(result.emoji, style: const TextStyle(fontSize: 18)),
-                  ),
+        // Nominatim results
+        if (_results.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6, left: 4),
+            child: Text('KẾT QUẢ TÌM KIẾM', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.text3, letterSpacing: 1)),
+          ),
+          ..._results.map((result) {
+            final parts = result.displayName.split(',');
+            final primary = result.name;
+            final secondary = parts.length > 1
+                ? parts.sublist(1).take(3).join(',').trim()
+                : result.displayName;
+
+            return GestureDetector(
+              onTap: () => _selectPlace(result.displayName, result.lat, result.lng),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40, height: 40,
+                      decoration: BoxDecoration(
+                        color: AppColors.blueBg,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Center(
+                        child: Text(result.emoji, style: const TextStyle(fontSize: 18)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(primary,
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text)),
+                          const SizedBox(height: 2),
+                          Text(secondary,
+                            maxLines: 2, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12, color: AppColors.text3)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.greenBg,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.directions, color: AppColors.green, size: 16),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildLocalMatch(Map<String, dynamic> p) {
+    final isSaved = p['section'] == 'saved';
+    final time = p['time'] as String?;
+    return GestureDetector(
+      onTap: () => _selectPlace(p['address'], p['lat'], p['lng']),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: isSaved ? AppColors.blueBg : AppColors.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSaved ? AppColors.blue.withValues(alpha: 0.3) : AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38, height: 38,
+              decoration: BoxDecoration(
+                color: isSaved ? AppColors.blue.withValues(alpha: 0.2) : AppColors.bg3,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(child: Text(p['emoji'], style: const TextStyle(fontSize: 16))),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(primary,
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text)),
-                      const SizedBox(height: 2),
-                      Text(secondary,
-                        maxLines: 2, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+                      Text(p['name'], style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text)),
+                      if (isSaved) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(color: AppColors.blue.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
+                          child: Text('Đã lưu', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.blue)),
+                        ),
+                      ],
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AppColors.greenBg,
-                    borderRadius: BorderRadius.circular(8),
+                  Row(
+                    children: [
+                      Expanded(child: Text(p['address'], style: TextStyle(fontSize: 12, color: AppColors.text3), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                      if (time != null)
+                        Text(time, style: TextStyle(fontSize: 10, color: AppColors.text3)),
+                    ],
                   ),
-                  child: const Icon(Icons.directions, color: AppColors.green, size: 16),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
+            const SizedBox(width: 8),
+            Icon(Icons.chevron_right, color: AppColors.text3, size: 18),
+          ],
+        ),
+      ),
     );
   }
 
@@ -274,22 +385,84 @@ class _SearchScreenState extends State<SearchScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         // Saved places
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text('ĐỊA ĐIỂM ĐÃ LƯU',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.text3, letterSpacing: 1)),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              Text('ĐỊA CHỈ ĐÃ LƯU',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.text3, letterSpacing: 1)),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/saved-addresses'),
+                child: Text('Xem tất cả', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.blue)),
+              ),
+            ],
+          ),
         ),
         ..._savedPlaces.map((p) => _buildPlaceItem(p, isLarge: true)),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
+
+        // Recent trips
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text('GẦN ĐÂY',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.text3, letterSpacing: 1)),
+        ),
+        ..._recentTrips.map((p) => _buildRecentItem(p)),
+        const SizedBox(height: 20),
 
         // Popular places
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
           child: Text('ĐỊA ĐIỂM PHỔ BIẾN',
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.text3, letterSpacing: 1)),
         ),
         ..._popularPlaces.map((p) => _buildPlaceItem(p)),
       ],
+    );
+  }
+
+  Widget _buildRecentItem(Map<String, dynamic> place) {
+    return GestureDetector(
+      onTap: () => _selectPlace(place['address'], place['lat'], place['lng']),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.orangeBg,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(child: Text(place['emoji'], style: const TextStyle(fontSize: 16))),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(place['name'], style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text)),
+                  Text(place['address'], style: TextStyle(fontSize: 12, color: AppColors.text3)),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Icon(Icons.history, color: AppColors.orange, size: 16),
+                Text(place['time'], style: TextStyle(fontSize: 10, color: AppColors.text3)),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -320,13 +493,13 @@ class _SearchScreenState extends State<SearchScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(place['name'],
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text)),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text)),
                   Text(place['address'],
-                    style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+                    style: TextStyle(fontSize: 12, color: AppColors.text3)),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.text3, size: 18),
+            Icon(Icons.chevron_right, color: AppColors.text3, size: 18),
           ],
         ),
       ),

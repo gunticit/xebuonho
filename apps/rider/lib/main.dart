@@ -32,6 +32,7 @@ import 'screens/history_screen.dart';
 import 'screens/saved_addresses_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/top_up_screen.dart';
+import 'screens/legal_screens.dart';
 
 // Food delivery
 import 'screens/food/restaurant_list_screen.dart';
@@ -91,6 +92,8 @@ class XebuonhoApp extends StatelessWidget {
           '/saved-addresses': (_) => const SavedAddressesScreen(),
           '/chat': (_) => const ChatScreen(),
           '/top-up': (_) => const TopUpScreen(),
+          '/privacy': (_) => const PrivacyPolicyScreen(),
+          '/terms': (_) => const TermsScreen(),
 
           // Food delivery
           '/food': (_) => const RestaurantListScreen(),

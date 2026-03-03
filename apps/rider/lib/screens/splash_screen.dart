@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/consent_dialog.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -31,15 +33,36 @@ class _SplashScreenState extends State<SplashScreen>
     );
     _controller.forward();
 
-    Future.delayed(const Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 2), () async {
       if (!mounted) return;
-      final auth = context.read<AuthProvider>();
-      if (auth.isLoggedIn) {
-        Navigator.pushReplacementNamed(context, '/home');
+      final prefs = await SharedPreferences.getInstance();
+      final hasConsent = prefs.getBool('consent_accepted') ?? false;
+
+      if (!hasConsent && mounted) {
+        // First launch — show consent dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => ConsentDialog(
+            onAccept: () async {
+              await prefs.setBool('consent_accepted', true);
+              if (mounted) _navigate();
+            },
+          ),
+        );
       } else {
-        Navigator.pushReplacementNamed(context, '/login');
+        _navigate();
       }
     });
+  }
+
+  void _navigate() {
+    final auth = context.read<AuthProvider>();
+    if (auth.isLoggedIn) {
+      Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      Navigator.pushReplacementNamed(context, '/login');
+    }
   }
 
   @override

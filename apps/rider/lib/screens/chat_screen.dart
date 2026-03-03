@@ -66,6 +66,78 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _showReportDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.bg2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
+          Icon(Icons.flag, color: AppColors.orange, size: 22),
+          const SizedBox(width: 8),
+          Text('Báo cáo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildReportOption('Quấy rối, đe dọa'),
+            _buildReportOption('Nội dung không phù hợp'),
+            _buildReportOption('Spam, lừa đảo'),
+            _buildReportOption('Lý do khác'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReportOption(String reason) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Đã gửi báo cáo: $reason'), backgroundColor: AppColors.green),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: AppColors.bg3, borderRadius: BorderRadius.circular(10)),
+        child: Row(
+          children: [
+            Expanded(child: Text(reason, style: TextStyle(fontSize: 14, color: AppColors.text))),
+            Icon(Icons.chevron_right, color: AppColors.text3, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBlockDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.bg2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Chặn Nguyễn Văn B?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text)),
+        content: Text('Người này sẽ không thể nhắn tin cho bạn.', style: TextStyle(fontSize: 14, color: AppColors.text3)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Hủy', style: TextStyle(color: AppColors.text3))),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: const Text('🚫 Đã chặn Nguyễn Văn B'), backgroundColor: AppColors.red),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            child: const Text('Chặn', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -91,6 +163,30 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         actions: [
           IconButton(icon: const Icon(Icons.phone, color: AppColors.green, size: 22), onPressed: () {}),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: AppColors.text2),
+            color: AppColors.bg2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onSelected: (value) {
+              if (value == 'report') {
+                _showReportDialog();
+              } else if (value == 'block') {
+                _showBlockDialog();
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'report', child: Row(children: [
+                Icon(Icons.flag, color: AppColors.orange, size: 18),
+                const SizedBox(width: 8),
+                Text('Báo cáo', style: TextStyle(color: AppColors.text)),
+              ])),
+              PopupMenuItem(value: 'block', child: Row(children: [
+                Icon(Icons.block, color: AppColors.red, size: 18),
+                const SizedBox(width: 8),
+                Text('Chặn người dùng', style: TextStyle(color: AppColors.red)),
+              ])),
+            ],
+          ),
         ],
       ),
       body: Column(
