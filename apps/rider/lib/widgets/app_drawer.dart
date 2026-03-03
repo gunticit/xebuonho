@@ -16,57 +16,70 @@ class AppDrawer extends StatelessWidget {
         child: Column(
           children: [
             // ========== User Header ==========
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: AppColors.border)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Avatar
-                  Container(
-                    width: 56, height: 56,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.blue, AppColors.purple],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/profile');
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: AppColors.border)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Avatar
+                    Container(
+                      width: 56, height: 56,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.blue, AppColors.purple],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      borderRadius: BorderRadius.circular(16),
+                      child: Center(
+                        child: Text(
+                          auth.userName.isNotEmpty ? auth.userName[0].toUpperCase() : '?',
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
+                        ),
+                      ),
                     ),
-                    child: Center(
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(auth.userName,
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.text)),
+                              const SizedBox(height: 2),
+                              Text(auth.userPhone,
+                                style: const TextStyle(fontSize: 13, color: AppColors.text3)),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, color: AppColors.text3, size: 20),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.greenBg,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       child: Text(
-                        auth.userName.isNotEmpty ? auth.userName[0].toUpperCase() : '?',
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
+                        '⭐ ${auth.userRole == 'rider' ? 'Khách hàng' : auth.userRole}',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.green),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(auth.userName,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.text)),
-                  const SizedBox(height: 2),
-                  Text(auth.userPhone,
-                    style: const TextStyle(fontSize: 13, color: AppColors.text3)),
-                  if (auth.userEmail.isNotEmpty) ...[
-                    const SizedBox(height: 1),
-                    Text(auth.userEmail,
-                      style: const TextStyle(fontSize: 12, color: AppColors.text3)),
                   ],
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.greenBg,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '⭐ ${auth.userRole == 'rider' ? 'Khách hàng' : auth.userRole}',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.green),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
 
@@ -77,20 +90,20 @@ class AppDrawer extends StatelessWidget {
                 children: [
                   _buildMenuItem(context, Icons.home_outlined, 'Trang chủ', '/home', isActive: true),
                   _buildMenuItem(context, Icons.history, 'Lịch sử chuyến', '/history'),
-                  _buildMenuItem(context, Icons.notifications_outlined, 'Thông báo', null, badge: '3'),
+                  _buildMenuItem(context, Icons.notifications_outlined, 'Thông báo', '/notifications', badge: '3'),
                   _buildDivider(),
                   _buildSectionTitle('DỊCH VỤ'),
-                  _buildMenuItem(context, Icons.two_wheeler, 'Xe máy', null, emoji: '🏍️'),
-                  _buildMenuItem(context, Icons.directions_car, 'Ô tô', null, emoji: '🚗'),
-                  _buildMenuItem(context, Icons.fastfood, 'Đồ ăn', null, emoji: '🍔'),
-                  _buildMenuItem(context, Icons.shopping_bag, 'Đi chợ hộ', null, emoji: '🛒'),
+                  _buildMenuItem(context, Icons.two_wheeler, 'Xe máy', '/search', emoji: '🏍️'),
+                  _buildMenuItem(context, Icons.directions_car, 'Ô tô', '/search', emoji: '🚗'),
+                  _buildMenuItem(context, Icons.fastfood, 'Đồ ăn', '/search', emoji: '🍔'),
+                  _buildMenuItem(context, Icons.shopping_bag, 'Đi chợ hộ', '/search', emoji: '🛒'),
                   _buildDivider(),
                   _buildSectionTitle('TÀI KHOẢN'),
-                  _buildMenuItem(context, Icons.person_outline, 'Thông tin cá nhân', null),
-                  _buildMenuItem(context, Icons.payment, 'Phương thức thanh toán', null),
-                  _buildMenuItem(context, Icons.card_giftcard, 'Khuyến mãi', null, badge: '2'),
-                  _buildMenuItem(context, Icons.support_agent, 'Hỗ trợ', null),
-                  _buildMenuItem(context, Icons.settings_outlined, 'Cài đặt', null),
+                  _buildMenuItem(context, Icons.person_outline, 'Thông tin cá nhân', '/profile'),
+                  _buildMenuItem(context, Icons.payment, 'Thanh toán', '/payment'),
+                  _buildMenuItem(context, Icons.card_giftcard, 'Khuyến mãi', '/promotions', badge: '2'),
+                  _buildMenuItem(context, Icons.support_agent, 'Hỗ trợ', '/support'),
+                  _buildMenuItem(context, Icons.settings_outlined, 'Cài đặt', '/settings'),
                 ],
               ),
             ),
@@ -134,7 +147,7 @@ class AppDrawer extends StatelessWidget {
       {bool isActive = false, String? badge, String? emoji}) {
     return GestureDetector(
       onTap: () {
-        Navigator.pop(context); // Close drawer
+        Navigator.pop(context);
         if (route != null) {
           Navigator.pushNamed(context, route);
         }
