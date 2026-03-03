@@ -6,6 +6,7 @@ import '../config/theme.dart';
 import '../providers/booking_provider.dart';
 import '../providers/location_provider.dart';
 import '../models/ride.dart';
+import '../widgets/app_drawer.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final MapController _mapController = MapController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -31,6 +33,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final booking = context.watch<BookingProvider>();
 
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: const AppDrawer(),
       body: Stack(
         children: [
           // ========== MAP ==========
@@ -70,7 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   // App header bar
                   Row(
                     children: [
-                      _buildCircleBtn('☰', () {}),
+                      _buildCircleBtn('☰', () => _scaffoldKey.currentState?.openDrawer()),
                       const Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(

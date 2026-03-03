@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../providers/auth_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -30,8 +32,12 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward();
 
     Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      if (auth.isLoggedIn) {
         Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        Navigator.pushReplacementNamed(context, '/login');
       }
     });
   }
@@ -52,7 +58,7 @@ class _SplashScreenState extends State<SplashScreen>
             center: Alignment.center,
             radius: 1.2,
             colors: [
-              AppColors.blue.withOpacity(0.08),
+              AppColors.blue.withValues(alpha: 0.08),
               AppColors.bg,
             ],
           ),
@@ -68,57 +74,27 @@ class _SplashScreenState extends State<SplashScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 100,
-                      height: 100,
+                      width: 100, height: 100,
                       decoration: BoxDecoration(
-                        color: AppColors.blue.withOpacity(0.15),
+                        color: AppColors.blue.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(28),
-                        border: Border.all(
-                          color: AppColors.blue.withOpacity(0.3),
-                          width: 2,
-                        ),
+                        border: Border.all(color: AppColors.blue.withValues(alpha: 0.3), width: 2),
                         boxShadow: [
-                          BoxShadow(
-                            color: AppColors.blue.withOpacity(0.2),
-                            blurRadius: 40,
-                            spreadRadius: 10,
-                          ),
+                          BoxShadow(color: AppColors.blue.withValues(alpha: 0.2), blurRadius: 40, spreadRadius: 10),
                         ],
                       ),
-                      child: const Center(
-                        child: Text(
-                          '🏍️',
-                          style: TextStyle(fontSize: 48),
-                        ),
-                      ),
+                      child: const Center(child: Text('🏍️', style: TextStyle(fontSize: 48))),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Xebuonho',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.text,
-                        letterSpacing: -1,
-                      ),
-                    ),
+                    const Text('Xebuonho',
+                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppColors.text, letterSpacing: -1)),
                     const SizedBox(height: 6),
-                    Text(
-                      'Đi đâu cũng có',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.text3,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    const Text('Đi đâu cũng có',
+                      style: TextStyle(fontSize: 14, color: AppColors.text3, fontWeight: FontWeight.w500)),
                     const SizedBox(height: 40),
                     SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.blue.withOpacity(0.5),
-                      ),
+                      width: 24, height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.blue.withValues(alpha: 0.5)),
                     ),
                   ],
                 ),

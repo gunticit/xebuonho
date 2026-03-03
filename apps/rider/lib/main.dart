@@ -7,6 +7,7 @@ import 'providers/auth_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/location_provider.dart';
 import 'screens/splash_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/booking_screen.dart';
@@ -33,7 +34,7 @@ class XebuonhoApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()..demoLogin()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => BookingProvider()),
       ],
@@ -44,6 +45,7 @@ class XebuonhoApp extends StatelessWidget {
         initialRoute: '/',
         routes: {
           '/': (_) => const SplashScreen(),
+          '/login': (_) => const LoginScreen(),
           '/home': (_) => const HomeScreen(),
           '/search': (_) => const SearchScreen(),
           '/booking': (_) => const BookingScreen(),
