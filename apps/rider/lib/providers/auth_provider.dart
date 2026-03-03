@@ -12,6 +12,7 @@ class AuthProvider extends ChangeNotifier {
   String _userRole = 'rider';
   bool _isLoggedIn = false;
   bool _isLoading = false;
+  bool _needsOtp = false;
   String? _error;
 
   String? get token => _token;
@@ -23,45 +24,47 @@ class AuthProvider extends ChangeNotifier {
   String get userRole => _userRole;
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
+  bool get needsOtp => _needsOtp;
   String? get error => _error;
 
+  // Auth calls go directly to user-service
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: ApiConfig.baseUrl,
+    baseUrl: ApiConfig.authBaseUrl,
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));
 
-  /// Register a new user
+  /// Register a new user → returns true = needs OTP verification
   Future<bool> register({
     required String phone,
     required String password,
     required String fullName,
     String role = 'rider',
-    String email = '',
   }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final response = await _dio.post('/api/v1/auth/register', data: {
+      final response = await _dio.post(ApiConfig.register, data: {
         'phone': phone,
         'password': password,
         'full_name': fullName,
         'role': role,
-        if (email.isNotEmpty) 'email': email,
       });
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         _setFromResponse(response.data);
+        _userPhone = phone;
+        _needsOtp = true;
         _isLoading = false;
         notifyListeners();
         return true;
       }
     } on DioException catch (e) {
-      _error = e.response?.data?['error'] ?? 'Đăng ký thất bại';
+      _error = e.response?.data?['error'] ?? 'Đăng ký thất bại. Thử lại sau.';
     } catch (e) {
-      _error = 'Lỗi kết nối: $e';
+      _error = 'Không kết nối được server. Kiểm tra kết nối mạng.';
     }
 
     _isLoading = false;
@@ -69,7 +72,58 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
-  /// Login with phone + password
+  /// Verify OTP code
+  Future<bool> verifyOtp(String code) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final response = await _dio.post(ApiConfig.verifyOtp, data: {
+        'phone': _userPhone,
+        'code': code,
+      });
+
+      if (response.statusCode == 200) {
+        _needsOtp = false;
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+    } on DioException catch (e) {
+      _error = e.response?.data?['error'] ?? 'Mã OTP không đúng';
+    } catch (e) {
+      _error = 'Lỗi kết nối';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  /// Resend OTP
+  Future<bool> resendOtp() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await _dio.post(ApiConfig.resendOtp, data: {
+        'phone': _userPhone,
+      });
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (_) {
+      _error = 'Không gửi được mã OTP';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  /// Login
   Future<bool> login({
     required String phone,
     required String password,
@@ -79,21 +133,22 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _dio.post('/api/v1/auth/login', data: {
+      final response = await _dio.post(ApiConfig.login, data: {
         'phone': phone,
         'password': password,
       });
 
       if (response.statusCode == 200) {
         _setFromResponse(response.data);
+        _needsOtp = false;
         _isLoading = false;
         notifyListeners();
         return true;
       }
     } on DioException catch (e) {
-      _error = e.response?.data?['error'] ?? 'Đăng nhập thất bại';
+      _error = e.response?.data?['error'] ?? 'Sai số điện thoại hoặc mật khẩu';
     } catch (e) {
-      _error = 'Lỗi kết nối server';
+      _error = 'Không kết nối được server';
     }
 
     _isLoading = false;
@@ -101,15 +156,13 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
-  /// Refresh the access token
+  /// Refresh token
   Future<bool> refreshAccessToken() async {
     if (_refreshToken == null) return false;
-
     try {
-      final response = await _dio.post('/api/v1/auth/refresh', data: {
+      final response = await _dio.post(ApiConfig.refresh, data: {
         'refresh_token': _refreshToken,
       });
-
       if (response.statusCode == 200) {
         _setFromResponse(response.data);
         notifyListeners();
@@ -128,11 +181,12 @@ class AuthProvider extends ChangeNotifier {
     _userPhone = '';
     _userEmail = '';
     _isLoggedIn = false;
+    _needsOtp = false;
     _error = null;
     notifyListeners();
   }
 
-  /// Quick login for demo (when server is not available)
+  /// Demo login (skip server)
   void demoLogin() {
     _userId = 'demo-user';
     _userName = 'Nguyễn Văn An';
@@ -141,6 +195,13 @@ class AuthProvider extends ChangeNotifier {
     _userRole = 'rider';
     _token = 'demo-token';
     _isLoggedIn = true;
+    _needsOtp = false;
+    notifyListeners();
+  }
+
+  /// Skip OTP (for demo)
+  void skipOtp() {
+    _needsOtp = false;
     notifyListeners();
   }
 

@@ -76,7 +76,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
 
     if (success && mounted) {
-      Navigator.pushReplacementNamed(context, '/home');
+      if (_isRegister) {
+        Navigator.pushReplacementNamed(context, '/otp');
+      } else {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
     }
   }
 

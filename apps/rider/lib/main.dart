@@ -14,6 +14,7 @@ import 'screens/booking_screen.dart';
 import 'screens/tracking_screen.dart';
 import 'screens/trip_complete_screen.dart';
 import 'screens/history_screen.dart';
+import 'screens/otp_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +47,7 @@ class XebuonhoApp extends StatelessWidget {
         routes: {
           '/': (_) => const SplashScreen(),
           '/login': (_) => const LoginScreen(),
+          '/otp': (_) => const OtpScreen(),
           '/home': (_) => const HomeScreen(),
           '/search': (_) => const SearchScreen(),
           '/booking': (_) => const BookingScreen(),
