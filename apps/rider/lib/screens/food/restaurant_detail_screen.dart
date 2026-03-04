@@ -157,7 +157,14 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.text)),
             ),
             GestureDetector(
-              onTap: () {},
+              onTap: () => Navigator.pushNamed(context, '/checkout', arguments: {
+                'cart': _cart,
+                'restaurantName': 'Phở Thìn Bờ Hồ',
+                'restaurantEmoji': '🍜',
+                'deliveryTime': '20-30 phút',
+                'distance': '1.2 km',
+                'deliveryFee': 15000,
+              }),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 decoration: BoxDecoration(color: AppColors.green, borderRadius: BorderRadius.circular(14)),

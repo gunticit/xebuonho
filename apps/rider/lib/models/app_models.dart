@@ -123,3 +123,73 @@ class ChatMessage {
     this.isQuickAction = false,
   });
 }
+
+// ========== Food Order ==========
+enum OrderStatus {
+  placed, confirmed, preparing, pickedUp, delivering, delivered, cancelled;
+
+  String get label {
+    switch (this) {
+      case OrderStatus.placed: return 'Đã đặt';
+      case OrderStatus.confirmed: return 'Đã xác nhận';
+      case OrderStatus.preparing: return 'Đang chuẩn bị';
+      case OrderStatus.pickedUp: return 'Đã lấy hàng';
+      case OrderStatus.delivering: return 'Đang giao';
+      case OrderStatus.delivered: return 'Đã giao';
+      case OrderStatus.cancelled: return 'Đã hủy';
+    }
+  }
+
+  String get emoji {
+    switch (this) {
+      case OrderStatus.placed: return '📝';
+      case OrderStatus.confirmed: return '✅';
+      case OrderStatus.preparing: return '👨‍🍳';
+      case OrderStatus.pickedUp: return '🏍️';
+      case OrderStatus.delivering: return '🚀';
+      case OrderStatus.delivered: return '🎉';
+      case OrderStatus.cancelled: return '❌';
+    }
+  }
+}
+
+class FoodOrder {
+  final String id;
+  final String restaurantName;
+  final String restaurantEmoji;
+  final List<CartItem> items;
+  final OrderStatus status;
+  final DateTime createdAt;
+  final String deliveryAddress;
+  final String paymentMethod;
+  final String? note;
+  final int subtotal;
+  final int deliveryFee;
+  final int discount;
+
+  FoodOrder({
+    required this.id,
+    required this.restaurantName,
+    this.restaurantEmoji = '🍜',
+    required this.items,
+    this.status = OrderStatus.placed,
+    required this.createdAt,
+    required this.deliveryAddress,
+    required this.paymentMethod,
+    this.note,
+    required this.subtotal,
+    required this.deliveryFee,
+    this.discount = 0,
+  });
+
+  int get total => subtotal + deliveryFee - discount;
+}
+
+class ShareBillMember {
+  final String name;
+  final List<CartItem> items;
+  int amount;
+  bool paid;
+
+  ShareBillMember({required this.name, this.items = const [], required this.amount, this.paid = false});
+}

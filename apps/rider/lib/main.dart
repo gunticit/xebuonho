@@ -37,6 +37,10 @@ import 'screens/legal_screens.dart';
 // Food delivery
 import 'screens/food/restaurant_list_screen.dart';
 import 'screens/food/restaurant_detail_screen.dart';
+import 'screens/food/checkout_screen.dart';
+import 'screens/food/order_tracking_screen.dart';
+import 'screens/food/order_detail_screen.dart';
+import 'screens/food/share_bill_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -98,6 +102,10 @@ class XebuonhoApp extends StatelessWidget {
           // Food delivery
           '/food': (_) => const RestaurantListScreen(),
           '/restaurant-detail': (_) => const RestaurantDetailScreen(),
+          '/checkout': (_) => const CheckoutScreen(),
+          '/order-tracking': (_) => const OrderTrackingScreen(),
+          '/order-detail': (_) => const OrderDetailScreen(),
+          '/share-bill': (_) => const ShareBillScreen(),
         },
       ),
     );
