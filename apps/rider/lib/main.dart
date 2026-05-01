@@ -41,6 +41,7 @@ import 'screens/food/checkout_screen.dart';
 import 'screens/food/order_tracking_screen.dart';
 import 'screens/food/order_detail_screen.dart';
 import 'screens/food/share_bill_screen.dart';
+import 'screens/food/sepay_payment_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -106,6 +107,7 @@ class XebuonhoApp extends StatelessWidget {
           '/order-tracking': (_) => const OrderTrackingScreen(),
           '/order-detail': (_) => const OrderDetailScreen(),
           '/share-bill': (_) => const ShareBillScreen(),
+          '/sepay-payment': (_) => const SepayPaymentScreen(),
         },
       ),
     );

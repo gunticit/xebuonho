@@ -132,7 +132,7 @@ class _RestaurantListScreenState extends State<RestaurantListScreen> {
 
   Widget _buildRestaurant(Restaurant r) {
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, '/restaurant-detail'),
+      onTap: () => Navigator.pushNamed(context, '/restaurant-detail', arguments: r),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),

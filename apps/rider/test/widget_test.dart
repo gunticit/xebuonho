@@ -1,30 +1,81 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:xebuonho_rider/main.dart';
+import 'package:xebuonho_rider/models/app_models.dart';
+import 'package:xebuonho_rider/services/sepay_service.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('App boots and navigates past splash', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({'consent_accepted': true});
+    await tester.pumpWidget(const XebuonhoApp());
+    expect(find.byType(MaterialApp), findsOneWidget);
+    // Advance past splash 2s timer + animations
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 500));
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  group('CartItem totals', () {
+    test('total = price * quantity', () {
+      final item = MenuItem(id: '1', name: 'Phở', description: '', price: 50000);
+      final cart = CartItem(item: item, quantity: 3);
+      expect(cart.total, 150000);
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('default quantity is 1', () {
+      final item = MenuItem(id: '1', name: 'Trà đá', description: '', price: 5000);
+      expect(CartItem(item: item).quantity, 1);
+      expect(CartItem(item: item).total, 5000);
+    });
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  group('FoodOrder total', () {
+    test('subtotal + delivery - discount', () {
+      final order = FoodOrder(
+        id: 'X1', restaurantName: 'Test', items: [],
+        createdAt: DateTime.now(),
+        deliveryAddress: '', paymentMethod: 'cash',
+        subtotal: 100000, deliveryFee: 15000, discount: 20000,
+      );
+      expect(order.total, 95000);
+    });
+  });
+
+  group('OrderStatus', () {
+    test('all statuses have label and emoji', () {
+      for (final s in OrderStatus.values) {
+        expect(s.label.isNotEmpty, true);
+        expect(s.emoji.isNotEmpty, true);
+      }
+    });
+  });
+
+  group('SepayService', () {
+    test('generateOrderId starts with XBN and has correct length', () {
+      final id = SepayService.generateOrderId();
+      expect(id.startsWith('XBN'), true);
+      expect(id.length, 'XBN'.length + 8 + 4);
+    });
+
+    test('generateQrUrl includes amount and description', () {
+      final url = SepayService.generateQrUrl(
+        bankName: 'MBBank',
+        accountNumber: '0123456789',
+        amount: 183000,
+        description: 'XBN20260301001',
+      );
+      expect(url.contains('bank=MBBank'), true);
+      expect(url.contains('acc=0123456789'), true);
+      expect(url.contains('amount=183000'), true);
+      expect(url.contains('des=XBN20260301001'), true);
+    });
+  });
+
+  group('AddressType', () {
+    test('home has correct emoji and name', () {
+      expect(AddressType.home.emoji, '🏠');
+      expect(AddressType.home.displayName, 'Nhà');
+    });
   });
 }

@@ -29,12 +29,16 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   String _note = '';
   bool _dataLoaded = false;
 
+  bool _ratingShown = false;
+  int? _userRating;
+
   final _steps = <Map<String, dynamic>>[
     {'status': OrderStatus.placed, 'time': '', 'done': true},
     {'status': OrderStatus.confirmed, 'time': '', 'done': false},
     {'status': OrderStatus.preparing, 'time': '', 'done': false},
     {'status': OrderStatus.pickedUp, 'time': '', 'done': false},
     {'status': OrderStatus.delivering, 'time': '', 'done': false},
+    {'status': OrderStatus.delivered, 'time': '', 'done': false},
   ];
 
   @override
@@ -78,12 +82,22 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     super.initState();
     // Simulate order progression
     _timer = Timer.periodic(const Duration(seconds: 5), (t) {
-      if (_currentStep < _steps.length - 1 && mounted) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_currentStep < _steps.length - 1) {
         setState(() {
           _currentStep++;
           _steps[_currentStep]['done'] = true;
           _steps[_currentStep]['time'] = DateFormat('HH:mm').format(DateTime.now());
         });
+        if (_steps[_currentStep]['status'] == OrderStatus.delivered && !_ratingShown) {
+          _ratingShown = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _showRatingSheet();
+          });
+        }
       } else {
         t.cancel();
       }
@@ -106,7 +120,12 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     'total': _total,
     'paymentMethod': _paymentMethod,
     'address': _address,
+    'note': _note,
+    'rating': _userRating,
+    'status': _steps[_currentStep]['status'] as OrderStatus,
   };
+
+  bool get _isDelivered => _steps[_currentStep]['status'] == OrderStatus.delivered;
 
   @override
   Widget build(BuildContext context) {
@@ -222,6 +241,31 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           ),
           const SizedBox(height: 16),
 
+          // ========== Delivered: View detail ==========
+          if (_isDelivered) ...[
+            GestureDetector(
+              onTap: () => Navigator.pushReplacementNamed(context, '/order-detail', arguments: _orderArgs),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [AppColors.green.withValues(alpha: 0.2), AppColors.blue.withValues(alpha: 0.1)]),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
+                ),
+                child: Row(children: [
+                  const Text('📋', style: TextStyle(fontSize: 26)),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Xem chi tiết đơn hàng', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text)),
+                    Text('Hoá đơn, đánh giá, đặt lại', style: TextStyle(fontSize: 12, color: AppColors.text3)),
+                  ])),
+                  Icon(Icons.chevron_right, color: AppColors.green, size: 22),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
           // ========== Share Bill Button ==========
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, '/share-bill', arguments: _orderArgs),
@@ -256,8 +300,90 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       case 2: return 'Đầu bếp đang chuẩn bị món ăn';
       case 3: return 'Tài xế đã lấy đơn hàng';
       case 4: return 'Đơn hàng đang trên đường đến bạn';
+      case 5: return 'Đơn hàng đã được giao thành công 🎉';
       default: return '';
     }
+  }
+
+  void _showRatingSheet() {
+    int selected = 5;
+    final tags = <String>{};
+    final allTags = ['Đúng giờ', 'Món ngon', 'Đóng gói tốt', 'Tài xế lịch sự', 'Giao nhanh'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bg2,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.text3.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            const Text('🎉', style: TextStyle(fontSize: 40)),
+            const SizedBox(height: 6),
+            Text('Đơn hàng đã được giao!', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.text)),
+            const SizedBox(height: 4),
+            Text('Đánh giá trải nghiệm của bạn', style: TextStyle(fontSize: 13, color: AppColors.text3)),
+            const SizedBox(height: 16),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(5, (i) {
+              final filled = i < selected;
+              return GestureDetector(
+                onTap: () => setSheet(() => selected = i + 1),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Icon(Icons.star, size: 36, color: filled ? AppColors.orange : AppColors.bg3),
+                ),
+              );
+            })),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8, runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: allTags.map((t) {
+                final on = tags.contains(t);
+                return GestureDetector(
+                  onTap: () => setSheet(() => on ? tags.remove(t) : tags.add(t)),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: on ? AppColors.orangeBg : AppColors.bg3,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: on ? AppColors.orange : AppColors.border),
+                    ),
+                    child: Text(t, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: on ? AppColors.orange : AppColors.text2)),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+            GestureDetector(
+              onTap: () {
+                setState(() => _userRating = selected);
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('✅ Cảm ơn bạn đã đánh giá ${selected} sao!'), backgroundColor: AppColors.green),
+                );
+              },
+              child: Container(
+                width: double.infinity, height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [AppColors.orange, Color(0xFFE67E22)]),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Center(child: Text('Gửi đánh giá', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white))),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Để sau', style: TextStyle(color: AppColors.text3)),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 
   Widget _buildTimelineStep(int index) {

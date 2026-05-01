@@ -15,7 +15,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _noteCtrl = TextEditingController();
   final _promoCtrl = TextEditingController();
 
-  String _selectedPayment = 'wallet';
+  String _selectedPayment = 'sepay';
   String _selectedAddress = 'Nhà — 123 Nguyễn Huệ, Q.1';
   bool _promoApplied = false;
 
@@ -39,6 +39,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   ];
 
   final _payments = [
+    {'id': 'sepay', 'name': 'Chuyển khoản (SePay)', 'emoji': '🏧', 'subtitle': 'VietQR — Quét mã QR'},
     {'id': 'wallet', 'name': 'Ví Xebuonho', 'emoji': '👛', 'subtitle': '150.000đ'},
     {'id': 'momo', 'name': 'MoMo', 'emoji': '🟣', 'subtitle': '****1234'},
     {'id': 'zalopay', 'name': 'ZaloPay', 'emoji': '🔵', 'subtitle': '****5678'},
@@ -245,18 +246,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
           // ========== Confirm Button ==========
           GestureDetector(
-            onTap: () => Navigator.pushReplacementNamed(context, '/order-tracking', arguments: {
-              'cart': _items,
-              'restaurantName': _restaurantName,
-              'restaurantEmoji': _restaurantEmoji,
-              'deliveryFee': _deliveryFee,
-              'discount': _discount,
-              'subtotal': _subtotal,
-              'total': _total,
-              'paymentMethod': _payments.firstWhere((p) => p['id'] == _selectedPayment)['name'],
-              'address': _selectedAddress,
-              'note': _noteCtrl.text,
-            }),
+            onTap: () {
+              final orderArgs = {
+                'cart': _items,
+                'restaurantName': _restaurantName,
+                'restaurantEmoji': _restaurantEmoji,
+                'deliveryFee': _deliveryFee,
+                'discount': _discount,
+                'subtotal': _subtotal,
+                'total': _total,
+                'paymentMethod': _payments.firstWhere((p) => p['id'] == _selectedPayment)['name'],
+                'address': _selectedAddress,
+                'note': _noteCtrl.text,
+              };
+              if (_selectedPayment == 'sepay') {
+                // Go to SePay QR payment screen
+                Navigator.pushReplacementNamed(context, '/sepay-payment', arguments: orderArgs);
+              } else {
+                // Direct to order tracking
+                Navigator.pushReplacementNamed(context, '/order-tracking', arguments: orderArgs);
+              }
+            },
             child: Container(
               height: 56,
               decoration: BoxDecoration(

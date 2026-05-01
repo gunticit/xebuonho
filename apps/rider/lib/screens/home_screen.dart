@@ -3,9 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
-import '../providers/booking_provider.dart';
 import '../providers/location_provider.dart';
-import '../models/ride.dart';
 import '../widgets/app_drawer.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -30,7 +28,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final locProvider = context.watch<LocationProvider>();
-    final booking = context.watch<BookingProvider>();
 
     return Scaffold(
       key: _scaffoldKey,
@@ -102,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       const Spacer(),
-                      _buildCircleBtn('🔔', () {}),
+                      _buildCircleBtn('🔔', () => Navigator.pushNamed(context, '/notifications')),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -312,7 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               _buildServiceBtn(
                 '🛒', 'Đi chợ', AppColors.purpleBg, AppColors.purple,
-                () {},
+                () => _showComingSoon(context, 'Đi chợ hộ', '🛒'),
               ),
             ],
           ),
@@ -369,6 +366,35 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showComingSoon(BuildContext context, String feature, String emoji) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bg2,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.text3.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          Text(emoji, style: const TextStyle(fontSize: 56)),
+          const SizedBox(height: 12),
+          Text(feature, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.text)),
+          const SizedBox(height: 6),
+          Text('Tính năng sắp ra mắt — hẹn gặp lại bạn!', style: TextStyle(fontSize: 13, color: AppColors.text3)),
+          const SizedBox(height: 20),
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: double.infinity, height: 46,
+              decoration: BoxDecoration(color: AppColors.blueBg, borderRadius: BorderRadius.circular(14)),
+              child: const Center(child: Text('Đã hiểu', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.blue))),
+            ),
+          ),
+        ]),
       ),
     );
   }

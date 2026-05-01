@@ -6,7 +6,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/booking_provider.dart';
-import '../models/ride.dart';
 import 'package:intl/intl.dart';
 
 class TrackingScreen extends StatefulWidget {

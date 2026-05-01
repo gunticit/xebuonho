@@ -13,6 +13,25 @@ class RestaurantDetailScreen extends StatefulWidget {
 class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
   final _cart = <CartItem>[];
   final _fmt = NumberFormat('#,###', 'vi_VN');
+  Restaurant? _restaurant;
+
+  String get _name => _restaurant?.name ?? 'Phở Thìn Bờ Hồ';
+  String get _emoji => _restaurant?.image ?? '🍜';
+  double get _rating => _restaurant?.rating ?? 4.8;
+  int get _ratingCount => _restaurant?.ratingCount ?? 1250;
+  String get _distance => _restaurant?.distance ?? '1.2 km';
+  String get _deliveryTime => _restaurant?.deliveryTime ?? '20-30 phút';
+  int get _deliveryFee => _restaurant?.deliveryFee ?? 15000;
+  bool get _isOpen => _restaurant?.isOpen ?? true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Restaurant && _restaurant == null) {
+      setState(() => _restaurant = args);
+    }
+  }
 
   final _menuCategories = [
     MenuCategory(name: 'Bán chạy 🔥', items: [
@@ -82,9 +101,9 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                     begin: Alignment.topCenter, end: Alignment.bottomCenter,
                   ),
                 ),
-                child: const Center(child: Text('🍜', style: TextStyle(fontSize: 72))),
+                child: Center(child: Text(_emoji, style: const TextStyle(fontSize: 72))),
               ),
-              title: const Text('Phở Thìn Bờ Hồ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              title: Text(_name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
           ),
 
@@ -97,18 +116,18 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                 children: [
                   Row(
                     children: [
-                      Text('⭐ 4.8', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.orange)),
-                      Text(' (1.250 đánh giá)', style: TextStyle(fontSize: 13, color: AppColors.text3)),
+                      Text('⭐ $_rating', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.orange)),
+                      Text(' (${_fmt.format(_ratingCount)} đánh giá)', style: TextStyle(fontSize: 13, color: AppColors.text3)),
                       const Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(color: AppColors.greenBg, borderRadius: BorderRadius.circular(8)),
-                        child: Text('🟢 Đang mở', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.green)),
+                        decoration: BoxDecoration(color: _isOpen ? AppColors.greenBg : AppColors.redBg, borderRadius: BorderRadius.circular(8)),
+                        child: Text(_isOpen ? '🟢 Đang mở' : '🔴 Đã đóng', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _isOpen ? AppColors.green : AppColors.red)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text('🕐 20-30 phút  •  📍 1.2 km  •  🚚 Ship 15k', style: TextStyle(fontSize: 13, color: AppColors.text3)),
+                  Text('🕐 $_deliveryTime  •  📍 $_distance  •  🚚 Ship ${(_deliveryFee / 1000).toStringAsFixed(0)}k', style: TextStyle(fontSize: 13, color: AppColors.text3)),
                   const SizedBox(height: 16),
                   Divider(color: AppColors.border),
                 ],
@@ -159,11 +178,11 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
             GestureDetector(
               onTap: () => Navigator.pushNamed(context, '/checkout', arguments: {
                 'cart': _cart,
-                'restaurantName': 'Phở Thìn Bờ Hồ',
-                'restaurantEmoji': '🍜',
-                'deliveryTime': '20-30 phút',
-                'distance': '1.2 km',
-                'deliveryFee': 15000,
+                'restaurantName': _name,
+                'restaurantEmoji': _emoji,
+                'deliveryTime': _deliveryTime,
+                'distance': _distance,
+                'deliveryFee': _deliveryFee,
               }),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
