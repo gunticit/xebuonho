@@ -313,7 +313,32 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+
+          // Schedule ride banner
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, '/schedule'),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.blue.withValues(alpha: 0.18), AppColors.purple.withValues(alpha: 0.12)],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.blue.withValues(alpha: 0.3)),
+              ),
+              child: Row(children: [
+                const Text('📅', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 12),
+                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Đặt xe trước', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.text)),
+                  Text('Chọn giờ — chúng tôi sẽ nhắc bạn', style: TextStyle(fontSize: 11, color: AppColors.text3)),
+                ])),
+                Icon(Icons.chevron_right, color: AppColors.blue, size: 20),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 14),
 
           // Recent places
           const Text(

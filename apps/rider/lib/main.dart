@@ -6,6 +6,7 @@ import 'config/theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/location_provider.dart';
+import 'widgets/responsive_shell.dart';
 
 // Core screens
 import 'screens/onboarding_screen.dart';
@@ -20,6 +21,7 @@ import 'screens/booking_screen.dart';
 import 'screens/tracking_screen.dart';
 import 'screens/trip_complete_screen.dart';
 import 'screens/ride_detail_screen.dart';
+import 'screens/schedule_ride_screen.dart';
 
 // Account & Menu
 import 'screens/profile_screen.dart';
@@ -70,6 +72,7 @@ class XebuonhoApp extends StatelessWidget {
         title: 'Xebuonho',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
+        builder: (context, child) => ResponsiveShell(child: child ?? const SizedBox.shrink()),
         initialRoute: '/',
         routes: {
           // Core
@@ -85,6 +88,7 @@ class XebuonhoApp extends StatelessWidget {
           '/tracking': (_) => const TrackingScreen(),
           '/complete': (_) => const TripCompleteScreen(),
           '/ride-detail': (_) => const RideDetailScreen(),
+          '/schedule': (_) => const ScheduleRideScreen(),
 
           // Account & Menu
           '/profile': (_) => const ProfileScreen(),

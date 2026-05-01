@@ -89,6 +89,7 @@ class AppDrawer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
                   _buildMenuItem(context, Icons.home_outlined, 'Trang chủ', '/home', isActive: true),
+                  _buildMenuItem(context, Icons.schedule, 'Đặt lịch chuyến', '/schedule', emoji: '📅'),
                   _buildMenuItem(context, Icons.history, 'Lịch sử chuyến', '/history'),
                   _buildMenuItem(context, Icons.notifications_outlined, 'Thông báo', '/notifications', badge: '3'),
                   _buildDivider(),
