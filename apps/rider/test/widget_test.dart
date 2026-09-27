@@ -78,4 +78,73 @@ void main() {
       expect(AddressType.home.displayName, 'Nhà');
     });
   });
+
+  group('GroceryItem and GroceryOrder', () {
+    test('GroceryItem totals calculation', () {
+      final item = GroceryItem(
+        id: '1',
+        name: 'Thịt bò',
+        quantity: 2,
+        estimatedPrice: 120000,
+      );
+      expect(item.totalEstimated, 240000);
+      expect(item.totalActual, 240000);
+
+      item.actualPrice = 130000;
+      expect(item.totalActual, 260000);
+    });
+
+    test('GroceryOrder estimated and final total', () {
+      final store = MarketStore(
+        id: 'coop',
+        name: 'Coopmart',
+        address: '189 Cống Quỳnh',
+        category: 'Siêu thị',
+      );
+      final order = GroceryOrder(
+        id: 'G1',
+        store: store,
+        items: [
+          GroceryItem(id: '1', name: 'Rau', quantity: 2, estimatedPrice: 10000),
+        ],
+        createdAt: DateTime.now(),
+        deliveryAddress: 'Bitexco',
+        paymentMethod: 'wallet',
+        estimatedSubtotal: 20000,
+        serviceFee: 20000,
+        deliveryFee: 15000,
+        tip: 5000,
+      );
+      expect(order.estimatedTotal, 60000);
+      expect(order.finalTotal, 60000);
+
+      order.actualSubtotal = 25000;
+      expect(order.finalTotal, 65000);
+    });
+
+    test('GroceryOrderStatus all have label and emoji', () {
+      for (final s in GroceryOrderStatus.values) {
+        expect(s.label.isNotEmpty, true);
+        expect(s.emoji.isNotEmpty, true);
+      }
+    });
+  });
+
+  group('DesignatedDriverOrder', () {
+    test('DesignatedDriverStatus all have label and emoji', () {
+      for (final s in DesignatedDriverStatus.values) {
+        expect(s.label.isNotEmpty, true);
+        expect(s.emoji.isNotEmpty, true);
+      }
+    });
+
+    test('DesignatedDriverMode titles and descriptions', () {
+      for (final m in DesignatedDriverMode.values) {
+        expect(m.title.isNotEmpty, true);
+        expect(m.description.isNotEmpty, true);
+        expect(m.emoji.isNotEmpty, true);
+      }
+    });
+  });
 }
+

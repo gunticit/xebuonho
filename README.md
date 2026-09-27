@@ -150,11 +150,11 @@ flutter run -d android
 
 ```
 apps/rider/lib/
-├── main.dart              # 25 routes
+├── main.dart              # 29 routes (Super App: Ride, Food, Grocery, Designated Driver)
 ├── config/
 │   └── theme.dart         # Design system (dark theme)
 ├── models/
-│   └── app_models.dart    # Data models
+│   └── app_models.dart    # Data models (Food, Grocery, Designated Driver, SavedAddress...)
 ├── providers/
 │   ├── auth_provider.dart
 │   ├── booking_provider.dart
@@ -162,32 +162,48 @@ apps/rider/lib/
 ├── services/
 │   ├── api_service.dart
 │   ├── geocoding_service.dart
+│   ├── sepay_service.dart      # SePay VietQR payment
 │   └── notification_service.dart
 ├── screens/
 │   ├── splash_screen.dart      # Consent dialog first-launch
 │   ├── onboarding_screen.dart  # 3-slide intro
 │   ├── login_screen.dart       # Đăng nhập/Đăng ký
 │   ├── otp_screen.dart         # Xác thực OTP
-│   ├── home_screen.dart        # Bản đồ + dịch vụ
+│   ├── home_screen.dart        # Bản đồ + 5 dịch vụ nhanh
 │   ├── search_screen.dart      # Tìm kiếm + gợi ý địa chỉ
-│   ├── booking_screen.dart     # Đặt xe
+│   ├── booking_screen.dart     # Đặt xe máy/ô tô
 │   ├── tracking_screen.dart    # Theo dõi realtime
-│   ├── ride_complete_screen.dart
+│   ├── schedule_ride_screen.dart # Đặt xe theo lịch hẹn
+│   ├── trip_complete_screen.dart
 │   ├── ride_detail_screen.dart
 │   ├── profile_screen.dart
 │   ├── payment_screen.dart
 │   ├── top_up_screen.dart      # Nạp tiền ví
+│   ├── promotions_screen.dart  # Quản lý voucher & khuyến mãi
+│   ├── notifications_screen.dart
 │   ├── history_screen.dart
 │   ├── settings_screen.dart
 │   ├── saved_addresses_screen.dart
 │   ├── chat_screen.dart        # Chat + Report/Block
 │   ├── legal_screens.dart      # Privacy Policy + Terms
-│   └── food/
-│       ├── restaurant_list_screen.dart
-│       └── restaurant_detail_screen.dart
+│   ├── food/                   # Đặt đồ ăn (Food Delivery)
+│   │   ├── restaurant_list_screen.dart
+│   │   ├── restaurant_detail_screen.dart
+│   │   ├── checkout_screen.dart
+│   │   ├── order_tracking_screen.dart
+│   │   ├── order_detail_screen.dart
+│   │   ├── share_bill_screen.dart
+│   │   └── sepay_payment_screen.dart
+│   ├── grocery/                # Đi chợ hộ (Grocery Shopping)
+│   │   ├── grocery_order_screen.dart     # Chọn siêu thị + tạo danh sách mua
+│   │   └── grocery_tracking_screen.dart  # Duyệt đổi món + xem hóa đơn thực tế
+│   └── designated/             # Lái xe hộ (Designated Driver)
+│       ├── designated_driver_screen.dart   # Solo/Duo mode + nhập thông tin xe
+│       └── designated_tracking_screen.dart # Biên bản Vehicle Inspection 4 góc xe
 └── widgets/
-    ├── app_drawer.dart
+    ├── app_drawer.dart         # Drawer điều hướng toàn diện
     ├── consent_dialog.dart     # GDPR consent
+    ├── responsive_shell.dart   # Hỗ trợ Web & Mobile
     └── sos_schedule.dart       # SOS + lịch đặt xe
 ```
 

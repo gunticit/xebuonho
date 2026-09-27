@@ -45,6 +45,15 @@ import 'screens/food/order_detail_screen.dart';
 import 'screens/food/share_bill_screen.dart';
 import 'screens/food/sepay_payment_screen.dart';
 
+// Grocery shopping
+import 'screens/grocery/grocery_order_screen.dart';
+import 'screens/grocery/grocery_tracking_screen.dart';
+
+// Designated driver
+import 'screens/designated/designated_driver_screen.dart';
+import 'screens/designated/designated_tracking_screen.dart';
+import 'models/app_models.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -112,6 +121,18 @@ class XebuonhoApp extends StatelessWidget {
           '/order-detail': (_) => const OrderDetailScreen(),
           '/share-bill': (_) => const ShareBillScreen(),
           '/sepay-payment': (_) => const SepayPaymentScreen(),
+
+          // Grocery shopping
+          '/grocery': (_) => const GroceryOrderScreen(),
+          '/grocery-tracking': (context) => GroceryTrackingScreen(
+                order: ModalRoute.of(context)?.settings.arguments as GroceryOrder?,
+              ),
+
+          // Designated driver
+          '/designated-driver': (_) => const DesignatedDriverScreen(),
+          '/designated-tracking': (context) => DesignatedTrackingScreen(
+                order: ModalRoute.of(context)?.settings.arguments as DesignatedDriverOrder?,
+              ),
         },
       ),
     );

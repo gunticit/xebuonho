@@ -293,14 +293,14 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildServiceBtn(
-                '🚗', 'Xe máy', AppColors.blueBg, AppColors.blue,
+                '🛵', 'Xe máy', AppColors.blueBg, AppColors.blue,
                 () => Navigator.pushNamed(context, '/search'),
               ),
               _buildServiceBtn(
-                '🚙', 'Ô tô', AppColors.greenBg, AppColors.green,
+                '🚗', 'Ô tô', AppColors.greenBg, AppColors.green,
                 () => Navigator.pushNamed(context, '/search'),
               ),
               _buildServiceBtn(
@@ -309,11 +309,40 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               _buildServiceBtn(
                 '🛒', 'Đi chợ', AppColors.purpleBg, AppColors.purple,
-                () => _showComingSoon(context, 'Đi chợ hộ', '🛒'),
+                () => Navigator.pushNamed(context, '/grocery'),
+              ),
+              _buildServiceBtn(
+                '🚙', 'Lái xe hộ', const Color(0xFF132F4C), const Color(0xFF38BDF8),
+                () => Navigator.pushNamed(context, '/designated-driver'),
               ),
             ],
           ),
           const SizedBox(height: 12),
+
+          // Designated driver quick banner
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, '/designated-driver'),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.green.withValues(alpha: 0.18), const Color(0xFF0D9488).withValues(alpha: 0.12)],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
+              ),
+              child: const Row(children: [
+                Text('🛡️', style: TextStyle(fontSize: 22)),
+                SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Lái xe hộ (Bạn say tôi lái)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.text)),
+                  Text('Tài xế lái xe của bạn đưa bạn về nhà an toàn', style: TextStyle(fontSize: 11, color: AppColors.text3)),
+                ])),
+                Icon(Icons.chevron_right, color: AppColors.green, size: 20),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 8),
 
           // Schedule ride banner
           GestureDetector(
@@ -327,10 +356,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.blue.withValues(alpha: 0.3)),
               ),
-              child: Row(children: [
-                const Text('📅', style: TextStyle(fontSize: 22)),
-                const SizedBox(width: 12),
-                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              child: const Row(children: [
+                Text('📅', style: TextStyle(fontSize: 22)),
+                SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Đặt xe trước', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.text)),
                   Text('Chọn giờ — chúng tôi sẽ nhắc bạn', style: TextStyle(fontSize: 11, color: AppColors.text3)),
                 ])),
@@ -370,22 +399,22 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: [
           Container(
-            width: 60,
-            height: 60,
+            width: 54,
+            height: 54,
             decoration: BoxDecoration(
               color: bgColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: borderColor.withOpacity(0.3)),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: borderColor.withValues(alpha: 0.35)),
             ),
             child: Center(
-              child: Text(emoji, style: const TextStyle(fontSize: 26)),
+              child: Text(emoji, style: const TextStyle(fontSize: 22)),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
           Text(
             label,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
               color: AppColors.text2,
             ),
