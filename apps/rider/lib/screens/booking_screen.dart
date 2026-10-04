@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../config/api_config.dart';
 import '../providers/booking_provider.dart';
 import '../models/ride.dart';
 import 'package:intl/intl.dart';
@@ -36,8 +37,7 @@ class BookingScreen extends StatelessWidget {
               ),
               children: [
                 TileLayer(
-                  urlTemplate:
-                      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                  urlTemplate: ApiConfig.mapTileUrl,
                   subdomains: const ['a', 'b', 'c', 'd'],
                 ),
                 // Route line

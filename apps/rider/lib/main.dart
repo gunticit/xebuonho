@@ -6,7 +6,13 @@ import 'config/theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/location_provider.dart';
+import 'providers/active_order_provider.dart';
+import 'providers/driver_provider.dart';
 import 'widgets/responsive_shell.dart';
+
+// Driver screens
+import 'screens/driver/driver_dashboard_screen.dart';
+import 'screens/driver/driver_history_screen.dart';
 
 // Core screens
 import 'screens/onboarding_screen.dart';
@@ -14,6 +20,7 @@ import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/otp_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/activity_screen.dart';
 
 // Ride flow
 import 'screens/search_screen.dart';
@@ -52,6 +59,9 @@ import 'screens/grocery/grocery_tracking_screen.dart';
 // Designated driver
 import 'screens/designated/designated_driver_screen.dart';
 import 'screens/designated/designated_tracking_screen.dart';
+
+// Express parcel delivery
+import 'screens/delivery/delivery_screen.dart';
 import 'models/app_models.dart';
 
 void main() {
@@ -76,6 +86,8 @@ class XebuonhoApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => BookingProvider()),
+        ChangeNotifierProvider(create: (_) => ActiveOrderProvider()),
+        ChangeNotifierProvider(create: (_) => DriverProvider()),
       ],
       child: MaterialApp(
         title: 'Xebuonho',
@@ -90,6 +102,10 @@ class XebuonhoApp extends StatelessWidget {
           '/login': (_) => const LoginScreen(),
           '/otp': (_) => const OtpScreen(),
           '/home': (_) => const HomeScreen(),
+
+          // Driver
+          '/driver': (_) => const DriverDashboardScreen(),
+          '/driver/history': (_) => const DriverHistoryScreen(),
 
           // Ride flow
           '/search': (_) => const SearchScreen(),
@@ -133,6 +149,10 @@ class XebuonhoApp extends StatelessWidget {
           '/designated-tracking': (context) => DesignatedTrackingScreen(
                 order: ModalRoute.of(context)?.settings.arguments as DesignatedDriverOrder?,
               ),
+
+          // Express delivery & activities hub
+          '/delivery': (_) => const DeliveryScreen(),
+          '/activities': (_) => const ActivityScreen(),
         },
       ),
     );

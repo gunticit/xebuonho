@@ -83,14 +83,74 @@ class AppDrawer extends StatelessWidget {
               ),
             ),
 
+            // ========== Role Switcher Banner ==========
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: auth.isDriver ? AppColors.blueBg : AppColors.orangeBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: auth.isDriver
+                      ? AppColors.blue.withValues(alpha: 0.4)
+                      : AppColors.orange.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Text(auth.isDriver ? '🙋‍♂️' : '🚕', style: const TextStyle(fontSize: 22)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          auth.isDriver ? 'Đang ở Chế độ Tài xế' : 'Chạy xe kiếm thêm thu nhập?',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: auth.isDriver ? AppColors.blue : AppColors.orange,
+                          ),
+                        ),
+                        Text(
+                          auth.isDriver ? 'Bấm để về giao diện Khách' : 'Chuyển sang Chế độ Tài xế',
+                          style: const TextStyle(fontSize: 11, color: AppColors.text3),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      if (auth.isDriver) {
+                        auth.switchRole('rider');
+                        Navigator.pushReplacementNamed(context, '/home');
+                      } else {
+                        auth.switchRole('driver');
+                        Navigator.pushReplacementNamed(context, '/driver');
+                      }
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      backgroundColor: auth.isDriver ? AppColors.blue : AppColors.orange,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('Đổi vai', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
+            ),
+
             // ========== Menu Items ==========
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
                   _buildMenuItem(context, Icons.home_outlined, 'Trang chủ', '/home', isActive: true),
+                  _buildMenuItem(context, Icons.drive_eta, 'Bàn làm việc Tài xế', '/driver', emoji: '🚕'),
+                  _buildMenuItem(context, Icons.receipt_long, 'Hoạt động & Đơn hàng', '/activities'),
                   _buildMenuItem(context, Icons.schedule, 'Đặt lịch chuyến', '/schedule', emoji: '📅'),
-                  _buildMenuItem(context, Icons.history, 'Lịch sử chuyến', '/history'),
                   _buildMenuItem(context, Icons.notifications_outlined, 'Thông báo', '/notifications', badge: '3'),
                   _buildDivider(),
                   _buildSectionTitle('DỊCH VỤ'),
@@ -99,6 +159,7 @@ class AppDrawer extends StatelessWidget {
                   _buildMenuItem(context, Icons.fastfood, 'Đồ ăn', '/food', emoji: '🍔'),
                   _buildMenuItem(context, Icons.shopping_basket, 'Đi chợ hộ', '/grocery', emoji: '🛒'),
                   _buildMenuItem(context, Icons.shield, 'Lái xe hộ', '/designated-driver', emoji: '🚙'),
+                  _buildMenuItem(context, Icons.local_shipping, 'Giao hàng Express', '/delivery', emoji: '📦'),
                   _buildDivider(),
                   _buildSectionTitle('TÀI KHOẢN'),
                   _buildMenuItem(context, Icons.person_outline, 'Thông tin cá nhân', '/profile'),

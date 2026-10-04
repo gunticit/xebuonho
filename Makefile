@@ -13,16 +13,12 @@ docker-down:
 	docker-compose -f deployments/docker-compose.dev.yml down
 
 ## Run all services (development mode)
-run-all:
-	@echo "Starting all services..."
-	@for service in api-gateway ride-service driver-service user-service payment-service \
-		matching-service location-service trip-service notification-service \
-		order-service merchant-service; do \
-		echo "Starting $$service..."; \
-		cd services/$$service && go run cmd/main.go & \
-		cd ../..; \
-	done
-	@echo "All services started!"
+run-all: build
+	@./scripts/start-services.sh
+
+## Stop all running services
+stop-all:
+	@./scripts/stop-services.sh
 
 # ============================================
 # BUILD

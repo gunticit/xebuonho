@@ -14,6 +14,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+  String _selectedRole = 'rider';
   bool _isRegister = false;
   bool _showPassword = false;
   late AnimationController _animController;
@@ -67,6 +68,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         phone: _phoneController.text,
         password: _passwordController.text,
         fullName: _nameController.text,
+        role: _selectedRole,
       );
     } else {
       success = await auth.login(
@@ -79,14 +81,23 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       if (_isRegister) {
         Navigator.pushReplacementNamed(context, '/otp');
       } else {
-        Navigator.pushReplacementNamed(context, '/home');
+        if (auth.isDriver) {
+          Navigator.pushReplacementNamed(context, '/driver');
+        } else {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
       }
     }
   }
 
-  void _demoLogin() {
-    context.read<AuthProvider>().demoLogin();
-    Navigator.pushReplacementNamed(context, '/home');
+  void _demoLogin(String role) {
+    final auth = context.read<AuthProvider>();
+    auth.demoLogin(role: role);
+    if (role == 'driver') {
+      Navigator.pushReplacementNamed(context, '/driver');
+    } else {
+      Navigator.pushReplacementNamed(context, '/home');
+    }
   }
 
   @override
@@ -145,6 +156,80 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   ),
                 ),
                 const SizedBox(height: 24),
+
+                // Role selection (register only)
+                if (_isRegister) ...[
+                  _buildLabel('Vai trò đăng ký'),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedRole = 'rider'),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: _selectedRole == 'rider' ? AppColors.blueBg : AppColors.bg2,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: _selectedRole == 'rider' ? AppColors.blue : AppColors.border,
+                                width: _selectedRole == 'rider' ? 2 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.person, size: 18, color: _selectedRole == 'rider' ? AppColors.blue : AppColors.text3),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Khách hàng',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedRole == 'rider' ? AppColors.blue : AppColors.text3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedRole = 'driver'),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: _selectedRole == 'driver' ? AppColors.orangeBg : AppColors.bg2,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: _selectedRole == 'driver' ? AppColors.orange : AppColors.border,
+                                width: _selectedRole == 'driver' ? 2 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.drive_eta, size: 18, color: _selectedRole == 'driver' ? AppColors.orange : AppColors.text3),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Tài xế lái xe',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedRole == 'driver' ? AppColors.orange : AppColors.text3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 // Name field (register only)
                 if (_isRegister) ...[
@@ -252,18 +337,41 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
                 const SizedBox(height: 16),
 
-                // Demo login button
-                OutlinedButton(
-                  onPressed: _demoLogin,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: AppColors.border),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: const Text(
-                    '⚡ Trải nghiệm nhanh (Demo)',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.blue),
-                  ),
+                // Dual Demo login buttons (Rider vs Driver)
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _demoLogin('rider'),
+                        icon: const Text('🙋‍♂️', style: TextStyle(fontSize: 16)),
+                        label: const Text(
+                          'Khách (Demo)',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.blue),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: const BorderSide(color: AppColors.blue),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _demoLogin('driver'),
+                        icon: const Text('🚕', style: TextStyle(fontSize: 16)),
+                        label: const Text(
+                          'Tài xế (Demo)',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.orange),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: const BorderSide(color: AppColors.orange),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 40),

@@ -10,6 +10,9 @@ class AuthProvider extends ChangeNotifier {
   String _userPhone = '';
   String _userEmail = '';
   String _userRole = 'rider';
+  String _vehicleType = 'car';
+  String _licensePlate = '59-A1 999.88';
+  String _vehicleModel = 'Toyota Vios 2023';
   bool _isLoggedIn = false;
   bool _isLoading = false;
   bool _needsOtp = false;
@@ -22,6 +25,10 @@ class AuthProvider extends ChangeNotifier {
   String get userPhone => _userPhone;
   String get userEmail => _userEmail;
   String get userRole => _userRole;
+  String get vehicleType => _vehicleType;
+  String get licensePlate => _licensePlate;
+  String get vehicleModel => _vehicleModel;
+  bool get isDriver => _userRole == 'driver';
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
   bool get needsOtp => _needsOtp;
@@ -249,15 +256,34 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void demoLogin() {
-    _userId = 'demo-user';
-    _userName = 'Nguyễn Văn An';
-    _userPhone = '0901234567';
-    _userEmail = 'an@xebuonho.vn';
-    _userRole = 'rider';
+  void demoLogin({String role = 'rider'}) {
+    _userId = 'demo-$role';
+    _userRole = role;
+    if (role == 'driver') {
+      _userName = 'Nguyễn Văn Tài (Tài Xế)';
+      _userPhone = '0912 345 678';
+      _userEmail = 'taixe@xebuonho.vn';
+      _vehicleType = 'car';
+      _licensePlate = '59-E1 888.66';
+      _vehicleModel = 'Toyota Vios 2023';
+    } else {
+      _userName = 'Nguyễn Văn An';
+      _userPhone = '0901 234 567';
+      _userEmail = 'an@xebuonho.vn';
+    }
     _token = 'demo-token';
     _isLoggedIn = true;
     _needsOtp = false;
+    notifyListeners();
+  }
+
+  void switchRole(String newRole) {
+    _userRole = newRole;
+    if (_userRole == 'driver' && _licensePlate.isEmpty) {
+      _licensePlate = '59-E1 888.66';
+      _vehicleModel = 'Toyota Vios 2023';
+      _vehicleType = 'car';
+    }
     notifyListeners();
   }
 
