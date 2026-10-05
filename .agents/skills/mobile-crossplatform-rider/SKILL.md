@@ -40,5 +40,34 @@ socket.on('ride:status', (data) => updateRideStatus(data));
 - **Flutter**: BLoC, Riverpod, or Provider
 - **React Native**: Redux Toolkit or Zustand
 
+---
+
+## Client Security & Anti-Fraud Best Practices
+
+### 1. Lưu Trữ Token An Toàn (Secure Token Storage)
+- **TUYỆT ĐỐI KHÔNG LƯU JWT VÀO `SharedPreferences` HOẶC `localStorage`** (dễ bị trích xuất nếu máy bị root/jailbreak).
+- Sử dụng `flutter_secure_storage`:
+  - iOS: Lưu trong **Keychain Services** với cờ `kSecAttrAccessibleAfterFirstUnlock`.
+  - Android: Mã hóa bằng **EncryptedSharedPreferences** với khóa trong **Android Keystore**.
+
+### 2. Tự Động Sinh `X-Idempotency-Key`
+Mọi thao tác tạo đơn hoặc thanh toán phải gắn UUID duy nhất để tránh việc người dùng bấm liên tục gây tạo nhiều cuốc xe:
+```dart
+final idempotencyKey = 'ride-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(999999)}';
+dio.options.headers['X-Idempotency-Key'] = idempotencyKey;
+```
+
+### 3. Tự Động Làm Mới Token (Silent Refresh Interceptor)
+Bắt mã lỗi `401 Unauthorized` tại Dio Interceptor, tự động gọi `/api/v1/auth/refresh` bằng refresh token được mã hóa và retry lại request cũ một cách mượt mà mà không đẩy khách ra màn hình đăng nhập.
+
+### 4. Che Giấu Dữ Liệu Nhạy Cảm (PII Masking)
+- Không in (log) số điện thoại, email, hoặc chuỗi JWT đầy đủ ra console bằng `print()` khi chạy bản release.
+- Bật cờ `kReleaseMode` để tự động tắt HTTP Logger.
+
+---
+
 ## References
 - Architecture: [docs/architecture/MOBILE-APPS.md](../../docs/architecture/MOBILE-APPS.md)
+- Dual Role System: [skills/dual-role-system/SKILL.md](../dual-role-system/SKILL.md)
+- Security & Anti-Fraud: [skills/security-anti-fraud/SKILL.md](../security-anti-fraud/SKILL.md)
+

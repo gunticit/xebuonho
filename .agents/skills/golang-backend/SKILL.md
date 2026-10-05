@@ -50,6 +50,59 @@ go.uber.org/zap                   # Structured logging
 4. Use `golangci-lint` for linting
 5. No global mutable state
 
+---
+
+## Security & Reliability Standards (Bảo Mật & Độ Tin Cậy)
+
+### 1. Bọc Panic Trong Mọi Goroutine Bất Đồng Bộ
+Một panic không được bắt trong goroutine con sẽ làm sập toàn bộ tiến trình (crash process):
+```go
+go func() {
+    defer func() {
+        if r := recover(); r != nil {
+            logger.Error("Recovered from goroutine panic", zap.Any("panic", r), zap.Stack("stack"))
+        }
+    }()
+    // business logic
+}()
+```
+
+### 2. Chống Rò Rỉ Thông Tin Nội Bộ (Information Disclosure)
+- **Không bao giờ trả về lỗi thô (Raw SQL / Stacktrace) cho client**:
+  ```go
+  // SAI: writeJSON(w, 500, map[string]string{"error": err.Error()}) // Lộ cấu trúc bảng SQL
+  
+  // ĐÚNG:
+  logger.Error("Database query failed", zap.Error(err))
+  writeJSON(w, http.StatusInternalServerError, map[string]string{
+      "error": "Có lỗi hệ thống xảy ra. Vui lòng thử lại sau.",
+      "code":  "INTERNAL_ERROR",
+  })
+  ```
+
+### 3. Middleware Bảo Mật Chuẩn (Security Headers & CORS)
+- Thiết lập header: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Strict-Transport-Security: max-age=31536000`.
+- CORS: Không dùng `Allow-Origin: *` cho các endpoint nhận cookie/token nhạy cảm.
+
+### 4. Input Validation & Giới Hạn Payload
+- Giới hạn kích thước body: `http.MaxBytesReader(w, r.Body, 1<<20)` (tối đa 1MB, chống tấn công cạn kiệt RAM).
+- Ràng buộc dữ liệu vào bằng struct tags hoặc validator.
+
+### 5. Graceful Shutdown
+Luôn lắng nghe `os.Interrupt` và `syscall.SIGTERM`, đợi các request đang chạy hoàn tất với timeout 10 giây trước khi ngắt tiến trình:
+```go
+quit := make(chan os.Signal, 1)
+signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+<-quit
+ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+defer cancel()
+server.Shutdown(ctx)
+```
+
+---
+
 ## References
 - Coding standards: [rules/CODING-STANDARDS.md](../../rules/CODING-STANDARDS.md)
 - Error handling: [rules/ERROR-HANDLING.md](../../rules/ERROR-HANDLING.md)
+- Security & Anti-Fraud: [skills/security-anti-fraud/SKILL.md](../security-anti-fraud/SKILL.md)
+

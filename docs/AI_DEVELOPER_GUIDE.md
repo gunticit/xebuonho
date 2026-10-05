@@ -152,3 +152,18 @@ Tất cả các thành phần trong `lib/screens/driver/`, `lib/models/driver_mo
 ### 6.3. Tích Hợp Cổng Thanh Toán Trực Tuyến:
 1. Tạo module `payment-service` hoặc mở rộng `api-gateway` gọi VNPay / MoMo API Sandbox.
 2. Thêm IPN webhook cập nhật trạng thái đơn hàng (`orders.payment_status = 'paid'`).
+
+---
+
+## 7. Rào Chắn An Ninh & Phòng Chống Gian Lận (Security & Anti-Fraud Architecture)
+
+Mọi kỹ sư và AI khi mở rộng hệ thống BẮT BUỘC tuân thủ các nguyên tắc bảo mật từ [`.agents/skills/security-anti-fraud/SKILL.md`](file:///Users/hwg/Documents/xebuonho/.agents/skills/security-anti-fraud/SKILL.md):
+
+1. **Chống Race Condition Nhận Cuốc**: Sử dụng Optimistic Lock tại DB (`WHERE id = $1 AND status = 'created'`) hoặc Redis Distributed Lock (`SETNX`) để đảm bảo chỉ đúng 1 tài xế nhận cuốc thành công.
+2. **Bắt buộc Idempotency**: Mọi request tạo đơn và thanh toán đều phải có header `X-Idempotency-Key`.
+3. **Chống Self-Booking**: Tuyệt đối không cho phép tài xế nhận cuốc xe do chính mình tạo (`customer_id != driver_id`).
+4. **Máy trạng thái FSM**: Kiểm tra tính hợp lệ của bước chuyển trạng thái (không nhảy cóc từ `created` lên `completed`).
+5. **Chống GPS Spoofing**: Kiểm tra cờ Mock Location trên di động và kiểm tra dị thường bước nhảy tốc độ (>120 km/h) trên backend.
+6. **Bảo vệ PII**: Che số điện thoại thực tế giữa khách và tài xế sau khi hoàn thành chuyến đi.
+7. **Không leak Error Logs**: Trả về mã lỗi thân thiện, không bao giờ in câu lệnh SQL lỗi hoặc stack trace nội bộ ra client.
+

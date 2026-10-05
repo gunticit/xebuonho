@@ -95,7 +95,54 @@ WHERE id = $1 AND status = 'created';
 
 ---
 
-## 5. Script Seed dữ liệu mẫu thực tế
+## 5. Tối Ưu Chỉ Mục Không Gian & Hiệu Năng (Spatial Indexing)
+
+PostGIS mặc định quét toàn bộ bảng (Seq Scan) nếu không có index GiST, làm chậm nghiêm trọng khi dữ liệu tăng:
+
+```sql
+-- 1. Index cho vị trí Quán ăn / Điểm đón
+CREATE INDEX IF NOT EXISTS idx_merchants_location ON merchants USING GIST (location);
+
+-- 2. Index cho tọa độ đón & trả của cuốc xe
+CREATE INDEX IF NOT EXISTS idx_orders_pickup_location ON orders USING GIST (pickup_location);
+CREATE INDEX IF NOT EXISTS idx_orders_dropoff_location ON orders USING GIST (dropoff_location);
+
+-- 3. Composite Index phục vụ lọc nhanh cuốc xe chờ theo trạng thái & thời gian
+CREATE INDEX IF NOT EXISTS idx_orders_pending_matching 
+ON orders (status, created_at DESC) 
+WHERE status = 'created';
+```
+
+---
+
+## 6. Bảo Mật Dữ Liệu & Giao Dịch An Toàn (Transactions & Security)
+
+### 6.1. Khóa Dòng Khi Trừ Tiền Ví (Pessimistic Locking)
+Khi xử lý thanh toán cuốc xe từ ví tài xế hoặc ví khách:
+```sql
+BEGIN;
+
+-- Khóa dòng ví người dùng, ngăn ngừa các giao dịch song song
+SELECT balance FROM wallets WHERE user_id = $1 FOR UPDATE;
+
+-- Kiểm tra số dư >= tiền cần trừ, sau đó trừ tiền
+UPDATE wallets SET balance = balance - $2, updated_at = NOW() WHERE user_id = $1;
+
+-- Ghi nhận lịch sử giao dịch vào bảng audit
+INSERT INTO wallet_transactions (id, wallet_id, amount, type, reference_id, created_at)
+VALUES (gen_random_uuid(), $1, $2, 'DEBIT_RIDE', $3, NOW());
+
+COMMIT;
+```
+
+### 6.2. Phòng Ngừa Lỗi PostGIS & Injection
+- **Không bao giờ dùng chuỗi ghép SQL**: Luôn sử dụng parameter `$1, $2, ...` trong `pgxpool`.
+- **Kiểm tra biên độ trước khi tạo Point**:
+  Vĩ độ (Latitude) phải nằm trong đoạn `[-90.0, 90.0]`, Kinh độ (Longitude) trong `[-180.0, 180.0]`. Tránh truyền giá trị vượt biên khiến PostGIS ném ngoại lệ GEOS làm panic goroutine.
+
+---
+
+## 7. Script Seed dữ liệu mẫu thực tế
 
 File: [`migrations/seed_real_data.sql`](file:///Users/hwg/Documents/xebuonho/migrations/seed_real_data.sql)
 Chạy nạp lại dữ liệu:

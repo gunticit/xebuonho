@@ -59,7 +59,55 @@ File: [`apps/rider/lib/providers/driver_provider.dart`](file:///Users/hwg/Docume
 
 ---
 
-## 4. Tài khoản Demo sẵn có trong Database thật
+## 4. Rào Chắn Nghiệp Vụ & Bảo Mật Hệ Thống (Security & System Guardrails)
+
+### 4.1. Máy Trạng Thái Hữu Hạn Cho Cuốc Xe (Strict Finite State Machine - FSM)
+Mọi thay đổi trạng thái cuốc xe phải tuân thủ nghiêm ngặt đồ thị FSM, ngăn chặn hacker gọi thẳng `completed` để rút tiền hoặc bỏ qua bước đón khách:
+
+```
+[created] ──(Tài xế bấm Nhận)──> [accepted] ──(Bắt đầu di chuyển)──> [arrivingPickup]
+                                                                            │
+[completed] <──(Khách xuống xe)── [inProgress] <──(Đã đón khách)── [arrivedPickup]
+      ▲                                   ▲                                 │
+      └──────────── [cancelled] ──────────┴─────────────────────────────────┘
+```
+- **Quy tắc kiểm tra tại Backend**:
+  ```go
+  var validTransitions = map[string][]string{
+      "created":        {"accepted", "cancelled"},
+      "accepted":       {"arrivingPickup", "cancelled"},
+      "arrivingPickup": {"arrivedPickup", "cancelled"},
+      "arrivedPickup":  {"inProgress", "cancelled"},
+      "inProgress":     {"completed"},
+      "completed":      {},
+      "cancelled":      {},
+  }
+  ```
+
+### 4.2. Chống Tự Nhận Cuốc Xe (Anti-Self-Booking Fraud)
+- Một người dùng có cả tài khoản Khách và Tài xế KHÔNG ĐƯỢC PHÉP tự nhận cuốc xe do chính mình tạo (nhằm trục lợi điểm thưởng, voucher khuyến mại, hoặc rửa tiền ví):
+  ```sql
+  -- Truy vấn nhận cuốc xe bắt buộc có điều kiện customer_id != driver_id
+  UPDATE orders
+  SET driver_id = $1, status = 'accepted', accepted_at = NOW()
+  WHERE id = $2 AND status = 'created' AND customer_id != $1;
+  ```
+
+### 4.3. Kiểm Tra Năng Lực & Giấy Phép Tài Xế (Capability & Vehicle Verification)
+- Khi phân phối cuốc xe hoặc tài xế nhận cuốc, backend BẮT BUỘC kiểm tra bảng `driver_capabilities`:
+  - Cuốc xe `car` yêu cầu `has_car_license = true`.
+  - Cuốc `food_delivery` hoặc `grocery` yêu cầu `service_type` được kích hoạt trong hồ sơ tài xế.
+  - Xe phải có trạng thái kiểm định và bảo hiểm còn hạn (`vehicles.is_verified = true`).
+
+### 4.4. Xử Lý Mất Mạng & Đồng Bộ Khi Có Mạng Lại (Offline Tolerance)
+- Nếu tài xế mất kết nối internet khi đang chở khách:
+  - App lưu tọa độ lộ trình cục bộ vào SQLite/Hive (`offline_breadcrumbs`).
+  - Giao diện cho phép tài xế tiếp tục ấn "Đã tới đích" ở chế độ offline.
+  - Ngay khi có mạng trở lại, ứng dụng tự động gửi batch tọa độ và gửi request hoàn thành kèm chữ ký xác thực.
+
+---
+
+## 5. Tài khoản Demo sẵn có trong Database thật
 
 Dữ liệu được seed sẵn trong PostgreSQL (`migrations/seed_real_data.sql`):
 
@@ -70,7 +118,7 @@ Dữ liệu được seed sẵn trong PostgreSQL (`migrations/seed_real_data.sql
 
 ---
 
-## 5. Hướng dẫn trích xuất thành Standalone Driver App (`apps/driver`)
+## 6. Hướng dẫn trích xuất thành Standalone Driver App (`apps/driver`)
 
 Khi doanh nghiệp muốn phát hành riêng ứng dụng Driver trên Google Play / App Store:
 
