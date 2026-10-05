@@ -6,28 +6,30 @@ description: How to run services locally for development
 
 ## Run all services at once
 ```bash
-make run-all
+./scripts/run-services.sh
 ```
 
-## Run a single service
+## Run API Gateway with PostgreSQL
 ```bash
-cd services/ride-service && go run cmd/main.go
+HTTP_PORT=8000 DATABASE_URL="postgres://postgres:postgres@localhost:5432/xebuonho?sslmode=disable" JWT_SECRET="dev-secret-change-me-in-production" ./services/api-gateway/bin/api-gateway
 ```
 
-## Run with custom config
+## Seed Real Database
 ```bash
-HTTP_PORT=8081 GRPC_PORT=50052 go run cmd/main.go
+docker exec -i xebuonho-postgres psql -U postgres -d xebuonho < migrations/seed_real_data.sql
 ```
 
-## Service ports (default)
+## Service ports (production & dev)
 
-| Service | HTTP | gRPC |
-|---------|------|------|
-| ride-service | 8080 | 50051 |
-| driver-service | 8081 | 50052 |
-| user-service | 8082 | 50053 |
-| payment-service | 8083 | 50054 |
-| matching-service | 8084 | 50055 |
-| location-service | 8085 | 50056 |
-| trip-service | 8086 | 50057 |
-| notification-service | 8087 | 50058 |
+| Service | HTTP | gRPC | Ghi chú |
+|---------|------|------|---------|
+| api-gateway | 8000 | - | API Gateway chính cho Rider & Driver App |
+| ride-service | 8080 | 50051 | Xử lý cuốc xe |
+| driver-service | 8081 | 50052 | Xử lý vị trí & nghiệp vụ tài xế |
+| user-service | 8091 | 50053 | Xác thực JWT & tài khoản |
+| order-service | 8088 | 50058 | Đơn hàng Food / Grocery |
+| merchant-service | 8089 | 50059 | Quán ăn & thực đơn |
+| PostgreSQL | 5432 | - | PostgreSQL + PostGIS |
+| Redis | 6379 | - | Redis GEO & cache |
+| EMQX MQTT | 1883 | 18083 | MQTT broker & Dashboard |
+

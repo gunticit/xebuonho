@@ -96,7 +96,7 @@ cd services/user-service && HTTP_PORT=8091 go run cmd/main.go
 cd services/ride-service && go run cmd/main.go
 ```
 
-### 5️⃣ Chạy Rider App (Flutter)
+### 5️⃣ Chạy App Dual-Role (Khách hàng & Tài xế)
 
 ```bash
 cd apps/rider
@@ -106,15 +106,18 @@ flutter pub get
 
 # Chạy trên Chrome (web)
 flutter run -d chrome
-
-# Chạy trên iOS Simulator
-flutter run -d ios
-
-# Chạy trên Android Emulator
-flutter run -d android
 ```
 
-> **Lưu ý:** App có **demo mode** — nếu backend chưa chạy, app vẫn hoạt động với dữ liệu giả.
+> **Hỗ trợ Dual Role & Dữ liệu thật:**
+> - Tại màn hình đăng nhập, bấm **[🙋‍♂️ Khách (Demo)]** hoặc **[🚕 Tài xế (Demo)]** để trải nghiệm với tài khoản thật đã seed trong PostgreSQL.
+> - Đổi vai trò linh hoạt bất cứ lúc nào qua thanh Drawer bên trái màn hình.
+> - Xem tài liệu mở rộng chi tiết tại: [docs/AI_DEVELOPER_GUIDE.md](file:///Users/hwg/Documents/xebuonho/docs/AI_DEVELOPER_GUIDE.md).
+
+### 6️⃣ Nạp Dữ Liệu Thật (PostgreSQL + PostGIS Seed)
+```bash
+docker exec -i xebuonho-postgres psql -U postgres -d xebuonho < migrations/seed_real_data.sql
+```
+Dữ liệu mẫu gồm 5 nhà hàng/quán ăn thực tế tại TP.HCM (Quận 1, Bình Thạnh) với tọa độ PostGIS chính xác và 13 món ăn có giá thật.
 
 ---
 
