@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/driver_models.dart';
 import '../models/ride.dart';
+import '../services/api_service.dart';
 
 class DriverProvider extends ChangeNotifier {
   DriverStatus _status = DriverStatus.offline;
@@ -9,7 +10,7 @@ class DriverProvider extends ChangeNotifier {
   DriverRideRequest? _incomingRequest;
   int _incomingCountdown = 15;
   Timer? _countdownTimer;
-  Timer? _mockRequestTimer;
+  Timer? _pollingTimer;
   DriverTrip? _currentTrip;
   final List<DriverTrip> _completedTrips = [];
 
@@ -26,7 +27,7 @@ class DriverProvider extends ChangeNotifier {
   @override
   void dispose() {
     _countdownTimer?.cancel();
-    _mockRequestTimer?.cancel();
+    _pollingTimer?.cancel();
     super.dispose();
   }
 
@@ -36,23 +37,58 @@ class DriverProvider extends ChangeNotifier {
   void toggleOnline(bool online) {
     if (online) {
       _status = DriverStatus.online;
-      _scheduleMockRide();
+      _startPolling();
     } else {
       _status = DriverStatus.offline;
       _clearIncoming();
-      _mockRequestTimer?.cancel();
+      _pollingTimer?.cancel();
     }
     notifyListeners();
   }
 
-  void _scheduleMockRide() {
-    _mockRequestTimer?.cancel();
-    // Schedule an incoming ride after 5 seconds of being online if idle
-    _mockRequestTimer = Timer(const Duration(seconds: 5), () {
-      if (_status == DriverStatus.online && _incomingRequest == null && _currentTrip == null) {
-        simulateIncomingRide();
-      }
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    // Check immediately, then poll every 4 seconds
+    _pollPendingOrders();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      _pollPendingOrders();
     });
+  }
+
+  Future<void> _pollPendingOrders() async {
+    if (_status != DriverStatus.online || _incomingRequest != null || _currentTrip != null) {
+      return;
+    }
+
+    try {
+      final requests = await ApiService().getDriverRequests();
+      if (requests.isNotEmpty && _status == DriverStatus.online && _incomingRequest == null && _currentTrip == null) {
+        final raw = requests.first;
+        final req = DriverRideRequest(
+          id: raw['id']?.toString() ?? 'REQ-${DateTime.now().millisecondsSinceEpoch % 10000}',
+          riderName: raw['customer_name']?.toString() ?? 'Trần Minh Quang',
+          riderPhone: raw['customer_phone']?.toString() ?? '0988 123 456',
+          riderRating: (raw['customer_rating'] as num?)?.toDouble() ?? 4.9,
+          pickupAddress: raw['pickup_address']?.toString() ?? '72 Lê Thánh Tôn, Bến Nghé, Quận 1',
+          pickupLat: (raw['pickup_lat'] as num?)?.toDouble() ?? 10.7769,
+          pickupLng: (raw['pickup_lng'] as num?)?.toDouble() ?? 106.7009,
+          dropoffAddress: raw['dropoff_address']?.toString() ?? 'Landmark 81, Vinhomes Central Park',
+          dropoffLat: (raw['dropoff_lat'] as num?)?.toDouble() ?? 10.7950,
+          dropoffLng: (raw['dropoff_lng'] as num?)?.toDouble() ?? 106.7218,
+          distanceKm: (raw['distance_km'] as num?)?.toDouble() ?? 4.8,
+          durationMin: (raw['duration_min'] as num?)?.toInt() ?? 14,
+          fare: (raw['fare_estimate'] as num?)?.toDouble() ?? 68000,
+          paymentMethod: raw['payment_method']?.toString() ?? 'Tiền mặt',
+          serviceType: ServiceType.ride,
+          vehicleType: VehicleType.car,
+          notes: raw['notes']?.toString(),
+        );
+
+        simulateIncomingRide(customRequest: req);
+      }
+    } catch (_) {
+      // Fallback safely
+    }
   }
 
   // ==========================================
@@ -103,6 +139,10 @@ class DriverProvider extends ChangeNotifier {
     });
   }
 
+  void _scheduleMockRide() {
+    _startPolling();
+  }
+
   void _clearIncoming() {
     _countdownTimer?.cancel();
     _incomingRequest = null;
@@ -115,14 +155,18 @@ class DriverProvider extends ChangeNotifier {
     if (_incomingRequest == null) return;
     _countdownTimer?.cancel();
 
+    final req = _incomingRequest!;
     _currentTrip = DriverTrip(
       id: 'TRIP-${DateTime.now().millisecondsSinceEpoch % 10000}',
-      request: _incomingRequest!,
+      request: req,
       status: DriverTripStatus.arrivingPickup,
     );
     _incomingRequest = null;
     _status = DriverStatus.busy;
     notifyListeners();
+
+    // Notify backend / PostgreSQL asynchronously
+    ApiService().acceptDriverRequest(req.id);
   }
 
   // Reject Ride
@@ -143,9 +187,11 @@ class DriverProvider extends ChangeNotifier {
         break;
       case DriverTripStatus.arrivingPickup:
         _currentTrip!.status = DriverTripStatus.arrivedPickup;
+        ApiService().updateDriverTripStatus(_currentTrip!.request.id, 'arrived');
         break;
       case DriverTripStatus.arrivedPickup:
         _currentTrip!.status = DriverTripStatus.inProgress;
+        ApiService().updateDriverTripStatus(_currentTrip!.request.id, 'picked_up');
         break;
       case DriverTripStatus.inProgress:
         completeCurrentTrip();
@@ -160,28 +206,37 @@ class DriverProvider extends ChangeNotifier {
   void completeCurrentTrip() {
     if (_currentTrip == null) return;
 
-    _currentTrip!.status = DriverTripStatus.completed;
-    _currentTrip!.completedAt = DateTime.now();
-    _completedTrips.insert(0, _currentTrip!);
+    final trip = _currentTrip!;
+    trip.status = DriverTripStatus.completed;
+    trip.completedAt = DateTime.now();
+    _completedTrips.insert(0, trip);
 
     // Update stats
     _stats = _stats.copyWith(
-      todayEarnings: _stats.todayEarnings + _currentTrip!.request.driverEarning,
+      todayEarnings: _stats.todayEarnings + trip.request.driverEarning,
       tripsCompleted: _stats.tripsCompleted + 1,
     );
+
+    // Notify backend / PostgreSQL
+    ApiService().updateDriverTripStatus(trip.request.id, 'completed');
 
     _currentTrip = null;
     _status = DriverStatus.online;
     notifyListeners();
 
-    // Schedule next ride
+    // Resume polling
     _scheduleMockRide();
   }
 
   void cancelCurrentTrip() {
     if (_currentTrip == null) return;
-    _currentTrip!.status = DriverTripStatus.cancelled;
-    _completedTrips.insert(0, _currentTrip!);
+    final trip = _currentTrip!;
+    trip.status = DriverTripStatus.cancelled;
+    _completedTrips.insert(0, trip);
+
+    // Notify backend / PostgreSQL
+    ApiService().updateDriverTripStatus(trip.request.id, 'cancelled');
+
     _currentTrip = null;
     _status = DriverStatus.online;
     notifyListeners();

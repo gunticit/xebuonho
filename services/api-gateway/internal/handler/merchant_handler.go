@@ -8,15 +8,17 @@ import (
 
 	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
+	"github.com/xebuonho/services/api-gateway/internal/repository"
 )
 
-// MerchantHandler handles merchant REST endpoints via gRPC
+// MerchantHandler handles merchant REST endpoints via gRPC and PostgreSQL
 type MerchantHandler struct {
 	client *grpcclient.MerchantClient
+	repo   *repository.PostgresRepo
 }
 
-func NewMerchantHandler(client *grpcclient.MerchantClient) *MerchantHandler {
-	return &MerchantHandler{client: client}
+func NewMerchantHandler(client *grpcclient.MerchantClient, repo *repository.PostgresRepo) *MerchantHandler {
+	return &MerchantHandler{client: client, repo: repo}
 }
 
 // GET /api/v1/merchants/nearby?lat=10.82&lng=106.63&radius=5&category=restaurant&sort=distance
@@ -25,8 +27,8 @@ func (h *MerchantHandler) ListNearbyMerchants(w http.ResponseWriter, r *http.Req
 	lng, _ := strconv.ParseFloat(r.URL.Query().Get("lng"), 64)
 
 	if lat == 0 || lng == 0 {
-		writeError(w, http.StatusBadRequest, "lat and lng query parameters are required")
-		return
+		lat = 10.7769
+		lng = 106.7009
 	}
 
 	radiusKm, _ := strconv.ParseFloat(r.URL.Query().Get("radius"), 64)
@@ -39,6 +41,19 @@ func (h *MerchantHandler) ListNearbyMerchants(w http.ResponseWriter, r *http.Req
 	}
 	if limit <= 0 {
 		limit = 20
+	}
+
+	if h.repo != nil {
+		merchants, err := h.repo.ListNearbyMerchants(r.Context(), lat, lng, radiusKm, category)
+		if err == nil && len(merchants) > 0 {
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"merchants": merchants,
+				"total":     len(merchants),
+				"page":      page,
+				"limit":     limit,
+			})
+			return
+		}
 	}
 
 	merchants, total, err := h.client.ListNearby(r.Context(), lat, lng, radiusKm, category, sortBy, page, limit)
@@ -78,6 +93,18 @@ func (h *MerchantHandler) GetMenu(w http.ResponseWriter, r *http.Request) {
 	if merchantID == "" {
 		writeError(w, http.StatusBadRequest, "merchant_id is required")
 		return
+	}
+
+	if h.repo != nil {
+		items, err := h.repo.GetMerchantMenu(r.Context(), merchantID)
+		if err == nil && len(items) > 0 {
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"merchant_id": merchantID,
+				"items":       items,
+				"total":       len(items),
+			})
+			return
+		}
 	}
 
 	categories, err := h.client.GetMenu(r.Context(), merchantID)

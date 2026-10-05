@@ -9,7 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/xebuonho/pkg/database"
 	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
+	"github.com/xebuonho/services/api-gateway/internal/repository"
 	"github.com/xebuonho/services/api-gateway/internal/router"
 )
 
@@ -39,9 +41,22 @@ func main() {
 	merchantClient := grpcclient.NewMerchantClient(clientPool.GetMerchantConn())
 
 	// ==========================================
-	// Build Router with gRPC clients
+	// Connect to PostgreSQL
 	// ==========================================
-	handler := router.NewRouter(cfg.JWTSecret, rideClient, orderClient, merchantClient)
+	var pgRepo *repository.PostgresRepo
+	db, err := database.ConnectPostgres(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Printf("⚠️ PostgreSQL not available: %v (falling back to gRPC)", err)
+	} else {
+		defer db.Close()
+		pgRepo = repository.NewPostgresRepo(db)
+		logger.Println("Connected to PostgreSQL ✅")
+	}
+
+	// ==========================================
+	// Build Router with gRPC clients & PostgreSQL
+	// ==========================================
+	handler := router.NewRouter(cfg.JWTSecret, rideClient, orderClient, merchantClient, pgRepo)
 
 	// ==========================================
 	// HTTP Server
@@ -82,6 +97,7 @@ func main() {
 type Config struct {
 	HTTPPort            string
 	JWTSecret           string
+	DatabaseURL         string
 	RideServiceAddr     string
 	OrderServiceAddr    string
 	MerchantServiceAddr string
@@ -91,6 +107,7 @@ func loadConfig() Config {
 	return Config{
 		HTTPPort:            getEnv("HTTP_PORT", "8000"),
 		JWTSecret:           getEnv("JWT_SECRET", "dev-secret"),
+		DatabaseURL:         getEnv("DATABASE_URL", "postgresql://app:secret@localhost:5432/xebuonho?sslmode=disable"),
 		RideServiceAddr:     getEnv("RIDE_SERVICE", "localhost:50051"),
 		OrderServiceAddr:    getEnv("ORDER_SERVICE", "localhost:50058"),
 		MerchantServiceAddr: getEnv("MERCHANT_SERVICE", "localhost:50059"),

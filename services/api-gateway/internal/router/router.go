@@ -14,6 +14,7 @@ import (
 	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
 	"github.com/xebuonho/services/api-gateway/internal/handler"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
+	"github.com/xebuonho/services/api-gateway/internal/repository"
 	"github.com/xebuonho/services/api-gateway/internal/ws"
 )
 
@@ -21,14 +22,14 @@ import (
 var staticFiles embed.FS
 
 // NewRouter creates the main API router with all routes
-func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient *grpcclient.OrderClient, merchantClient *grpcclient.MerchantClient) http.Handler {
+func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient *grpcclient.OrderClient, merchantClient *grpcclient.MerchantClient, repo *repository.PostgresRepo) http.Handler {
 	mux := http.NewServeMux()
 
-	rideH := handler.NewRideHandler(rideClient)
+	rideH := handler.NewRideHandler(rideClient, repo)
 	orderH := handler.NewOrderHandler(orderClient)
-	merchantH := handler.NewMerchantHandler(merchantClient)
+	merchantH := handler.NewMerchantHandler(merchantClient, repo)
 	adminH := handler.NewAdminHandler()
-	driverH := handler.NewDriverHandler()
+	driverH := handler.NewDriverHandler(repo)
 
 	// ==========================================
 	// Dashboard (root URL)
@@ -63,6 +64,13 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	mux.HandleFunc("/health", healthCheck)
 	mux.HandleFunc("/api/v1/merchants/nearby", merchantH.ListNearbyMerchants)
 	mux.HandleFunc("/api/v1/merchants/search", merchantH.SearchMerchants)
+	mux.HandleFunc("/api/v1/merchants/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/menu") {
+			merchantH.GetMenu(w, r)
+			return
+		}
+		merchantH.GetMerchant(w, r)
+	})
 
 	// ==========================================
 	// WebSocket Realtime Notifications

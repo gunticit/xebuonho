@@ -2,26 +2,32 @@ package handler
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
+	"github.com/xebuonho/services/api-gateway/internal/repository"
 )
 
-// RideHandler handles ride REST endpoints via gRPC
+// RideHandler handles ride REST endpoints via gRPC and PostgreSQL
 type RideHandler struct {
 	client *grpcclient.RideClient
+	repo   *repository.PostgresRepo
 }
 
-func NewRideHandler(client *grpcclient.RideClient) *RideHandler {
-	return &RideHandler{client: client}
+func NewRideHandler(client *grpcclient.RideClient, repo *repository.PostgresRepo) *RideHandler {
+	return &RideHandler{client: client, repo: repo}
 }
 
 // POST /api/v1/rides
 func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
+	if userID == "" {
+		userID = "ca3065df-b201-4e92-a807-04b51354a8d3" // Default test rider
+	}
 
 	var req struct {
 		PickupLat      float64 `json:"pickup_lat"`
@@ -51,7 +57,54 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ride, fare, err := h.client.CreateRide(r.Context(), grpcclient.CreateRideRequest{
+	// Calculate distance and realistic fare
+	distKm := math.Abs(req.DropoffLat-req.PickupLat)*111 + math.Abs(req.DropoffLng-req.PickupLng)*111
+	if distKm < 1.0 {
+		distKm = 2.5
+	}
+	durMin := int(distKm * 3.5)
+	if durMin < 5 {
+		durMin = 5
+	}
+
+	baseFare := 25000.0
+	perKm := 10000.0
+	if req.VehicleType == "bike" {
+		baseFare = 15000.0
+		perKm = 6000.0
+	} else if req.VehicleType == "premium" {
+		baseFare = 40000.0
+		perKm = 15000.0
+	}
+	fare := baseFare + distKm*perKm
+
+	if h.repo != nil {
+		rideRes, err := h.repo.CreateRide(r.Context(), repository.CreateRideParams{
+			IdempotencyKey: idempotencyKey,
+			RiderID:        userID,
+			PickupLat:      req.PickupLat,
+			PickupLng:      req.PickupLng,
+			PickupAddress:  req.PickupAddress,
+			DropoffLat:     req.DropoffLat,
+			DropoffLng:     req.DropoffLng,
+			DropoffAddress: req.DropoffAddress,
+			VehicleType:    req.VehicleType,
+			PaymentMethod:  req.PaymentMethod,
+			PromoCode:      req.PromoCode,
+			FareEstimate:   fare,
+			DistanceKm:     distKm,
+			DurationMin:    durMin,
+		})
+		if err == nil {
+			writeJSON(w, http.StatusCreated, map[string]interface{}{
+				"ride":          rideRes,
+				"fare_estimate": map[string]interface{}{"total_fare": fare, "currency": "VND"},
+			})
+			return
+		}
+	}
+
+	ride, fareEstimate, err := h.client.CreateRide(r.Context(), grpcclient.CreateRideRequest{
 		RiderID:        userID,
 		PickupLat:      req.PickupLat,
 		PickupLng:      req.PickupLng,
@@ -71,7 +124,7 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"ride":          ride,
-		"fare_estimate": fare,
+		"fare_estimate": fareEstimate,
 	})
 }
 
@@ -81,6 +134,14 @@ func (h *RideHandler) GetRide(w http.ResponseWriter, r *http.Request) {
 	if rideID == "" {
 		writeError(w, http.StatusBadRequest, "ride_id is required")
 		return
+	}
+
+	if h.repo != nil {
+		ride, err := h.repo.GetRide(r.Context(), rideID)
+		if err == nil && ride != nil {
+			writeJSON(w, http.StatusOK, ride)
+			return
+		}
 	}
 
 	ride, err := h.client.GetRide(r.Context(), rideID)

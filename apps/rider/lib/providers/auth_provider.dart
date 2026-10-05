@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
+import '../services/api_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   String? _token;
@@ -256,7 +257,24 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void demoLogin({String role = 'rider'}) {
+  Future<void> demoLogin({String role = 'rider'}) async {
+    _isLoading = true;
+    notifyListeners();
+
+    final phone = role == 'driver' ? '0912345678' : '0901234567';
+    final password = role == 'driver' ? 'secret123' : 'password123';
+
+    try {
+      final success = await login(phone: phone, password: password);
+      if (success) {
+        _userRole = role;
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback if offline
     _userId = 'demo-$role';
     _userRole = role;
     if (role == 'driver') {
@@ -274,6 +292,7 @@ class AuthProvider extends ChangeNotifier {
     _token = 'demo-token';
     _isLoggedIn = true;
     _needsOtp = false;
+    _isLoading = false;
     notifyListeners();
   }
 
@@ -313,6 +332,10 @@ class AuthProvider extends ChangeNotifier {
     _isLoggedIn = true;
     _error = null;
 
+    if (_token != null && _token!.isNotEmpty) {
+      ApiService().setAuthToken(_token!);
+    }
+
     final user = data['user'];
     if (user != null) {
       _userId = user['id'] ?? '';
@@ -320,6 +343,15 @@ class AuthProvider extends ChangeNotifier {
       _userPhone = user['phone'] ?? '';
       _userEmail = user['email'] ?? '';
       _userRole = user['role'] ?? 'rider';
+      if (user['vehicle_type'] != null) {
+        _vehicleType = user['vehicle_type'];
+      }
+      if (user['license_plate'] != null) {
+        _licensePlate = user['license_plate'];
+      }
+      if (user['vehicle_model'] != null) {
+        _vehicleModel = user['vehicle_model'];
+      }
     }
   }
 }

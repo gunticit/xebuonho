@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/xebuonho/services/api-gateway/internal/repository"
 )
 
 // DriverHandler serves driver dashboard API
@@ -19,6 +21,7 @@ type DriverHandler struct {
 	locationHistory []LocationPoint
 	sosActive       bool
 	sosTimestamp    time.Time
+	repo            *repository.PostgresRepo
 }
 
 type LocationPoint struct {
@@ -30,10 +33,11 @@ type LocationPoint struct {
 	Battery   int       `json:"battery"`
 }
 
-func NewDriverHandler() *DriverHandler {
+func NewDriverHandler(repo *repository.PostgresRepo) *DriverHandler {
 	return &DriverHandler{
 		driverOnline: false, onTrip: false,
 		lat: 10.7769, lng: 106.7009,
+		repo: repo,
 	}
 }
 
@@ -93,6 +97,17 @@ func (h *DriverHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.repo != nil {
+		pending, err := h.repo.ListPendingRides(r.Context())
+		if err == nil && len(pending) > 0 {
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"requests": pending,
+				"count":    len(pending),
+			})
+			return
+		}
+	}
+
 	serviceTypes := []string{"ride", "food_delivery", "grocery", "designated_driver"}
 	pickups := []string{"Landmark 81, Bình Thạnh", "Bến Thành Market, Q.1", "Bitexco Tower, Q.1", "Phú Mỹ Hưng, Q.7", "Nguyễn Huệ Walking Street"}
 	dropoffs := []string{"Sân bay Tân Sơn Nhất", "Quận 7, PMHK", "Saigon Center, Q.1", "Thủ Đức City", "Gò Vấp", "Bình Tân"}
@@ -144,6 +159,10 @@ func (h *DriverHandler) AcceptRequest(w http.ResponseWriter, r *http.Request) {
 		RequestID string `json:"request_id"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
+
+	if h.repo != nil && body.RequestID != "" {
+		_ = h.repo.AcceptRide(r.Context(), body.RequestID, "93623b04-ecc7-4654-8846-e05f72ab8069")
+	}
 
 	h.onTrip = true
 	writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -224,9 +243,16 @@ func (h *DriverHandler) UpdateTripStatus(w http.ResponseWriter, r *http.Request)
 	}
 
 	var body struct {
-		Action string `json:"action"`
+		RequestID string `json:"request_id"`
+		OrderID   string `json:"order_id"`
+		Action    string `json:"action"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
+
+	targetID := body.RequestID
+	if targetID == "" {
+		targetID = body.OrderID
+	}
 
 	messages := map[string]string{
 		"arrived":   "Đã đến điểm đón. Đang chờ khách...",
@@ -235,8 +261,21 @@ func (h *DriverHandler) UpdateTripStatus(w http.ResponseWriter, r *http.Request)
 		"cancelled": "Đã hủy chuyến.",
 	}
 
+	statusMap := map[string]string{
+		"arrived":   "arrived",
+		"picked_up": "in_progress",
+		"completed": "completed",
+		"cancelled": "cancelled",
+	}
+
 	if body.Action == "completed" || body.Action == "cancelled" {
 		h.onTrip = false
+	}
+
+	if h.repo != nil && targetID != "" {
+		if mappedStatus, ok := statusMap[body.Action]; ok {
+			_ = h.repo.UpdateRideStatus(r.Context(), targetID, mappedStatus)
+		}
 	}
 
 	msg, ok := messages[body.Action]
