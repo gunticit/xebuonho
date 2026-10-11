@@ -509,7 +509,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          '${req.vehicleType == VehicleType.bike ? '🏍️ Xe máy' : '🚗 Ô tô'} • $countdown giây',
+                          '${req.serviceType.icon} ${req.serviceType.displayName} • $countdown giây',
                           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.orange),
                         ),
                       ),

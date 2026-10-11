@@ -155,15 +155,53 @@ Tất cả các thành phần trong `lib/screens/driver/`, `lib/models/driver_mo
 
 ---
 
-## 7. Rào Chắn An Ninh & Phòng Chống Gian Lận (Security & Anti-Fraud Architecture)
+## 7. Rào Chắn An Ninh & Phòng Chống Gian Lận Đã Triển Khai (Security & Anti-Fraud)
 
-Mọi kỹ sư và AI khi mở rộng hệ thống BẮT BUỘC tuân thủ các nguyên tắc bảo mật từ [`.agents/skills/security-anti-fraud/SKILL.md`](file:///Users/hwg/Documents/xebuonho/.agents/skills/security-anti-fraud/SKILL.md):
+Toàn bộ hệ thống tuân thủ nghiêm ngặt các nguyên tắc từ [`.agents/skills/security-anti-fraud/SKILL.md`](../.agents/skills/security-anti-fraud/SKILL.md):
 
-1. **Chống Race Condition Nhận Cuốc**: Sử dụng Optimistic Lock tại DB (`WHERE id = $1 AND status = 'created'`) hoặc Redis Distributed Lock (`SETNX`) để đảm bảo chỉ đúng 1 tài xế nhận cuốc thành công.
-2. **Bắt buộc Idempotency**: Mọi request tạo đơn và thanh toán đều phải có header `X-Idempotency-Key`.
-3. **Chống Self-Booking**: Tuyệt đối không cho phép tài xế nhận cuốc xe do chính mình tạo (`customer_id != driver_id`).
-4. **Máy trạng thái FSM**: Kiểm tra tính hợp lệ của bước chuyển trạng thái (không nhảy cóc từ `created` lên `completed`).
-5. **Chống GPS Spoofing**: Kiểm tra cờ Mock Location trên di động và kiểm tra dị thường bước nhảy tốc độ (>120 km/h) trên backend.
-6. **Bảo vệ PII**: Che số điện thoại thực tế giữa khách và tài xế sau khi hoàn thành chuyến đi.
-7. **Không leak Error Logs**: Trả về mã lỗi thân thiện, không bao giờ in câu lệnh SQL lỗi hoặc stack trace nội bộ ra client.
+1. **Chống Self-Booking (Tài xế tự book tự nhận)**:
+   Tại [`services/api-gateway/internal/repository/postgres_repo.go`](../services/api-gateway/internal/repository/postgres_repo.go):
+   ```sql
+   UPDATE orders
+   SET driver_id = $2, status = 'accepted', accepted_at = NOW(), updated_at = NOW()
+   WHERE id = $1 AND status = 'created' AND customer_id != $2;
+   ```
+   Nếu `customer_id == driver_id`, query trả về `RowsAffected = 0`, Gateway ném lỗi `409 Conflict`.
+2. **Kiểm Tra Quyền Sở Hữu Bản Ghi (Record Ownership)**:
+   Chỉ đúng tài xế được gán (`driver_id = $3`) mới có quyền chuyển trạng thái cuốc xe trong `UpdateRideStatus`.
+3. **Chống Mock GPS & Gian Lận Tốc Độ (Speed Anomaly & Teleportation)**:
+   API `POST /api/v1/driver/location/update` tự động từ chối nếu tốc độ `speed > 130 km/h` hoặc tọa độ nằm ngoài biên Trái Đất (`lat [-90..90]`, `lng [-180..180]`).
+4. **Bắt Buộc Idempotency (`X-Idempotency-Key`)**:
+   Mọi request `POST /api/v1/rides` đều sinh và kiểm tra header `X-Idempotency-Key` để tránh tạo trùng cuốc xe và trừ tiền kép.
+5. **Bảo Vệ PII**:
+   Che số điện thoại thực tế giữa khách và tài xế sau khi hoàn thành chuyến đi (`090****567`).
+
+---
+
+## 8. Danh Mục Dịch Vụ Mở Rộng & Cơ Chế Hoạt Động (Multi-Service Catalog)
+
+| Dịch vụ | Mã `service_type` | Giá cơ sở (Base) | Giá theo km | Quy tắc đặc biệt |
+|---|---|---|---|---|
+| **Gọi xe (Ride Hailing)** | `ride` | 25,000đ (Bike: 15k, Premium: 40k) | 10,000đ/km | Upfront Fare cố định, tìm tài xế gần điểm đón. |
+| **Giao đồ ăn (Food Delivery)** | `food_delivery` | 18,000đ (2km đầu) | 5,000đ/km | Tìm tài xế gần **Quán ăn**, kiểm tra geofence quán <= 100m, OTP bàn giao. |
+| **Đi chợ hộ (Grocery Shopping)** | `grocery` | 18,000đ cước giao + 15% phí mua hộ (min 20k) | 5,000đ/km | Giới hạn ứng tiền <= 1,000,000đ, xác thực hóa đơn, đổi món realtime. |
+| **Lái xe hộ (Designated Driver)** | `designated_driver` | 60,000đ (2km đầu) | 16,000đ/km | **Phụ thu đêm khuya +30% (22h - 6h)**, chụp kiểm tra 4 góc xe, chế độ Solo/Duo. |
+
+---
+
+## 9. Bản Đồ Kỹ Năng & Tài Liệu Tham Chiếu (Skills Map)
+
+| Lĩnh vực | Thư mục Skill | Tài liệu kiến trúc tương ứng |
+|---|---|---|
+| **Hệ thống Đa Vai Trò** | [`.agents/skills/dual-role-system`](../.agents/skills/dual-role-system/SKILL.md) | [`docs/architecture/MOBILE-APPS.md`](architecture/MOBILE-APPS.md) |
+| **Cơ sở dữ liệu PostGIS** | [`.agents/skills/real-data-postgresql`](../.agents/skills/real-data-postgresql/SKILL.md) | [`docs/architecture/DATA-LAYER.md`](architecture/DATA-LAYER.md) |
+| **Bảo mật & Chống gian lận**| [`.agents/skills/security-anti-fraud`](../.agents/skills/security-anti-fraud/SKILL.md) | [`docs/best-practices/IDEMPOTENCY.md`](best-practices/IDEMPOTENCY.md) |
+| **Giao Đồ Ăn** | [`.agents/skills/food-delivery`](../.agents/skills/food-delivery/SKILL.md) | [`docs/architecture/SERVICES.md`](architecture/SERVICES.md) |
+| **Đi Chợ Hộ** | [`.agents/skills/grocery-shopping`](../.agents/skills/grocery-shopping/SKILL.md) | [`docs/architecture/SERVICES.md`](architecture/SERVICES.md) |
+| **Lái Xe Hộ** | [`.agents/skills/designated-driver`](../.agents/skills/designated-driver/SKILL.md) | [`docs/architecture/SERVICES.md`](architecture/SERVICES.md) |
+| **Bản Đồ & Định Tuyến** | [`.agents/skills/mapping-routing`](../.agents/skills/mapping-routing/SKILL.md) | [`docs/architecture/MAPPING-ROUTING.md`](architecture/MAPPING-ROUTING.md) |
+| **Redis Không Gian** | [`.agents/skills/redis-geospatial`](../.agents/skills/redis-geospatial/SKILL.md) | [`docs/architecture/DATA-LAYER.md`](architecture/DATA-LAYER.md) |
+| **MQTT Telemetry** | [`.agents/skills/mqtt-realtime`](../.agents/skills/mqtt-realtime/SKILL.md) | [`docs/architecture/COMMUNICATION.md`](architecture/COMMUNICATION.md) |
+| **WebSocket Realtime** | [`.agents/skills/websocket-realtime`](../.agents/skills/websocket-realtime/SKILL.md) | [`docs/architecture/COMMUNICATION.md`](architecture/COMMUNICATION.md) |
+
 

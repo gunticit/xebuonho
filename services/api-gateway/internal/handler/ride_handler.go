@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
@@ -30,6 +31,7 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
+		ServiceType    string  `json:"service_type"`
 		PickupLat      float64 `json:"pickup_lat"`
 		PickupLng      float64 `json:"pickup_lng"`
 		PickupAddress  string  `json:"pickup_address"`
@@ -51,10 +53,21 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Anti-fraud: Bounds validation (prevent NaN / infinite / out-of-earth coordinates)
+	if req.PickupLat < -90.0 || req.PickupLat > 90.0 || req.PickupLng < -180.0 || req.PickupLng > 180.0 ||
+		req.DropoffLat < -90.0 || req.DropoffLat > 90.0 || req.DropoffLng < -180.0 || req.DropoffLng > 180.0 {
+		writeError(w, http.StatusBadRequest, "coordinates out of valid earth bounds [-90..90, -180..180]")
+		return
+	}
+
 	idempotencyKey := r.Header.Get("X-Idempotency-Key")
 	if idempotencyKey == "" {
 		writeError(w, http.StatusBadRequest, "X-Idempotency-Key header is required")
 		return
+	}
+
+	if req.ServiceType == "" {
+		req.ServiceType = "ride"
 	}
 
 	// Calculate distance and realistic fare
@@ -76,11 +89,28 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 		baseFare = 40000.0
 		perKm = 15000.0
 	}
+
 	fare := baseFare + distKm*perKm
+
+	// Multi-service pricing adjustments
+	currentHour := time.Now().Hour()
+	if req.ServiceType == "designated_driver" {
+		baseFare = 60000.0
+		perKm = 16000.0
+		fare = baseFare + distKm*perKm
+		if currentHour >= 22 || currentHour < 6 {
+			fare *= 1.3 // 30% night surcharge for designated driver
+		}
+	} else if req.ServiceType == "food_delivery" || req.ServiceType == "grocery" {
+		baseFare = 18000.0
+		perKm = 5000.0
+		fare = baseFare + distKm*perKm
+	}
 
 	if h.repo != nil {
 		rideRes, err := h.repo.CreateRide(r.Context(), repository.CreateRideParams{
 			IdempotencyKey: idempotencyKey,
+			ServiceType:    req.ServiceType,
 			RiderID:        userID,
 			PickupLat:      req.PickupLat,
 			PickupLng:      req.PickupLng,

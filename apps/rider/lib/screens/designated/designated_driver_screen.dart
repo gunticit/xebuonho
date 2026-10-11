@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../models/app_models.dart';
+import '../../services/api_service.dart';
 
 class DesignatedDriverScreen extends StatefulWidget {
   const DesignatedDriverScreen({super.key});
@@ -549,6 +550,20 @@ class _DesignatedDriverScreenState extends State<DesignatedDriverScreen> {
         customerConfirmed: false,
         inspectedAt: DateTime.now(),
       ),
+    );
+
+    // Asynchronously create order in PostgreSQL via API Gateway
+    ApiService().createRide(
+      serviceType: 'designated_driver',
+      pickupAddress: _pickupCtrl.text.trim(),
+      pickupLat: 10.7769,
+      pickupLng: 106.7009,
+      dropoffAddress: _dropoffCtrl.text.trim(),
+      dropoffLat: 10.7950,
+      dropoffLng: 106.7218,
+      vehicleType: _vehicleType == 'Ô tô' ? 'car' : 'bike',
+      paymentMethod: _paymentMethod,
+      notes: 'Xe: ${_modelCtrl.text} ${_plateCtrl.text} • Gửi tại: ${_parkingCtrl.text}',
     );
 
     Navigator.pushNamed(context, '/designated-tracking', arguments: order);

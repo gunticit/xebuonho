@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../models/app_models.dart';
+import '../../services/api_service.dart';
 
 class GroceryOrderScreen extends StatefulWidget {
   const GroceryOrderScreen({super.key});
@@ -765,6 +766,20 @@ class _GroceryOrderScreenState extends State<GroceryOrderScreen> {
       serviceFee: _serviceFee,
       deliveryFee: _deliveryFee,
       tip: _tip,
+    );
+
+    // Asynchronously create order in PostgreSQL via API Gateway
+    ApiService().createRide(
+      serviceType: 'grocery',
+      pickupAddress: _selectedStore.address,
+      pickupLat: 10.7680,
+      pickupLng: 106.6900,
+      dropoffAddress: _deliveryAddress,
+      dropoffLat: 10.7950,
+      dropoffLng: 106.7218,
+      vehicleType: 'bike',
+      paymentMethod: _paymentMethod,
+      notes: 'Đi chợ tại ${_selectedStore.name}: ${_items.length} món • Ghi chú: $_customerNote',
     );
 
     Navigator.pushNamed(context, '/grocery-tracking', arguments: newOrder);

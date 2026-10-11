@@ -21,6 +21,7 @@ func NewPostgresRepo(db *pgxpool.Pool) *PostgresRepo {
 // ==========================================
 type CreateRideParams struct {
 	IdempotencyKey string
+	ServiceType    string
 	RiderID        string
 	PickupLat      float64
 	PickupLng      float64
@@ -38,6 +39,7 @@ type CreateRideParams struct {
 
 type RideResult struct {
 	ID             string    `json:"id"`
+	ServiceType    string    `json:"service_type"`
 	RiderID        string    `json:"rider_id"`
 	PickupAddress  string    `json:"pickup_address"`
 	DropoffAddress string    `json:"dropoff_address"`
@@ -50,6 +52,11 @@ type RideResult struct {
 }
 
 func (r *PostgresRepo) CreateRide(ctx context.Context, p CreateRideParams) (*RideResult, error) {
+	serviceType := p.ServiceType
+	if serviceType == "" {
+		serviceType = "ride"
+	}
+
 	query := `
 		INSERT INTO orders (
 			idempotency_key, service_type, customer_id,
@@ -57,25 +64,25 @@ func (r *PostgresRepo) CreateRide(ctx context.Context, p CreateRideParams) (*Rid
 			vehicle_type, status, fare_estimate, payment_method, promo_code,
 			distance_km, duration_minutes
 		) VALUES (
-			$1, 'ride', $2,
-			ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography, $5,
-			ST_SetSRID(ST_MakePoint($6, $7), 4326)::geography, $8,
-			$9, 'created', $10, $11, $12, $13, $14
+			$1, $2, $3,
+			ST_SetSRID(ST_MakePoint($4, $5), 4326)::geography, $6,
+			ST_SetSRID(ST_MakePoint($7, $8), 4326)::geography, $9,
+			$10, 'created', $11, $12, $13, $14, $15
 		)
 		ON CONFLICT (idempotency_key) DO UPDATE SET updated_at = NOW()
-		RETURNING id, customer_id, pickup_address, dropoff_address, vehicle_type, status,
+		RETURNING id, service_type, customer_id, pickup_address, dropoff_address, vehicle_type, status,
 		          fare_estimate, COALESCE(distance_km, 0), COALESCE(duration_minutes, 0), created_at
 	`
 
 	res := &RideResult{}
 	err := r.db.QueryRow(ctx, query,
-		p.IdempotencyKey, p.RiderID,
+		p.IdempotencyKey, serviceType, p.RiderID,
 		p.PickupLng, p.PickupLat, p.PickupAddress,
 		p.DropoffLng, p.DropoffLat, p.DropoffAddress,
 		p.VehicleType, p.FareEstimate, p.PaymentMethod, p.PromoCode,
 		p.DistanceKm, p.DurationMin,
 	).Scan(
-		&res.ID, &res.RiderID, &res.PickupAddress, &res.DropoffAddress,
+		&res.ID, &res.ServiceType, &res.RiderID, &res.PickupAddress, &res.DropoffAddress,
 		&res.VehicleType, &res.Status, &res.FareEstimate,
 		&res.DistanceKm, &res.DurationMin, &res.CreatedAt,
 	)
@@ -275,24 +282,43 @@ func (r *PostgresRepo) AcceptRide(ctx context.Context, orderID, driverID string)
 	query := `
 		UPDATE orders
 		SET driver_id = $2, status = 'accepted', accepted_at = NOW(), updated_at = NOW()
-		WHERE id = $1 AND status = 'created'
+		WHERE id = $1 AND status = 'created' AND customer_id != $2
 	`
 	cmd, err := r.db.Exec(ctx, query, orderID, driverID)
 	if err != nil {
 		return fmt.Errorf("accept ride: %w", err)
 	}
 	if cmd.RowsAffected() == 0 {
-		return fmt.Errorf("ride already accepted or not found")
+		return fmt.Errorf("ride already accepted, not found, or driver cannot accept own ride")
 	}
 	return nil
 }
 
-func (r *PostgresRepo) UpdateRideStatus(ctx context.Context, orderID, status string) error {
-	query := `
-		UPDATE orders
-		SET status = $2, updated_at = NOW()
-		WHERE id = $1
-	`
-	_, err := r.db.Exec(ctx, query, orderID, status)
-	return err
+func (r *PostgresRepo) UpdateRideStatus(ctx context.Context, orderID, driverID, status string) error {
+	var query string
+	var args []interface{}
+	if driverID != "" {
+		query = `
+			UPDATE orders
+			SET status = $2, updated_at = NOW()
+			WHERE id = $1 AND (driver_id = $3 OR driver_id IS NULL)
+		`
+		args = []interface{}{orderID, status, driverID}
+	} else {
+		query = `
+			UPDATE orders
+			SET status = $2, updated_at = NOW()
+			WHERE id = $1
+		`
+		args = []interface{}{orderID, status}
+	}
+	cmd, err := r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return fmt.Errorf("order not found or unauthorized driver")
+	}
+	return nil
 }
+

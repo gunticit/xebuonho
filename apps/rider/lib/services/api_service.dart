@@ -66,6 +66,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> createRide({
+    String serviceType = 'ride',
     required String pickupAddress,
     required double pickupLat,
     required double pickupLng,
@@ -86,6 +87,7 @@ class ApiService {
         },
       ),
       data: {
+        'service_type': serviceType,
         'pickup_address': pickupAddress,
         'pickup_lat': pickupLat,
         'pickup_lng': pickupLng,

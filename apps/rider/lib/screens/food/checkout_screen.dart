@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../models/app_models.dart';
+import '../../services/api_service.dart';
 import 'package:intl/intl.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -259,6 +260,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 'address': _selectedAddress,
                 'note': _noteCtrl.text,
               };
+              // Asynchronously create order in PostgreSQL via API Gateway
+              ApiService().createRide(
+                serviceType: 'food_delivery',
+                pickupAddress: _restaurantName,
+                pickupLat: 10.7769,
+                pickupLng: 106.7009,
+                dropoffAddress: _selectedAddress,
+                dropoffLat: 10.7950,
+                dropoffLng: 106.7218,
+                vehicleType: 'bike',
+                paymentMethod: _payments.firstWhere((p) => p['id'] == _selectedPayment)['name'] ?? 'Tiền mặt',
+                notes: 'Đồ ăn từ $_restaurantName: ${_items.map((e) => "${e.item.name} x${e.quantity}").join(", ")} • ${_noteCtrl.text}',
+              );
+
               if (_selectedPayment == 'sepay') {
                 // Go to SePay QR payment screen
                 Navigator.pushReplacementNamed(context, '/sepay-payment', arguments: orderArgs);

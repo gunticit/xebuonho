@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xebuonho/services/api-gateway/internal/middleware"
 	"github.com/xebuonho/services/api-gateway/internal/repository"
 )
 
@@ -160,8 +161,21 @@ func (h *DriverHandler) AcceptRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&body)
 
+	driverID := middleware.GetUserID(r)
+	if driverID == "" {
+		driverID = "93623b04-ecc7-4654-8846-e05f72ab8069" // default demo driver
+	}
+
 	if h.repo != nil && body.RequestID != "" {
-		_ = h.repo.AcceptRide(r.Context(), body.RequestID, "93623b04-ecc7-4654-8846-e05f72ab8069")
+		err := h.repo.AcceptRide(r.Context(), body.RequestID, driverID)
+		if err != nil {
+			writeJSON(w, http.StatusConflict, map[string]interface{}{
+				"accepted": false,
+				"error":    err.Error(),
+				"message":  "Không thể nhận cuốc (cuốc đã có tài xế khác nhận hoặc không được tự nhận cuốc của chính mình).",
+			})
+			return
+		}
 	}
 
 	h.onTrip = true
@@ -254,6 +268,11 @@ func (h *DriverHandler) UpdateTripStatus(w http.ResponseWriter, r *http.Request)
 		targetID = body.OrderID
 	}
 
+	driverID := middleware.GetUserID(r)
+	if driverID == "" {
+		driverID = "93623b04-ecc7-4654-8846-e05f72ab8069"
+	}
+
 	messages := map[string]string{
 		"arrived":   "Đã đến điểm đón. Đang chờ khách...",
 		"picked_up": "Đã đón khách. Bắt đầu di chuyển!",
@@ -274,7 +293,7 @@ func (h *DriverHandler) UpdateTripStatus(w http.ResponseWriter, r *http.Request)
 
 	if h.repo != nil && targetID != "" {
 		if mappedStatus, ok := statusMap[body.Action]; ok {
-			_ = h.repo.UpdateRideStatus(r.Context(), targetID, mappedStatus)
+			_ = h.repo.UpdateRideStatus(r.Context(), targetID, driverID, mappedStatus)
 		}
 	}
 
@@ -391,6 +410,21 @@ func (h *DriverHandler) UpdateLocation(w http.ResponseWriter, r *http.Request) {
 		Battery int     `json:"battery"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
+
+	// Anti-fraud: Bounds validation
+	if body.Lat < -90.0 || body.Lat > 90.0 || body.Lng < -180.0 || body.Lng > 180.0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "coordinates out of valid earth bounds"})
+		return
+	}
+
+	// Anti-fraud: Speed anomaly check (mock GPS / teleportation filter)
+	if body.Speed > 130.0 {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
+			"error":    "speed anomaly detected (mock GPS suspected)",
+			"received": false,
+		})
+		return
+	}
 
 	h.lat = body.Lat
 	h.lng = body.Lng

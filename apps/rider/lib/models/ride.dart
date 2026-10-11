@@ -47,6 +47,21 @@ enum ServiceType {
       case ServiceType.designatedDriver: return '🚙';
     }
   }
+
+  static ServiceType fromString(String? val) {
+    switch (val) {
+      case 'food_delivery':
+      case 'food':
+        return ServiceType.foodDelivery;
+      case 'grocery':
+        return ServiceType.grocery;
+      case 'designated_driver':
+      case 'designated':
+        return ServiceType.designatedDriver;
+      default:
+        return ServiceType.ride;
+    }
+  }
 }
 
 enum VehicleType {

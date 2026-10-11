@@ -79,8 +79,8 @@ class DriverProvider extends ChangeNotifier {
           durationMin: (raw['duration_min'] as num?)?.toInt() ?? 14,
           fare: (raw['fare_estimate'] as num?)?.toDouble() ?? 68000,
           paymentMethod: raw['payment_method']?.toString() ?? 'Tiền mặt',
-          serviceType: ServiceType.ride,
-          vehicleType: VehicleType.car,
+          serviceType: ServiceType.fromString(raw['service_type']?.toString()),
+          vehicleType: raw['vehicle_type'] == 'bike' ? VehicleType.bike : VehicleType.car,
           notes: raw['notes']?.toString(),
         );
 
