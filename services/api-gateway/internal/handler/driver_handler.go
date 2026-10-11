@@ -100,7 +100,7 @@ func (h *DriverHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 
 	if h.repo != nil {
 		pending, err := h.repo.ListPendingRides(r.Context())
-		if err == nil && len(pending) > 0 {
+		if err == nil {
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"requests": pending,
 				"count":    len(pending),
@@ -109,44 +109,9 @@ func (h *DriverHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	serviceTypes := []string{"ride", "food_delivery", "grocery", "designated_driver"}
-	pickups := []string{"Landmark 81, Bình Thạnh", "Bến Thành Market, Q.1", "Bitexco Tower, Q.1", "Phú Mỹ Hưng, Q.7", "Nguyễn Huệ Walking Street"}
-	dropoffs := []string{"Sân bay Tân Sơn Nhất", "Quận 7, PMHK", "Saigon Center, Q.1", "Thủ Đức City", "Gò Vấp", "Bình Tân"}
-	customerNames := []string{"Trần Thị Bích", "Lê Văn Cường", "Phạm Thanh Hà", "Hoàng Minh Đức", "Võ Thị Mai"}
-
-	sType := serviceTypes[rand.Intn(len(serviceTypes))]
-	req := map[string]interface{}{
-		"id":              randomOrderID(),
-		"service_type":    sType,
-		"customer_name":   customerNames[rand.Intn(len(customerNames))],
-		"customer_rating": randomFloat(4.2, 5.0),
-		"pickup_address":  pickups[rand.Intn(len(pickups))],
-		"pickup_lat":      10.7769 + (rand.Float64()-0.5)*0.05,
-		"pickup_lng":      106.7009 + (rand.Float64()-0.5)*0.05,
-		"dropoff_address": dropoffs[rand.Intn(len(dropoffs))],
-		"dropoff_lat":     10.8231 + (rand.Float64()-0.5)*0.05,
-		"dropoff_lng":     106.6297 + (rand.Float64()-0.5)*0.05,
-		"distance_km":     randomFloat(2.0, 18.0),
-		"fare_estimate":   randomFloat(25000, 350000),
-		"payment_method":  []string{"cash", "momo", "zalopay", "vnpay"}[rand.Intn(4)],
-		"vehicle_type":    vehicleForType(sType),
-		"expires_in":      randomInt(15, 30),
-		"created_at":      time.Now().Format("15:04"),
-		"notes":           randomNote(sType),
-	}
-
-	// For food/grocery, add items
-	if sType == "food_delivery" {
-		req["merchant_name"] = []string{"Phở 2000", "Bún Chả Hà Nội", "Cơm Tấm Sài Gòn", "Bánh Mì Huỳnh Hoa"}[rand.Intn(4)]
-		req["items_count"] = randomInt(1, 5)
-	} else if sType == "grocery" {
-		req["merchant_name"] = []string{"Co.opmart Q1", "Vinmart Landmark", "Bach Hoa Xanh", "Lotte Mart"}[rand.Intn(4)]
-		req["items_count"] = randomInt(3, 15)
-	}
-
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"requests": []interface{}{req},
-		"count":    1,
+		"requests": []interface{}{},
+		"count":    0,
 	})
 }
 
@@ -200,53 +165,22 @@ func (h *DriverHandler) DeclineRequest(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/driver/trip/current — Current active trip
 func (h *DriverHandler) GetCurrentTrip(w http.ResponseWriter, r *http.Request) {
-	if !h.onTrip {
-		writeJSON(w, http.StatusOK, map[string]interface{}{"trip": nil})
-		return
+	driverID := middleware.GetUserID(r)
+	if driverID == "" {
+		driverID = "93623b04-ecc7-4654-8846-e05f72ab8069"
 	}
 
-	sType := []string{"ride", "food_delivery", "grocery", "designated_driver"}[rand.Intn(4)]
-	statuses := []string{"driver_assigned", "arriving", "arrived", "picked_up", "in_progress"}
-	status := statuses[rand.Intn(len(statuses))]
-
-	trip := map[string]interface{}{
-		"id":              randomOrderID(),
-		"service_type":    sType,
-		"status":          status,
-		"customer_name":   "Phạm Thanh Hà",
-		"customer_phone":  "0901-xxx-xxx",
-		"customer_rating": 4.8,
-		"pickup_address":  "Landmark 81, Bình Thạnh",
-		"pickup_lat":      10.7942,
-		"pickup_lng":      106.7217,
-		"dropoff_address": "Sân bay Tân Sơn Nhất",
-		"dropoff_lat":     10.8231,
-		"dropoff_lng":     106.6580,
-		"distance_km":     randomFloat(4.0, 15.0),
-		"duration_min":    randomInt(12, 45),
-		"fare_estimate":   randomFloat(55000, 280000),
-		"payment_method":  "cash",
-		"vehicle_type":    vehicleForType(sType),
-		"notes":           randomNote(sType),
-		"started_at":      time.Now().Add(-time.Duration(randomInt(5, 30)) * time.Minute).Format("15:04"),
+	if h.repo != nil {
+		trip, err := h.repo.GetCurrentTrip(r.Context(), driverID)
+		if err == nil && trip != nil {
+			h.onTrip = true
+			writeJSON(w, http.StatusOK, map[string]interface{}{"trip": trip})
+			return
+		}
 	}
 
-	if sType == "food_delivery" || sType == "grocery" {
-		trip["merchant_name"] = "Phở 2000 Bến Thành"
-		trip["items_count"] = randomInt(2, 6)
-	}
-
-	// Status progression hints
-	nextActions := map[string]string{
-		"driver_assigned": "Đang đến điểm đón",
-		"arriving":        "Sắp đến nơi đón",
-		"arrived":         "Đã đến, chờ khách",
-		"picked_up":       "Đã đón khách, bắt đầu di chuyển",
-		"in_progress":     "Đang trên đường đến đích",
-	}
-	trip["next_action"] = nextActions[status]
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{"trip": trip})
+	h.onTrip = false
+	writeJSON(w, http.StatusOK, map[string]interface{}{"trip": nil})
 }
 
 // POST /api/v1/driver/trip/update — Update trip status (advance to next step)
@@ -302,97 +236,109 @@ func (h *DriverHandler) UpdateTripStatus(w http.ResponseWriter, r *http.Request)
 		msg = "Đã cập nhật trạng thái."
 	}
 
-	fare := float64(0)
-	if body.Action == "completed" {
-		fare = randomFloat(55000, 280000)
-	}
-
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"action":     body.Action,
-		"message":    msg,
-		"fare_final": fare,
-		"timestamp":  time.Now().Format(time.RFC3339),
+		"action":    body.Action,
+		"message":   msg,
+		"timestamp": time.Now().Format(time.RFC3339),
 	})
 }
 
 // GET /api/v1/driver/earnings — Earnings summary
 func (h *DriverHandler) GetEarnings(w http.ResponseWriter, r *http.Request) {
-	todayEarnings := randomFloat(400000, 1800000)
-	todayTrips := randomInt(5, 20)
+	driverID := middleware.GetUserID(r)
+	if driverID == "" {
+		driverID = "93623b04-ecc7-4654-8846-e05f72ab8069"
+	}
 
-	// Weekly breakdown
-	var weekDays []map[string]interface{}
-	for i := 6; i >= 0; i-- {
-		day := time.Now().AddDate(0, 0, -i)
-		weekDays = append(weekDays, map[string]interface{}{
-			"date":     day.Format("02/01"),
-			"day_name": dayName(day),
-			"earnings": randomFloat(300000, 2000000),
-			"trips":    randomInt(4, 22),
-			"hours":    randomFloat(4, 12),
-		})
+	if h.repo != nil {
+		summary, err := h.repo.GetDriverEarnings(r.Context(), driverID)
+		if err == nil && summary != nil {
+			avgToday := float64(0)
+			if summary.TodayTrips > 0 {
+				avgToday = summary.TodayEarnings / float64(summary.TodayTrips)
+			}
+			target := float64(1500000)
+			progress := (summary.TodayEarnings / target) * 100
+			if progress > 100 {
+				progress = 100
+			}
+
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"today": map[string]interface{}{
+					"earnings":      summary.TodayEarnings,
+					"trips":         summary.TodayTrips,
+					"hours_online":  8.0,
+					"avg_per_trip":  avgToday,
+					"tips":          0,
+					"bonus":         0,
+					"cancellations": 0,
+				},
+				"week": map[string]interface{}{
+					"earnings": summary.WeekEarnings,
+					"trips":    summary.WeekTrips,
+					"hours":    40.0,
+					"days":     summary.WeekDays,
+				},
+				"month": map[string]interface{}{
+					"earnings": summary.MonthEarnings,
+					"trips":    summary.MonthTrips,
+					"hours":    160.0,
+				},
+				"goal": map[string]interface{}{
+					"daily_target": target,
+					"progress_pct": progress,
+				},
+			})
+			return
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"today": map[string]interface{}{
-			"earnings":      todayEarnings,
-			"trips":         todayTrips,
-			"hours_online":  randomFloat(2, 10),
-			"avg_per_trip":  todayEarnings / float64(todayTrips),
-			"tips":          randomFloat(0, 80000),
-			"bonus":         randomFloat(0, 50000),
-			"cancellations": randomInt(0, 2),
-		},
-		"week": map[string]interface{}{
-			"earnings": randomFloat(3000000, 10000000),
-			"trips":    randomInt(40, 120),
-			"hours":    randomFloat(35, 70),
-			"days":     weekDays,
-		},
-		"month": map[string]interface{}{
-			"earnings": randomFloat(12000000, 35000000),
-			"trips":    randomInt(150, 500),
-			"hours":    randomFloat(150, 300),
-		},
-		"goal": map[string]interface{}{
-			"daily_target": 1500000,
-			"progress_pct": (todayEarnings / 1500000) * 100,
-		},
+		"today": map[string]interface{}{"earnings": 0, "trips": 0},
+		"week":  map[string]interface{}{"earnings": 0, "trips": 0, "days": []interface{}{}},
+		"month": map[string]interface{}{"earnings": 0, "trips": 0},
+		"goal":  map[string]interface{}{"daily_target": 1500000, "progress_pct": 0},
 	})
 }
 
 // GET /api/v1/driver/history — Trip history
 func (h *DriverHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
-	serviceTypes := []string{"ride", "food_delivery", "grocery", "designated_driver"}
-	pickups := []string{"Landmark 81", "Bến Thành", "Bitexco", "Phú Mỹ Hưng", "Nguyễn Huệ", "Thảo Điền"}
-	dropoffs := []string{"TSN Airport", "Q.7", "Saigon Center", "Thủ Đức", "Gò Vấp", "Bình Tân", "Q.2"}
+	driverID := middleware.GetUserID(r)
+	if driverID == "" {
+		driverID = "93623b04-ecc7-4654-8846-e05f72ab8069"
+	}
 
-	var trips []map[string]interface{}
-	for i := 0; i < 15; i++ {
-		sType := serviceTypes[rand.Intn(len(serviceTypes))]
-		status := "completed"
-		if rand.Float64() < 0.1 {
-			status = "cancelled"
+	if h.repo != nil {
+		history, err := h.repo.GetDriverHistory(r.Context(), driverID, 30)
+		if err == nil {
+			var trips []map[string]interface{}
+			for _, item := range history {
+				trips = append(trips, map[string]interface{}{
+					"id":             item.ID,
+					"service_type":   item.ServiceType,
+					"status":         item.Status,
+					"pickup":         item.PickupAddress,
+					"dropoff":        item.DropoffAddress,
+					"fare":           item.Fare,
+					"distance_km":    item.DistanceKm,
+					"driver_earning": item.DriverEarning,
+					"payment":        item.PaymentMethod,
+					"customer_name":  item.CustomerName,
+					"time":           item.CreatedAt.Format("15:04"),
+					"date":           item.CreatedAt.Format("02/01"),
+				})
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"trips": trips,
+				"total": len(trips),
+			})
+			return
 		}
-		trips = append(trips, map[string]interface{}{
-			"id":           randomOrderID(),
-			"service_type": sType,
-			"status":       status,
-			"pickup":       pickups[rand.Intn(len(pickups))],
-			"dropoff":      dropoffs[rand.Intn(len(dropoffs))],
-			"fare":         randomFloat(25000, 350000),
-			"distance_km":  randomFloat(1.5, 20.0),
-			"duration_min": randomInt(8, 55),
-			"payment":      []string{"cash", "momo", "zalopay", "vnpay"}[rand.Intn(4)],
-			"rating":       randomFloat(4.0, 5.0),
-			"time":         time.Now().Add(-time.Duration(randomInt(30, 720)) * time.Minute).Format("15:04"),
-			"date":         time.Now().Add(-time.Duration(randomInt(0, 3)) * 24 * time.Hour).Format("02/01"),
-		})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"trips": trips,
-		"total": len(trips),
+		"trips": []interface{}{},
+		"total": 0,
 	})
 }
 

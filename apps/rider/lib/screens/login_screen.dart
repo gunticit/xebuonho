@@ -90,10 +90,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
   }
 
-  void _demoLogin(String role) {
+  void _demoLogin(String role) async {
     final auth = context.read<AuthProvider>();
-    auth.demoLogin(role: role);
-    if (role == 'driver') {
+    await auth.demoLogin(role: role);
+    if (!mounted) return;
+    if (auth.isDriver) {
       Navigator.pushReplacementNamed(context, '/driver');
     } else {
       Navigator.pushReplacementNamed(context, '/home');
@@ -337,7 +338,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
                 const SizedBox(height: 16),
 
-                // Dual Demo login buttons (Rider vs Driver)
+                // Dual Real DB login buttons (Rider vs Driver)
                 Row(
                   children: [
                     Expanded(
@@ -345,7 +346,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         onPressed: () => _demoLogin('rider'),
                         icon: const Text('🙋‍♂️', style: TextStyle(fontSize: 16)),
                         label: const Text(
-                          'Khách (Demo)',
+                          'Khách hàng (DB)',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.blue),
                         ),
                         style: OutlinedButton.styleFrom(
@@ -361,7 +362,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         onPressed: () => _demoLogin('driver'),
                         icon: const Text('🚕', style: TextStyle(fontSize: 16)),
                         label: const Text(
-                          'Tài xế (Demo)',
+                          'Tài xế (DB)',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.orange),
                         ),
                         style: OutlinedButton.styleFrom(

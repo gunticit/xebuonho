@@ -62,8 +62,7 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 
 	idempotencyKey := r.Header.Get("X-Idempotency-Key")
 	if idempotencyKey == "" {
-		writeError(w, http.StatusBadRequest, "X-Idempotency-Key header is required")
-		return
+		idempotencyKey = "ride-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	}
 
 	if req.ServiceType == "" {

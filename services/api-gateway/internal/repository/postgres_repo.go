@@ -297,20 +297,54 @@ func (r *PostgresRepo) AcceptRide(ctx context.Context, orderID, driverID string)
 func (r *PostgresRepo) UpdateRideStatus(ctx context.Context, orderID, driverID, status string) error {
 	var query string
 	var args []interface{}
-	if driverID != "" {
-		query = `
-			UPDATE orders
-			SET status = $2, updated_at = NOW()
-			WHERE id = $1 AND (driver_id = $3 OR driver_id IS NULL)
-		`
-		args = []interface{}{orderID, status, driverID}
+	if status == "completed" {
+		if driverID != "" {
+			query = `
+				UPDATE orders
+				SET status = $2, completed_at = NOW(), fare_final = COALESCE(fare_final, fare_estimate), updated_at = NOW()
+				WHERE id = $1 AND (driver_id = $3 OR driver_id IS NULL)
+			`
+			args = []interface{}{orderID, status, driverID}
+		} else {
+			query = `
+				UPDATE orders
+				SET status = $2, completed_at = NOW(), fare_final = COALESCE(fare_final, fare_estimate), updated_at = NOW()
+				WHERE id = $1
+			`
+			args = []interface{}{orderID, status}
+		}
+	} else if status == "cancelled" {
+		if driverID != "" {
+			query = `
+				UPDATE orders
+				SET status = $2, cancelled_at = NOW(), cancelled_by = 'driver', updated_at = NOW()
+				WHERE id = $1 AND (driver_id = $3 OR driver_id IS NULL)
+			`
+			args = []interface{}{orderID, status, driverID}
+		} else {
+			query = `
+				UPDATE orders
+				SET status = $2, cancelled_at = NOW(), updated_at = NOW()
+				WHERE id = $1
+			`
+			args = []interface{}{orderID, status}
+		}
 	} else {
-		query = `
-			UPDATE orders
-			SET status = $2, updated_at = NOW()
-			WHERE id = $1
-		`
-		args = []interface{}{orderID, status}
+		if driverID != "" {
+			query = `
+				UPDATE orders
+				SET status = $2, updated_at = NOW()
+				WHERE id = $1 AND (driver_id = $3 OR driver_id IS NULL)
+			`
+			args = []interface{}{orderID, status, driverID}
+		} else {
+			query = `
+				UPDATE orders
+				SET status = $2, updated_at = NOW()
+				WHERE id = $1
+			`
+			args = []interface{}{orderID, status}
+		}
 	}
 	cmd, err := r.db.Exec(ctx, query, args...)
 	if err != nil {
@@ -321,4 +355,195 @@ func (r *PostgresRepo) UpdateRideStatus(ctx context.Context, orderID, driverID, 
 	}
 	return nil
 }
+
+type ActiveDriverTrip struct {
+	ID             string    `json:"id"`
+	ServiceType    string    `json:"service_type"`
+	Status         string    `json:"status"`
+	CustomerName   string    `json:"customer_name"`
+	CustomerPhone  string    `json:"customer_phone"`
+	CustomerRating float64   `json:"customer_rating"`
+	PickupAddress  string    `json:"pickup_address"`
+	PickupLat      float64   `json:"pickup_lat"`
+	PickupLng      float64   `json:"pickup_lng"`
+	DropoffAddress string    `json:"dropoff_address"`
+	DropoffLat     float64   `json:"dropoff_lat"`
+	DropoffLng     float64   `json:"dropoff_lng"`
+	DistanceKm     float64   `json:"distance_km"`
+	DurationMin    int       `json:"duration_min"`
+	FareEstimate   float64   `json:"fare_estimate"`
+	PaymentMethod  string    `json:"payment_method"`
+	VehicleType    string    `json:"vehicle_type"`
+	StartedAt      time.Time `json:"started_at"`
+	NextAction     string    `json:"next_action"`
+}
+
+func (r *PostgresRepo) GetCurrentTrip(ctx context.Context, driverID string) (*ActiveDriverTrip, error) {
+	query := `
+		SELECT o.id, o.service_type, o.status, COALESCE(u.full_name, 'Khách hàng'), COALESCE(u.phone, ''),
+		       o.pickup_address,
+		       ST_Y(o.pickup_location::geometry) as pickup_lat,
+		       ST_X(o.pickup_location::geometry) as pickup_lng,
+		       o.dropoff_address,
+		       ST_Y(o.dropoff_location::geometry) as dropoff_lat,
+		       ST_X(o.dropoff_location::geometry) as dropoff_lng,
+		       COALESCE(o.distance_km, 3.5), COALESCE(o.duration_minutes, 15),
+		       o.fare_estimate, o.payment_method, COALESCE(o.vehicle_type, 'car'),
+		       COALESCE(o.accepted_at, o.created_at)
+		FROM orders o
+		LEFT JOIN users u ON o.customer_id = u.id
+		WHERE o.driver_id = $1 AND o.status IN ('accepted', 'arriving', 'arrived', 'in_progress')
+		ORDER BY o.updated_at DESC
+		LIMIT 1
+	`
+	var t ActiveDriverTrip
+	t.CustomerRating = 4.9
+	err := r.db.QueryRow(ctx, query, driverID).Scan(
+		&t.ID, &t.ServiceType, &t.Status, &t.CustomerName, &t.CustomerPhone,
+		&t.PickupAddress, &t.PickupLat, &t.PickupLng,
+		&t.DropoffAddress, &t.DropoffLat, &t.DropoffLng,
+		&t.DistanceKm, &t.DurationMin,
+		&t.FareEstimate, &t.PaymentMethod, &t.VehicleType,
+		&t.StartedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	nextActions := map[string]string{
+		"accepted":    "Đang đến điểm đón khách",
+		"arriving":    "Sắp đến điểm đón",
+		"arrived":     "Đã đến điểm đón, chờ khách lên xe",
+		"in_progress": "Đang di chuyển đến điểm trả khách",
+	}
+	t.NextAction = nextActions[t.Status]
+	if t.NextAction == "" {
+		t.NextAction = "Đang thực hiện chuyến đi"
+	}
+	return &t, nil
+}
+
+type DriverEarningsSummary struct {
+	TodayEarnings float64                  `json:"today_earnings"`
+	TodayTrips    int                      `json:"today_trips"`
+	WeekEarnings  float64                  `json:"week_earnings"`
+	WeekTrips     int                      `json:"week_trips"`
+	MonthEarnings float64                  `json:"month_earnings"`
+	MonthTrips    int                      `json:"month_trips"`
+	WeekDays      []map[string]interface{} `json:"week_days"`
+}
+
+func (r *PostgresRepo) GetDriverEarnings(ctx context.Context, driverID string) (*DriverEarningsSummary, error) {
+	s := &DriverEarningsSummary{
+		WeekDays: make([]map[string]interface{}, 0),
+	}
+
+	// 1. Today's completed orders
+	todayQuery := `
+		SELECT COALESCE(SUM(COALESCE(fare_final, fare_estimate)), 0), COUNT(*)
+		FROM orders
+		WHERE driver_id = $1 AND status = 'completed' AND created_at >= CURRENT_DATE
+	`
+	_ = r.db.QueryRow(ctx, todayQuery, driverID).Scan(&s.TodayEarnings, &s.TodayTrips)
+
+	// 2. Week completed orders (last 7 days)
+	weekQuery := `
+		SELECT COALESCE(SUM(COALESCE(fare_final, fare_estimate)), 0), COUNT(*)
+		FROM orders
+		WHERE driver_id = $1 AND status = 'completed' AND created_at >= (CURRENT_DATE - INTERVAL '6 days')
+	`
+	_ = r.db.QueryRow(ctx, weekQuery, driverID).Scan(&s.WeekEarnings, &s.WeekTrips)
+
+	// 3. Month completed orders
+	monthQuery := `
+		SELECT COALESCE(SUM(COALESCE(fare_final, fare_estimate)), 0), COUNT(*)
+		FROM orders
+		WHERE driver_id = $1 AND status = 'completed' AND created_at >= DATE_TRUNC('month', CURRENT_DATE)
+	`
+	_ = r.db.QueryRow(ctx, monthQuery, driverID).Scan(&s.MonthEarnings, &s.MonthTrips)
+
+	// 4. Breakdown by day for last 7 days
+	daysQuery := `
+		SELECT TO_CHAR(d::date, 'DD/MM') as day_label,
+		       COALESCE(SUM(COALESCE(o.fare_final, o.fare_estimate)), 0) as day_earnings,
+		       COUNT(o.id) as day_trips
+		FROM generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, '1 day'::interval) d
+		LEFT JOIN orders o ON DATE(o.created_at) = d::date AND o.driver_id = $1 AND o.status = 'completed'
+		GROUP BY d::date
+		ORDER BY d::date ASC
+	`
+	rows, err := r.db.Query(ctx, daysQuery, driverID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var label string
+			var earnings float64
+			var trips int
+			if err := rows.Scan(&label, &earnings, &trips); err == nil {
+				s.WeekDays = append(s.WeekDays, map[string]interface{}{
+					"date":     label,
+					"earnings": earnings,
+					"trips":    trips,
+				})
+			}
+		}
+	}
+
+	return s, nil
+}
+
+type DriverHistoryItem struct {
+	ID             string    `json:"id"`
+	ServiceType    string    `json:"service_type"`
+	Status         string    `json:"status"`
+	CustomerName   string    `json:"customer_name"`
+	CustomerPhone  string    `json:"customer_phone"`
+	PickupAddress  string    `json:"pickup_address"`
+	DropoffAddress string    `json:"dropoff_address"`
+	DistanceKm     float64   `json:"distance_km"`
+	Fare           float64   `json:"fare"`
+	DriverEarning  float64   `json:"driver_earning"`
+	PaymentMethod  string    `json:"payment_method"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+func (r *PostgresRepo) GetDriverHistory(ctx context.Context, driverID string, limit int) ([]DriverHistoryItem, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	query := `
+		SELECT o.id, o.service_type, o.status, COALESCE(u.full_name, 'Khách hàng'), COALESCE(u.phone, ''),
+		       o.pickup_address, o.dropoff_address,
+		       COALESCE(o.distance_km, 3.5),
+		       COALESCE(o.fare_final, o.fare_estimate),
+		       o.payment_method, o.created_at
+		FROM orders o
+		LEFT JOIN users u ON o.customer_id = u.id
+		WHERE o.driver_id = $1
+		ORDER BY o.created_at DESC
+		LIMIT $2
+	`
+	rows, err := r.db.Query(ctx, query, driverID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query driver history: %w", err)
+	}
+	defer rows.Close()
+
+	var list []DriverHistoryItem
+	for rows.Next() {
+		var h DriverHistoryItem
+		if err := rows.Scan(
+			&h.ID, &h.ServiceType, &h.Status, &h.CustomerName, &h.CustomerPhone,
+			&h.PickupAddress, &h.DropoffAddress,
+			&h.DistanceKm, &h.Fare,
+			&h.PaymentMethod, &h.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		h.DriverEarning = h.Fare * 0.8
+		list = append(list, h)
+	}
+	return list, nil
+}
+
 
