@@ -37,6 +37,12 @@ apps/rider/lib/
     └── app_drawer.dart          # Banner chuyển đổi vai trò (Switch to Driver / Switch to Rider)
 ```
 
+### 2.1. Design Patterns Trong Kiến Trúc Dual-Role (Flutter)
+- **Facade Pattern (`ApiService`)**: Cung cấp giao diện gọi API thống nhất (`estimateFare`, `createRide`, `getDriverRequests`, `acceptDriverRequest`, `updateDriverTripStatus`), che giấu sự phân tán của các microservices phía sau.
+- **Provider Pattern (State Management)**: Phân tách hoàn toàn trạng thái khách hàng (`ActiveOrderProvider`) và đối tác tài xế (`DriverProvider`), đảm bảo vòng đời và chu kỳ lắng nghe không bị xung đột khi chuyển đổi vai trò.
+- **Factory Pattern (Service Card & Dialogs)**: Khởi tạo linh hoạt giao diện cuốc xe theo `ServiceType` (`ride`, `food_delivery`, `grocery`, `designated_driver`) với icon, màu sắc và trường thông tin đặc thù.
+- **Observer Pattern (Real-time Live Sync)**: Đồng bộ cập nhật vị trí và trạng thái chuyến đi giữa 2 màn hình Khách và Tài xế thông qua WebSocket `/ws`.
+
 ---
 
 ## 3. Quản lý trạng thái Tài xế (`DriverProvider`)

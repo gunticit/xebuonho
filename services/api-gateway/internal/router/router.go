@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xebuonho/services/api-gateway/internal/event"
 	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
 	"github.com/xebuonho/services/api-gateway/internal/handler"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
@@ -77,6 +79,32 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	// ==========================================
 	notifHub := ws.NewHub()
 	go notifHub.Run()
+
+	// Observer Pattern: wire Event Dispatcher to WebSocket NotifHub
+	event.GetDispatcher().Subscribe(event.EventOrderCreated, func(ctx context.Context, e event.Event) error {
+		notifHub.SendToRole("driver", ws.Notification{
+			Type:    "new_ride_request",
+			Title:   "Có cuốc xe mới!",
+			Message: "Khách hàng vừa đặt chuyến gần bạn. Nhấn để nhận cuốc.",
+		})
+		return nil
+	})
+	event.GetDispatcher().Subscribe(event.EventOrderAccepted, func(ctx context.Context, e event.Event) error {
+		notifHub.Broadcast(ws.Notification{
+			Type:    "ride_accepted",
+			Title:   "Tài xế đã nhận cuốc",
+			Message: "Tài xế đang trên đường đến điểm đón bạn.",
+		})
+		return nil
+	})
+	event.GetDispatcher().Subscribe(event.EventOrderStatusChanged, func(ctx context.Context, e event.Event) error {
+		notifHub.Broadcast(ws.Notification{
+			Type:    "ride_status_updated",
+			Title:   "Cập nhật hành trình",
+			Message: "Trạng thái cuốc xe đã thay đổi.",
+		})
+		return nil
+	})
 
 	mux.HandleFunc("/ws", notifHub.HandleWebSocket)
 

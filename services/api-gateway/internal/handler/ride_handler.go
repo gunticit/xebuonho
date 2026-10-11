@@ -8,18 +8,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xebuonho/services/api-gateway/internal/event"
 	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
+	"github.com/xebuonho/services/api-gateway/internal/pricing"
 	"github.com/xebuonho/services/api-gateway/internal/repository"
 )
 
-// RideHandler handles ride REST endpoints via gRPC and PostgreSQL
+// RideHandler handles ride REST endpoints via gRPC and Repository (DIP: depends on OrderRepository interface)
 type RideHandler struct {
 	client *grpcclient.RideClient
-	repo   *repository.PostgresRepo
+	repo   repository.OrderRepository
 }
 
-func NewRideHandler(client *grpcclient.RideClient, repo *repository.PostgresRepo) *RideHandler {
+func NewRideHandler(client *grpcclient.RideClient, repo repository.OrderRepository) *RideHandler {
 	return &RideHandler{client: client, repo: repo}
 }
 
@@ -41,6 +43,7 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 		VehicleType    string  `json:"vehicle_type"`
 		PaymentMethod  string  `json:"payment_method"`
 		PromoCode      string  `json:"promo_code"`
+		DesignatedMode string  `json:"designated_mode"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -53,7 +56,7 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Anti-fraud: Bounds validation (prevent NaN / infinite / out-of-earth coordinates)
+	// Anti-fraud: Bounds validation
 	if req.PickupLat < -90.0 || req.PickupLat > 90.0 || req.PickupLng < -180.0 || req.PickupLng > 180.0 ||
 		req.DropoffLat < -90.0 || req.DropoffLat > 90.0 || req.DropoffLng < -180.0 || req.DropoffLng > 180.0 {
 		writeError(w, http.StatusBadRequest, "coordinates out of valid earth bounds [-90..90, -180..180]")
@@ -69,7 +72,7 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 		req.ServiceType = "ride"
 	}
 
-	// Calculate distance and realistic fare
+	// Distance and duration calculation
 	distKm := math.Abs(req.DropoffLat-req.PickupLat)*111 + math.Abs(req.DropoffLng-req.PickupLng)*111
 	if distKm < 1.0 {
 		distKm = 2.5
@@ -79,32 +82,20 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 		durMin = 5
 	}
 
-	baseFare := 25000.0
-	perKm := 10000.0
-	if req.VehicleType == "bike" {
-		baseFare = 15000.0
-		perKm = 6000.0
-	} else if req.VehicleType == "premium" {
-		baseFare = 40000.0
-		perKm = 15000.0
+	// Strategy Pattern: Compute price via Pricing Engine
+	pricingRes, err := pricing.CalculatePrice(pricing.PricingContext{
+		ServiceType:     req.ServiceType,
+		DistanceKm:      distKm,
+		DurationMin:     durMin,
+		VehicleType:     req.VehicleType,
+		DesignatedMode:  req.DesignatedMode,
+		RequestedAt:     time.Now(),
+		SurgeMultiplier: 1.0,
+	})
+	if err != nil {
+		pricingRes.TotalFare = 25000.0 + distKm*10000.0
 	}
-
-	fare := baseFare + distKm*perKm
-
-	// Multi-service pricing adjustments
-	currentHour := time.Now().Hour()
-	if req.ServiceType == "designated_driver" {
-		baseFare = 60000.0
-		perKm = 16000.0
-		fare = baseFare + distKm*perKm
-		if currentHour >= 22 || currentHour < 6 {
-			fare *= 1.3 // 30% night surcharge for designated driver
-		}
-	} else if req.ServiceType == "food_delivery" || req.ServiceType == "grocery" {
-		baseFare = 18000.0
-		perKm = 5000.0
-		fare = baseFare + distKm*perKm
-	}
+	fare := pricingRes.TotalFare
 
 	if h.repo != nil {
 		rideRes, err := h.repo.CreateRide(r.Context(), repository.CreateRideParams{
@@ -125,9 +116,21 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 			DurationMin:    durMin,
 		})
 		if err == nil {
+			// Observer Pattern: dispatch EventOrderCreated to all subscribers
+			event.GetDispatcher().Dispatch(r.Context(), event.Event{
+				ID:        rideRes.ID,
+				Type:      event.EventOrderCreated,
+				Payload:   rideRes,
+				Timestamp: time.Now(),
+			})
+
 			writeJSON(w, http.StatusCreated, map[string]interface{}{
-				"ride":          rideRes,
-				"fare_estimate": map[string]interface{}{"total_fare": fare, "currency": "VND"},
+				"ride": rideRes,
+				"fare_estimate": map[string]interface{}{
+					"total_fare": fare,
+					"currency":   "VND",
+					"breakdown":  pricingRes.Breakdown,
+				},
 			})
 			return
 		}
@@ -222,7 +225,43 @@ func (h *RideHandler) EstimateFare(w http.ResponseWriter, r *http.Request) {
 
 	estimates, err := h.client.EstimateFare(r.Context(), req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng, req.VehicleType)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		distKm := math.Abs(req.DropoffLat-req.PickupLat)*111 + math.Abs(req.DropoffLng-req.PickupLng)*111
+		if distKm < 1.0 {
+			distKm = 2.5
+		}
+		durMin := int(distKm * 3.5)
+
+		bikeRes, _ := pricing.CalculatePrice(pricing.PricingContext{
+			ServiceType: "ride",
+			VehicleType: "bike",
+			DistanceKm:  distKm,
+			DurationMin: durMin,
+			RequestedAt: time.Now(),
+		})
+		carRes, _ := pricing.CalculatePrice(pricing.PricingContext{
+			ServiceType: "ride",
+			VehicleType: "car",
+			DistanceKm:  distKm,
+			DurationMin: durMin,
+			RequestedAt: time.Now(),
+		})
+
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"distance_km":  distKm,
+			"duration_min": durMin,
+			"estimates": []map[string]interface{}{
+				{
+					"vehicle_type": "bike",
+					"total_fare":   bikeRes.TotalFare,
+					"breakdown":    bikeRes.Breakdown,
+				},
+				{
+					"vehicle_type": "car",
+					"total_fare":   carRes.TotalFare,
+					"breakdown":    carRes.Breakdown,
+				},
+			},
+		})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"estimates": estimates})

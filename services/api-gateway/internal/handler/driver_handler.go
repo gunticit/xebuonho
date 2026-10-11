@@ -7,11 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xebuonho/services/api-gateway/internal/event"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
+	"github.com/xebuonho/services/api-gateway/internal/orderstate"
 	"github.com/xebuonho/services/api-gateway/internal/repository"
 )
 
-// DriverHandler serves driver dashboard API
+// DriverHandler serves driver dashboard API (DIP: depends on OrderRepository interface)
 type DriverHandler struct {
 	driverOnline    bool
 	onTrip          bool
@@ -22,7 +24,7 @@ type DriverHandler struct {
 	locationHistory []LocationPoint
 	sosActive       bool
 	sosTimestamp    time.Time
-	repo            *repository.PostgresRepo
+	repo            repository.OrderRepository
 }
 
 type LocationPoint struct {
@@ -34,7 +36,7 @@ type LocationPoint struct {
 	Battery   int       `json:"battery"`
 }
 
-func NewDriverHandler(repo *repository.PostgresRepo) *DriverHandler {
+func NewDriverHandler(repo repository.OrderRepository) *DriverHandler {
 	return &DriverHandler{
 		driverOnline: false, onTrip: false,
 		lat: 10.7769, lng: 106.7009,
@@ -141,6 +143,14 @@ func (h *DriverHandler) AcceptRequest(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+
+		// Observer Pattern: Dispatch EventOrderAccepted
+		event.GetDispatcher().Dispatch(r.Context(), event.Event{
+			ID:        body.RequestID,
+			Type:      event.EventOrderAccepted,
+			Payload:   map[string]string{"order_id": body.RequestID, "driver_id": driverID},
+			Timestamp: time.Now(),
+		})
 	}
 
 	h.onTrip = true
@@ -227,7 +237,34 @@ func (h *DriverHandler) UpdateTripStatus(w http.ResponseWriter, r *http.Request)
 
 	if h.repo != nil && targetID != "" {
 		if mappedStatus, ok := statusMap[body.Action]; ok {
-			_ = h.repo.UpdateRideStatus(r.Context(), targetID, driverID, mappedStatus)
+			// State Pattern (FSM): Validate state transition rule
+			currentTrip, err := h.repo.GetCurrentTrip(r.Context(), driverID)
+			if err == nil && currentTrip != nil {
+				if transitionErr := orderstate.ValidateTransition(currentTrip.Status, mappedStatus); transitionErr != nil {
+					writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+						"error":   transitionErr.Error(),
+						"message": "Vi phạm quy trình chuyển đổi trạng thái chuyến đi",
+					})
+					return
+				}
+			}
+
+			if err := h.repo.UpdateRideStatus(r.Context(), targetID, driverID, mappedStatus); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+
+			// Observer Pattern: Dispatch EventOrderStatusChanged
+			event.GetDispatcher().Dispatch(r.Context(), event.Event{
+				ID:   targetID,
+				Type: event.EventOrderStatusChanged,
+				Payload: map[string]string{
+					"order_id":  targetID,
+					"driver_id": driverID,
+					"status":    mappedStatus,
+				},
+				Timestamp: time.Now(),
+			})
 		}
 	}
 
