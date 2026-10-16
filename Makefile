@@ -1,4 +1,9 @@
-.PHONY: all proto build test lint run-all docker-up docker-down clean
+.PHONY: all proto build build-service test test-service lint vet fmt tidy run-all stop-all docker-up docker-down clean
+
+SERVICES := ride-service driver-service user-service payment-service \
+	matching-service location-service trip-service notification-service \
+	order-service merchant-service api-gateway
+GO_PACKAGES := $(addsuffix /...,$(addprefix ./services/,$(SERVICES))) ./pkg/...
 
 # ============================================
 # DEVELOPMENT
@@ -26,12 +31,10 @@ stop-all:
 
 ## Build all services
 build:
-	@for service in ride-service driver-service user-service payment-service \
-		matching-service location-service trip-service notification-service \
-		order-service merchant-service; do \
+	@mkdir -p bin
+	@set -e; for service in $(SERVICES); do \
 		echo "Building $$service..."; \
-		cd services/$$service && go build -o ../../bin/$$service ./cmd/main.go; \
-		cd ../..; \
+		(cd services/$$service && go build -o ../../bin/$$service ./cmd/main.go); \
 	done
 
 ## Build single service: make build-service SERVICE=ride-service
@@ -56,7 +59,7 @@ proto:
 
 ## Run all tests
 test:
-	go test -v -race -coverprofile=coverage.out ./...
+	go test -v -race -coverprofile=coverage.out $(GO_PACKAGES)
 
 ## Test single service
 test-service:
@@ -68,7 +71,11 @@ test-service:
 
 ## Run linter
 lint:
-	golangci-lint run ./...
+	golangci-lint run $(GO_PACKAGES)
+
+## Run Go's built-in static analysis across the workspace
+vet:
+	go vet $(GO_PACKAGES)
 
 ## Format code
 fmt:
