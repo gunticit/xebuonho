@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 
+	"github.com/xebuonho/pkg/kafka"
 	"github.com/xebuonho/services/driver-service/internal/model"
 	"github.com/xebuonho/services/driver-service/internal/repository"
 )

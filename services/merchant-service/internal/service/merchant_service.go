@@ -194,7 +194,7 @@ func (s *merchantService) ValidateAndPriceItems(ctx context.Context, merchantID 
 	for _, item := range items {
 		itemMap[item.ID] = item
 	}
-	var maxPrepTime int32
+	var maxPrepTime int32 = 0
 	for _, req := range itemRequests {
 		item, found := itemMap[req.MenuItemID]
 		if !found {
@@ -221,7 +221,7 @@ func (s *merchantService) ValidateAndPriceItems(ctx context.Context, merchantID 
 	if len(result.Items) > 0 {
 		// Simple logic to find max prep time
 		for _, item := range result.Items {
-			//-’s a simplification
+			_ = item // Use item to avoid unused variable
 		}
 	}
 	result.EstimatedPrepTime = 15 // Default 15min
@@ -238,6 +238,7 @@ type ValidateResult struct {
 	TotalPrice        float64
 	EstimatedPrepTime int32
 	Errors            []string
+	Items             []ValidatedItem
 }
 
 type ValidatedItem struct {

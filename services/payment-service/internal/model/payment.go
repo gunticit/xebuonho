@@ -28,10 +28,21 @@ type PaymentRequest struct {
 }
 
 type PaymentResponse struct {
-	TransactionID string    `json:"transaction_id"`
+	TransactionID string            `json:"transaction_id"`
 	Status        TransactionStatus `json:"status"`
-	PaidAmount    float64   `json:"paid_amount"`
-	PaidAt        time.Time `json:"paid_at"`
+	PaidAmount    float64           `json:"paid_amount"`
+	PaidAt        time.Time         `json:"paid_at"`
+	QRUrl        string            `json:"qr_url,omitempty"`
+	TransferNote string            `json:"transfer_note,omitempty"`
+}
+
+type SePayWebhookPayload struct {
+	TransactionID string    `json:"transaction_id"`
+	Amount        float64   `json:"amount"`
+	Content       string    `json:"content"`
+	BankCode      string    `json:"bank_code"`
+	AccountName   string    `json:"account_name"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 type Invoice struct {

@@ -8,10 +8,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/xebuonho/pkg/database"
 	"github.com/xebuonho/services/payment-service/internal/config"
+	"github.com/xebuonho/services/payment-service/internal/handler"
 	"github.com/xebuonho/services/payment-service/internal/repository"
 	"github.com/xebuonho/services/payment-service/internal/service"
 	"google.golang.org/grpc"
@@ -33,6 +33,7 @@ func main() {
 	// 2. Initialize Layers
 	repo := repository.NewPaymentRepository(db)
 	paymentSvc := service.NewPaymentService(repo)
+	paymentHandler := handler.NewPaymentHandler(paymentSvc)
 
 	// 3. gRPC Server
 	grpcServer := grpc.NewServer()
@@ -49,14 +50,16 @@ func main() {
 		}
 	}()
 
-	// 4. HTTP Health Check
+	// 4. HTTP Handlers
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
+	http.HandleFunc("/payments/process", paymentHandler.ProcessPayment)
+	http.HandleFunc("/payments/webhook/sepay", paymentHandler.HandleSePayWebhook)
 
 	go func() {
-		log.Printf("HTTP health check listening on :%s", cfg.HTTPPort)
+		log.Printf("HTTP server listening on :%s", cfg.HTTPPort)
 		if err := http.ListenAndServe(":"+cfg.HTTPPort, nil); err != nil {
 			log.Printf("HTTP server error: %v", err)
 		}

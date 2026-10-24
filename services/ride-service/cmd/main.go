@@ -46,7 +46,7 @@ func main() {
 	// Initialize Layers: Repo → Service → Handler
 	// ==========================================
 	rideRepo := repository.NewRideRepository(db)
-	rideSvc := service.NewRideService(rideRepo, rideProducer)
+	rideSvc := service.NewRideService(rideRepo, rideProducer, nil)
 	rideHandler := handler.NewRideGRPCHandler(rideSvc)
 
 	_ = rideHandler // Will be registered when proto-gen is ready

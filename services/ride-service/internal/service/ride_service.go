@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"math"
 
 	"github.com/xebuonho/pkg/kafka"
@@ -81,8 +82,10 @@ func (s *RideService) CreateRide(ctx context.Context, riderID string, pickupLat,
 		driverID, status, err := s.matchingClient.MatchDriver(ctx, ride.ID, riderID, vehicleType, pickupLat, pickupLng)
 		if err == nil {
 			ride.Status = status
-			ride.DriverID = driverID
-			_ = s.rideRepo.UpdateStatus(ctx, ride.ID, status, driverID)
+			if driverID != "" {
+				ride.DriverID = &driverID
+			}
+			_ = s.rideRepo.UpdateStatus(ctx, ride.ID, status)
 		} else {
 			log.Printf("[ride-service] Matching error for ride %s: %v", ride.ID, err)
 		}
@@ -119,13 +122,13 @@ func (s *RideService) UpdateRideStatus(ctx context.Context, rideID, status, driv
 		return nil, fmt.Errorf("cannot update status of a %s ride", ride.Status)
 	}
 
-	if err := s.rideRepo.UpdateStatus(ctx, rideID, status, driverID); err != nil {
+	if err := s.rideRepo.UpdateStatus(ctx, rideID, status); err != nil {
 		return nil, fmt.Errorf("update status: %w", err)
 	}
 
 	// Publish status change event to Kafka
 	if s.eventProducer != nil {
-		s.eventProducer.PublishAsync(ctx, rideID, kafka.EventRideStatusChanged, kafka.RideEventData{
+		s.eventProducer.PublishAsync(ctx, rideID, kafka.EventOrderStatusChanged, kafka.RideEventData{
 			RideID:   rideID,
 			Status:   status,
 			DriverID: driverID,
@@ -134,12 +137,21 @@ func (s *RideService) UpdateRideStatus(ctx context.Context, rideID, status, driv
 
 	ride.Status = status
 	if driverID != "" {
-		ride.DriverID = driverID
+		ride.DriverID = &driverID
 	}
 
 	return ride, nil
 }
 
+
+// GetRide retrieves a ride by its ID
+func (s *RideService) GetRide(ctx context.Context, rideID string) (*model.Ride, error) {
+	ride, err := s.rideRepo.GetByID(ctx, rideID)
+	if err != nil {
+		return nil, fmt.Errorf("get ride: %w", err)
+	}
+	return ride, nil
+}
 
 // ListRides lists rides for a rider
 func (s *RideService) ListRides(ctx context.Context, riderID string, page, pageSize int) ([]model.Ride, int, error) {

@@ -12,6 +12,7 @@ import (
 type LocationService interface {
 	UpdateLocation(ctx context.Context, update model.LocationUpdate) error
 	GetLocation(ctx context.Context, driverID string) (*model.DriverLocation, error)
+	GetNearbyDrivers(ctx context.Context, lat, lng, radiusKm float64) ([]string, error)
 }
 
 type locationService struct {
@@ -68,4 +69,12 @@ func (s *locationService) GetLocation(ctx context.Context, driverID string) (*mo
 		Lat:      lat,
 		Lng:      lng,
 	}, nil
+}
+
+func (s *locationService) GetNearbyDrivers(ctx context.Context, lat, lng, radiusKm float64) ([]string, error) {
+	drivers, err := s.repo.GetNearbyDrivers(ctx, lat, lng, radiusKm)
+	if err != nil {
+		return nil, fmt.Errorf("get nearby drivers: %w", err)
+	}
+	return drivers, nil
 }

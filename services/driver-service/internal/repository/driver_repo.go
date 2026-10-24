@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/xebuonho/pkg/database"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xebuonho/services/driver-service/internal/model"
 )
 
@@ -14,16 +14,17 @@ type DriverRepository interface {
 }
 
 type postgresDriverRepo struct {
-	db *database.PostgresDB
+	db *pgxpool.Pool
 }
 
-func NewDriverRepository(db *database.PostgresDB) DriverRepository {
+func NewDriverRepository(db *pgxpool.Pool) DriverRepository {
 	return &postgresDriverRepo{db: db}
 }
 
 func (r *postgresDriverRepo) UpdateStatus(ctx context.Context, driverID, status string) error {
 	query := `UPDATE users SET status = $1 WHERE id = $2`
-	return r.db.Exec(ctx, query, status, driverID)
+	_, err := r.db.Exec(ctx, query, status, driverID)
+	return err
 }
 
 func (r *postgresDriverRepo) GetDriver(ctx context.Context, driverID string) (*model.Driver, error) {
@@ -38,5 +39,6 @@ func (r *postgresDriverRepo) GetDriver(ctx context.Context, driverID string) (*m
 
 func (r *postgresDriverRepo) SetCurrentRide(ctx context.Context, driverID, rideID string) error {
 	query := `UPDATE driver_capabilities SET current_ride_id = $1 WHERE driver_id = $2`
-	return r.db.Exec(ctx, query, rideID, driverID)
+	_, err := r.db.Exec(ctx, query, rideID, driverID)
+	return err
 }
