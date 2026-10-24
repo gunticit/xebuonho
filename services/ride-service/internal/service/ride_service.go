@@ -14,13 +14,20 @@ import (
 type RideService struct {
 	rideRepo      *repository.RideRepository
 	eventProducer *kafka.Producer
+	matchingClient MatchingClient
+}
+
+// MatchingClient defines the interface for interacting with the Matching Service
+type MatchingClient interface {
+	MatchDriver(ctx context.Context, orderID, customerID, serviceType string, pickupLat, pickupLng float64) (driverID string, status string, err error)
 }
 
 // NewRideService creates a new ride service
-func NewRideService(rideRepo *repository.RideRepository, producer *kafka.Producer) *RideService {
+func NewRideService(rideRepo *repository.RideRepository, producer *kafka.Producer, matchingClient MatchingClient) *RideService {
 	return &RideService{
-		rideRepo:      rideRepo,
-		eventProducer: producer,
+		rideRepo:       rideRepo,
+		eventProducer:  producer,
+		matchingClient: matchingClient,
 	}
 }
 
@@ -56,7 +63,7 @@ func (s *RideService) CreateRide(ctx context.Context, riderID string, pickupLat,
 		DropoffLng:     dropoffLng,
 		DropoffAddress: dropoffAddr,
 		VehicleType:    vehicleType,
-		Status:         "created",
+		Status:         "searching", // Start with searching instead of created
 		FareEstimate:   fareEst.TotalFare,
 		PaymentMethod:  paymentMethod,
 		PromoCode:      promoCode,
@@ -67,6 +74,18 @@ func (s *RideService) CreateRide(ctx context.Context, riderID string, pickupLat,
 
 	if err := s.rideRepo.Create(ctx, ride); err != nil {
 		return nil, nil, fmt.Errorf("create ride: %w", err)
+	}
+
+	// Trigger Matching Service to find a driver
+	if s.matchingClient != nil {
+		driverID, status, err := s.matchingClient.MatchDriver(ctx, ride.ID, riderID, vehicleType, pickupLat, pickupLng)
+		if err == nil {
+			ride.Status = status
+			ride.DriverID = driverID
+			_ = s.rideRepo.UpdateStatus(ctx, ride.ID, status, driverID)
+		} else {
+			log.Printf("[ride-service] Matching error for ride %s: %v", ride.ID, err)
+		}
 	}
 
 	// Publish ride.created event to Kafka
@@ -87,10 +106,40 @@ func (s *RideService) CreateRide(ctx context.Context, riderID string, pickupLat,
 	return ride, &fareEst, nil
 }
 
-// GetRide retrieves a ride by ID
-func (s *RideService) GetRide(ctx context.Context, rideID string) (*model.Ride, error) {
-	return s.rideRepo.GetByID(ctx, rideID)
+// UpdateRideStatus updates the status of a ride
+func (s *RideService) UpdateRideStatus(ctx context.Context, rideID, status, driverID string) (*model.Ride, error) {
+	ride, err := s.rideRepo.GetByID(ctx, rideID)
+	if err != nil {
+		return nil, fmt.Errorf("get ride: %w", err)
+	}
+
+	// Validate state transition
+	// Simple validation: cannot update a completed or cancelled ride
+	if ride.Status == "completed" || ride.Status == "cancelled" {
+		return nil, fmt.Errorf("cannot update status of a %s ride", ride.Status)
+	}
+
+	if err := s.rideRepo.UpdateStatus(ctx, rideID, status, driverID); err != nil {
+		return nil, fmt.Errorf("update status: %w", err)
+	}
+
+	// Publish status change event to Kafka
+	if s.eventProducer != nil {
+		s.eventProducer.PublishAsync(ctx, rideID, kafka.EventRideStatusChanged, kafka.RideEventData{
+			RideID:   rideID,
+			Status:   status,
+			DriverID: driverID,
+		})
+	}
+
+	ride.Status = status
+	if driverID != "" {
+		ride.DriverID = driverID
+	}
+
+	return ride, nil
 }
+
 
 // ListRides lists rides for a rider
 func (s *RideService) ListRides(ctx context.Context, riderID string, page, pageSize int) ([]model.Ride, int, error) {

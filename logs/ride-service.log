@@ -1,0 +1,6 @@
+[ride-service] 2026/10/04 20:32:30 main.go:37: Connected to PostgreSQL
+[ride-service] 2026/10/04 20:32:30 main.go:43: Kafka producer initialized
+[ride-service] 2026/10/04 20:32:30 main.go:91: HTTP server listening on :8080
+[ride-service] 2026/10/04 20:32:30 main.go:84: gRPC server listening on :50051
+[ride-service] 2026/10/08 02:50:50 main.go:101: Shutting down...
+[ride-service] 2026/10/08 02:50:50 main.go:107: Stopped

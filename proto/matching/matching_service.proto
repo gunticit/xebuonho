@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package matching;
+
+option go_package = "github.com/xebuonho/proto/matching";
+
+import "proto/common/common.proto";
+
+service MatchingService {
+    // Tìm danh sách tài xế gần đây
+    rpc FindNearbyDrivers(FindNearbyDriversRequest) returns (FindNearbyDriversResponse);
+
+    // Tìm và bắt cặp tài xế tốt nhất cho một đơn hàng
+    rpc MatchDriver(MatchRequest) returns (MatchResponse);
+}
+
+message FindNearbyDriversRequest {
+    double lat = 1;
+    double lng = 2;
+    double radius_km = 3;
+    string service_type = 4;
+    int32 limit = 5;
+}
+
+message FindNearbyDriversResponse {
+    repeated NearbyDriver drivers = 1;
+}
+
+message NearbyDriver {
+    string driver_id = 1;
+    double lat = 2;
+    double lng = 3;
+    double distance_km = 4;
+    double rating = 5;
+    int32 wait_time_minutes = 6;
+    double score = 7;
+    string status = 8;
+    repeated string capabilities = 9;
+}
+
+message MatchRequest {
+    string order_id = 1;
+    string customer_id = 2;
+    string service_type = 3;
+    double pickup_lat = 4;
+    double pickup_lng = 5;
+    double preferred_radius_km = 6;
+}
+
+message MatchResponse {
+    string order_id = 1;
+    NearbyDriver matched_driver = 2;
+    double search_radius_km = 3;
+    string status = 4; // e.g., "DRIVER_ASSIGNED", "NO_DRIVER"
+    int32 candidates_found = 5;
+    string message = 6;
+}
