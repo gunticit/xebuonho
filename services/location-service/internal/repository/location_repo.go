@@ -22,7 +22,8 @@ func NewLocationRepository(redis *redis.Client) LocationRepository {
 
 func (r *redisLocationRepo) UpdateDriverLocation(ctx context.Context, driverID string, lat, lng float64) error {
 	// Use Redis GEOADD to store location for geospatial queries
-	err := r.redis.GeoAdd(ctx, "active_drivers_location", &redis.GeoLocation{
+	// Unified key with matching-service: "driver:geo"
+	err := r.redis.GeoAdd(ctx, "driver:geo", &redis.GeoLocation{
 		Name:      driverID,
 		Longitude: lng,
 		Latitude:  lat,
@@ -34,7 +35,7 @@ func (r *redisLocationRepo) UpdateDriverLocation(ctx context.Context, driverID s
 }
 
 func (r *redisLocationRepo) GetDriverLocation(ctx context.Context, driverID string) (lat, lng float64, err error) {
-	pos, err := r.redis.GeoPos(ctx, "active_drivers_location", driverID).Result()
+	pos, err := r.redis.GeoPos(ctx, "driver:geo", driverID).Result()
 	if err != nil {
 		return 0, 0, fmt.Errorf("redis geopos: %w", err)
 	}
@@ -45,7 +46,7 @@ func (r *redisLocationRepo) GetDriverLocation(ctx context.Context, driverID stri
 }
 
 func (r *redisLocationRepo) GetNearbyDrivers(ctx context.Context, lat, lng, radiusKm float64) ([]string, error) {
-	res, err := r.redis.GeoSearch(ctx, "active_drivers_location", &redis.GeoSearchQuery{
+	res, err := r.redis.GeoSearch(ctx, "driver:geo", &redis.GeoSearchQuery{
 		Longitude: lng,
 		Latitude:  lat,
 		Radius:    radiusKm,

@@ -1,5 +1,0 @@
-[merchant-service] 2026/10/04 20:32:29 main.go:36: Connected to PostgreSQL
-[merchant-service] 2026/10/04 20:32:29 main.go:87: HTTP server listening on :8089
-[merchant-service] 2026/10/04 20:32:29 main.go:80: gRPC server listening on :50059
-[merchant-service] 2026/10/08 02:50:50 main.go:99: Shutting down...
-[merchant-service] 2026/10/08 02:50:50 main.go:105: Stopped

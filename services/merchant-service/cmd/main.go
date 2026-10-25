@@ -40,7 +40,7 @@ func main() {
 	// ==========================================
 	merchantRepo := repository.NewMerchantRepository(db)
 	menuRepo := repository.NewMenuRepository(db)
-	merchantSvc := service.NewMerchantService(merchantRepo, menuRepo)
+	merchantSvc := service.NewMerchantService(merchantRepo, menuRepo, nil)
 	merchantHandler := handler.NewMerchantGRPCHandler(merchantSvc)
 
 	_ = merchantHandler // Will be registered when proto-gen is ready

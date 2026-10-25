@@ -12,11 +12,11 @@ import (
 
 // MerchantGRPCHandler implements the gRPC MerchantService
 type MerchantGRPCHandler struct {
-	svc *service.MerchantService
+	svc service.MerchantService
 }
 
 // NewMerchantGRPCHandler creates a new handler
-func NewMerchantGRPCHandler(svc *service.MerchantService) *MerchantGRPCHandler {
+func NewMerchantGRPCHandler(svc service.MerchantService) *MerchantGRPCHandler {
 	return &MerchantGRPCHandler{svc: svc}
 }
 

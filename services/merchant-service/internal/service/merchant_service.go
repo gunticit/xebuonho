@@ -194,7 +194,6 @@ func (s *merchantService) ValidateAndPriceItems(ctx context.Context, merchantID 
 	for _, item := range items {
 		itemMap[item.ID] = item
 	}
-	var maxPrepTime int32 = 0
 	for _, req := range itemRequests {
 		item, found := itemMap[req.MenuItemID]
 		if !found {

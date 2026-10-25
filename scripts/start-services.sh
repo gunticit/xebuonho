@@ -40,11 +40,11 @@ start_service "notification-service" env HTTP_PORT=8092
 sleep 2
 
 # 2. Start auxiliary services
-start_service "driver-service" env HTTP_PORT=8081 SERVICE_NAME=driver-service
-start_service "payment-service" env HTTP_PORT=8087 SERVICE_NAME=payment-service
-start_service "matching-service" env HTTP_PORT=8084 SERVICE_NAME=matching-service
-start_service "location-service" env HTTP_PORT=8085 SERVICE_NAME=location-service
-start_service "trip-service" env HTTP_PORT=8086 SERVICE_NAME=trip-service
+start_service "driver-service" env HTTP_PORT=8081 GRPC_PORT=50052 SERVICE_NAME=driver-service
+start_service "payment-service" env HTTP_PORT=8087 GRPC_PORT=50054 SERVICE_NAME=payment-service
+start_service "matching-service" env HTTP_PORT=8084 GRPC_PORT=50055 SERVICE_NAME=matching-service
+start_service "location-service" env HTTP_PORT=8085 GRPC_PORT=50056 SERVICE_NAME=location-service
+start_service "trip-service" env HTTP_PORT=8086 GRPC_PORT=50057 SERVICE_NAME=trip-service
 
 # 3. Start API Gateway (depends on ride, order, merchant gRPC)
 start_service "api-gateway" env HTTP_PORT=8000 \

@@ -16,6 +16,7 @@ import (
 
 	"github.com/xebuonho/pkg/database"
 	"github.com/xebuonho/pkg/kafka"
+	"github.com/xebuonho/services/ride-service/internal/grpcclient"
 	"github.com/xebuonho/services/ride-service/internal/handler"
 	"github.com/xebuonho/services/ride-service/internal/repository"
 	"github.com/xebuonho/services/ride-service/internal/service"
@@ -46,7 +47,17 @@ func main() {
 	// Initialize Layers: Repo → Service → Handler
 	// ==========================================
 	rideRepo := repository.NewRideRepository(db)
-	rideSvc := service.NewRideService(rideRepo, rideProducer, nil)
+
+	// Initialize Matching gRPC Client
+	matchingClient, err := grpcclient.NewMatchingClient("localhost:50055")
+	if err != nil {
+		log.Printf("Warning: could not initialize matching client: %v", err)
+		matchingClient = nil
+	} else {
+		defer matchingClient.Close()
+	}
+
+	rideSvc := service.NewRideService(rideRepo, rideProducer, matchingClient)
 	rideHandler := handler.NewRideGRPCHandler(rideSvc)
 
 	_ = rideHandler // Will be registered when proto-gen is ready

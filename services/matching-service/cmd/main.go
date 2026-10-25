@@ -56,7 +56,7 @@ func main() {
 	matchingSvc := service.NewMatchingService(geoRepo, kafkaProducer, cfg)
 	httpHandler := handler.NewHTTPHandler(matchingSvc)
 	grpcHandler := handler.NewMatchingGRPCHandler(matchingSvc)
-	// TODO: RegisterMatchingServiceServer(grpcServer, grpcHandler) once proto generated
+	_ = grpcHandler // TODO: RegisterMatchingServiceServer(grpcServer, grpcHandler) once proto generated
 
 	// 4. Setup gRPC Server
 	grpcServer := grpc.NewServer()

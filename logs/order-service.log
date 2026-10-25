@@ -1,6 +1,0 @@
-[order-service] 2026/10/04 20:32:31 main.go:37: Connected to PostgreSQL
-[order-service] 2026/10/04 20:32:31 main.go:43: Kafka producer initialized
-[order-service] 2026/10/04 20:32:31 main.go:92: HTTP server listening on :8088
-[order-service] 2026/10/04 20:32:31 main.go:85: gRPC server listening on :50058
-[order-service] 2026/10/08 02:50:50 main.go:102: Shutting down...
-[order-service] 2026/10/08 02:50:50 main.go:108: Stopped
