@@ -104,8 +104,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: LatLng(
-                booking.pickupLat != 0 ? booking.pickupLat : 10.7769,
-                booking.pickupLng != 0 ? booking.pickupLng : 106.7009,
+                booking.pickupLat != 0 ? booking.pickupLat : 12.9247,
+                booking.pickupLng != 0 ? booking.pickupLng : 108.2541,
               ),
               initialZoom: 15,
             ),

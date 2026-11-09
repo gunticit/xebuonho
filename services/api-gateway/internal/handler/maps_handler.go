@@ -182,3 +182,4 @@ func (h *MapsHandler) fallbackRegion(lat, lng float64) ReverseGeocodeResponse {
 		Source:       "regional_heuristic",
 	}
 }
+

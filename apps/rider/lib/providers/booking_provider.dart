@@ -20,8 +20,8 @@ class BookingProvider extends ChangeNotifier {
 
   BookingState _state = BookingState.idle;
   String _pickupAddress = '';
-  double _pickupLat = 10.7769;
-  double _pickupLng = 106.7009;
+  double _pickupLat = 12.9247;
+  double _pickupLng = 108.2541;
   String _dropoffAddress = '';
   double _dropoffLat = 0;
   double _dropoffLng = 0;

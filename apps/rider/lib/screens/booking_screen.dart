@@ -30,8 +30,8 @@ class BookingScreen extends StatelessWidget {
             child: FlutterMap(
               options: MapOptions(
                 initialCenter: LatLng(
-                  booking.dropoffLat != 0 ? (booking.pickupLat + booking.dropoffLat) / 2 : (booking.pickupLat != 0 ? booking.pickupLat : 10.7769),
-                  booking.dropoffLng != 0 ? (booking.pickupLng + booking.dropoffLng) / 2 : (booking.pickupLng != 0 ? booking.pickupLng : 106.7009),
+                  booking.dropoffLat != 0 ? (booking.pickupLat + booking.dropoffLat) / 2 : (booking.pickupLat != 0 ? booking.pickupLat : 12.9247),
+                  booking.dropoffLng != 0 ? (booking.pickupLng + booking.dropoffLng) / 2 : (booking.pickupLng != 0 ? booking.pickupLng : 108.2541),
                 ),
                 initialZoom: 13,
               ),

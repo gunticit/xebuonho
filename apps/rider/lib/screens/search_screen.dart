@@ -104,6 +104,14 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _selectPlace(String name, double lat, double lng) {
     final booking = context.read<BookingProvider>();
+    final loc = context.read<LocationProvider>();
+    if (booking.pickupAddress.isEmpty || booking.pickupAddress == 'Thị xã Buôn Hồ, Đắk Lắk') {
+      booking.setPickup(
+        address: loc.currentAddress.isNotEmpty ? loc.currentAddress : 'Vị trí hiện tại',
+        lat: loc.lat,
+        lng: loc.lng,
+      );
+    }
     booking.setDropoff(address: name, lat: lat, lng: lng);
     Navigator.pushNamed(context, '/booking');
   }

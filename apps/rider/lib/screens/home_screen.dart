@@ -210,8 +210,10 @@ class _HomeScreenState extends State<HomeScreen> {
             right: 16,
             bottom: 330,
             child: GestureDetector(
-              onTap: () {
-                _mapController.move(LatLng(locProvider.lat, locProvider.lng), 16);
+              onTap: () async {
+                final loc = context.read<LocationProvider>();
+                await loc.fetchLocation();
+                _mapController.move(LatLng(loc.lat, loc.lng), 16);
               },
               child: Container(
                 width: 44,
