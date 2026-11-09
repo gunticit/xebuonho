@@ -18,7 +18,7 @@ type RideServiceClient interface {
 type DriverService interface {
 	HandleRideAssignment(ctx context.Context, event kafka.OrderEventData) error
 	UpdateDriverStatus(ctx context.Context, driverID, status string) error
-	AcceptRide(ctx context.Context, driverID, rideID string) error
+	AcceptRide(ctx context.Context, driverID, rideID, customerID string) error
 }
 
 type driverService struct {
@@ -69,7 +69,13 @@ func (s *driverService) HandleRideAssignment(ctx context.Context, event kafka.Or
 	return fmt.Errorf("MQTT publisher not configured")
 }
 
-func (s *driverService) AcceptRide(ctx context.Context, driverID, rideID string) error {
+func (s *driverService) AcceptRide(ctx context.Context, driverID, rideID, customerID string) error {
+	// Anti-Fraud / Anti-Collusion: Driver cannot accept their own ride
+	if driverID != "" && customerID != "" && driverID == customerID {
+		log.Printf("[anti-fraud] 🚨 COLLUSION DETECTED: Driver %s tried to accept their own ride %s", driverID, rideID)
+		return fmt.Errorf("anti-collusion policy: driver cannot accept their own ride request")
+	}
+
 	log.Printf("[driver-service] Driver %s accepted ride %s", driverID, rideID)
 
 	// 1. Update driver status to busy

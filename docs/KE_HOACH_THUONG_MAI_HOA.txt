@@ -1,0 +1,151 @@
+================================================================================
+BAO CAO NGHIEN CUU CHUYEN SAU & LO TRINH THUONG MAI HOA DU AN XEBUONHO
+================================================================================
+Du an: XeBuonHo - Nen tang Super App goi xe & giao hang da dich vu
+Ngay lap: 09/11/2026
+Vi tri file: docs/KE_HOACH_THUONG_MAI_HOA.txt / docs/KE_HOACH_THUONG_MAI_HOA.md
+
+--------------------------------------------------------------------------------
+1. BANG DANH GIA MUC DO SAN SANG THUONG MAI (READINESS SCORECARD - DA NANG CAP)
+--------------------------------------------------------------------------------
+- Kien truc & Backend Core:           75% (Kha)
+  Da hoan thien ket noi giua Gateway, User, Ride, Payment, Driver va Location.
+  State machine 4 dich vu on dinh.
+
+- Ung dung di dong (Mobile App):       70% (Kha)
+  Flutter Super App 29 routes, tich hop Amazon Location Places + Basemap tile URL.
+
+- Ban do & Dinh tuyen (Routing):       75% (Kha) [DA NANG CAP TU 20%]
+  Tich hop Amazon Location Service (Routes + Places), bo nho dem Redis (TTL 15m),
+  du phong he so uon khuc do thi 1.35.
+
+- Thanh toan & Tai chinh (Fintech):    75% (Kha) [DA NANG CAP TU 30%]
+  Hoan thien Vi tien (Wallets), nap tien, tru tien nguyen tu chong am so du,
+  khau tru hoa hong tai xe tu dong, rut tien (Payout 24/7), xuat hoa don dien tu.
+
+- Bao mat & Chong gian lan:            75% (Kha) [DA NANG CAP TU 25%]
+  Chuyen OTP sang Redis (TTL 5m + Lua script atomic del + 60s cooldown),
+  phat hien Mock GPS, phat hien toc do di thuong >130km/h, chong tu nhan cuoc (Anti-Collusion).
+
+- Phap ly & Tuan thu (Compliance):     70% (Kha) [DA NANG CAP TU 10%]
+  API chinh sach bao mat ND 13/2023 (PDPD), truyen du lieu hanh trinh ND 10/2020,
+  phat hanh hoa don dien tu TT 78, chuan hoa eKYC tai xe.
+
+- Van hanh & DevOps:                   75% (Kha) [DA NANG CAP TU 35%]
+  CI/CD GitHub Actions (.github/workflows/ci.yml), Kubernetes Production Manifests
+  (HPA, Ingress, Deployments), Production Docker-Compose co resource limits va healthcheck,
+  Prometheus /metrics endpoint.
+
+--------------------------------------------------------------------------------
+2. DIEM MANH & DIEM NGHEN KY THUAT HIEN TAI
+--------------------------------------------------------------------------------
+* DIEM MANH:
+  1. Unified Order Model & FSM (pkg/statemachine): Xu ly ca 4 dich vu (Cho khach,
+     Do an, Di cho ho, Lai xe ho) qua 1 state machine thong nhat.
+  2. PostgreSQL 16 + PostGIS: Mo hinh khong gian chuan (GEOGRAPHY POINT, 4326),
+     GiST index ho tro truy van ban kinh chinh xac.
+  3. Design Patterns chuan: Strategy Pattern (dinh gia), Repository DIP,
+     Observer Pattern (Event Dispatcher -> WS Hub).
+
+* 5 DIEM NGHEN BAT BUOC PHAI GO:
+  1. Dinh tuyen Haversine (Duong chim bay): Duong chim bay lech 30-70% so voi thuc
+     te tai do thi VN (duong 1 chieu, hem cut), gay lech cuoc va mau thuan.
+  2. Dual-Role tren 1 App: App Tai xe can chay ngam 24/7 (Foreground Service,
+     Background Geolocation), bong bong noi (Floating Widget), tiet kiem pin.
+  3. Matching & Ingest chua thong suot: matching-service va location-service chua
+     dau noi MQTT that; OTP user-service dang luu in-memory (mat khi restart).
+  4. Trip Service & Breadcrumbs: Chua luu vet toa do GPS tung giay de hau kiem
+     gian lan va tinh lai cuoc khi tai xe co tinh di vong.
+  5. Thieu Admin Portal van hanh: Dashboard HTML hien tai chua du de duyet ho so
+     tai xe, doi soat cuoc, can thiep va khoa tai khoan vi pham.
+
+--------------------------------------------------------------------------------
+3. CHI TIET CAC HANG MUC CAN HOAN THIEN DE THUONG MAI HOA
+--------------------------------------------------------------------------------
+
+[I] KY THUAT & HE THONG:
+  1. Tach rieng Driver App:
+     - Chay nen tiet kiem pin (chi gui toa do khi di chuyen >15m hoac doi huong >20 do)
+     - Kiosk Mode / Báo thức toàn màn hình khi có cuốc mới (đếm ngược 15s)
+     - Bong bóng nổi (Floating Widget trên Android) đè lên Google Maps dẫn đường
+  2. Tích hợp Maps & Routing thật:
+     - Dùng Goong Maps / Vietmap API / Mapbox / OSRM
+     - Cache lộ trình trên Redis (Geohash cấp 7) giảm 60% chi phí gọi API
+     - Snap-to-Road (nắn tọa độ GPS vào tim đường)
+  3. Hoàn thiện Matching & Ingest:
+     - Cascade Dispatching (mời tài xế 1 trong 15s -> chuyển tài xế 2)
+     - Redis Redlock chống tranh chấp đơn hàng
+     - Chuyển OTP sang Redis (TTL 300s) + tích hợp SMS Brandname/Zalo ZNS thật
+
+[II] TAI CHINH, THANH TOAN & VI DIEN TU:
+  1. Pre-Authorization & Tokenization:
+     - Tạm giữ hạn mức (Hold) tiền khi khách bấm đặt xe
+     - Trừ tiền thật (Capture) khi hoàn thành cuốc
+  2. Thu phí chiết khấu sàn:
+     - Khách trả tiền mặt: tự động trừ ví tài xế (15-20% hoa hồng). Dưới 50.000đ
+       tự ngắt nhận cuốc.
+  3. Rút tiền tự động (Payout API 24/7):
+     - Tích hợp Napas 247 / VietQR Chi hộ (PayOS, SePay Business, Baokim) để
+       tài xế rút tiền về ngân hàng bất cứ lúc nào.
+  4. Xuất hóa đơn điện tử tự động (e-Invoice):
+     - Tuân thủ TT 78/2021/TT-BTC: kết nối MISA meInvoice / VNPT / Viettel Invoice.
+
+[III] BAO MAT & CHONG GIAN LAN:
+  1. Chống Fake GPS (GPS Spoofing):
+     - Kiểm tra isFromMockProvider() trên Android và isSimulated trên iOS
+     - Backend phát hiện gia tốc bất thường (tốc độ xe máy >130km/h trong hẻm)
+  2. Chống tự đặt xe bào khuyến mãi (Collusion / Self-booking):
+     - Chặn nhận cuốc nếu tài xế và khách chung IP, chung tài khoản ngân hàng,
+       hoặc 2 máy cùng tọa độ trước khi đặt xe.
+  3. Che số điện thoại (Masked Call / Number Privacy):
+     - Tích hợp VoIP Call (Stringee / Twilio) gọi miễn phí trong app, không lộ số.
+
+[IV] PHAP LY & TUAN THU VIET NAM:
+  1. Nghị định 10/2020/NĐ-CP & 47/2022/NĐ-CP:
+     - Truyền dữ liệu chuyến đi về Cục Đường bộ Việt Nam
+     - Ô tô hợp đồng phải có phù hiệu, hộp đen định vị và camera cabin
+  2. Đăng ký Sàn Thương mại Điện tử:
+     - Khai báo website & ứng dụng với Bộ Công Thương (NĐ 52/2013 & NĐ 85/2021)
+  3. Nghị định 13/2023/NĐ-CP (PDPD - Bảo vệ dữ liệu cá nhân):
+     - Hồ sơ đánh giá tác động (DPIA) gửi Cục An ninh mạng (A05) Bộ Công An
+  4. Thẩm định hồ sơ tài xế (eKYC):
+     - Kiểm tra CCCD gắn chip (NFC/OCR), GPLX, đăng ký xe, bảo hiểm TNDS,
+       Lý lịch tư pháp số 2 (xác nhận không có tiền án).
+
+[V] HA TANG CLOUD & VAN HANH (DEVOPS & OPS):
+  1. Chuyển docker-compose sang Kubernetes (EKS / GKE / Viettel IDC) có HPA.
+  2. Giám sát tập trung: Loki + Promtail + Grafana, OpenTelemetry, Sentry.
+  3. Nút SOS khẩn cấp trên app: tự động gửi SMS + GPS về tổng đài an toàn.
+
+--------------------------------------------------------------------------------
+4. LO TRINH THUC HIEN 3 GIAI DOAN (ROADMAP)
+--------------------------------------------------------------------------------
+* Giai doan 1 (4 - 6 tuan): On dinh loi ky thuat & Tich hop dich vu that
+  - Thay the Haversine bang API Routing that (Goong Maps / OSRM)
+  - Hoan thien gRPC/MQTT giua matching, location, driver service
+  - Chuyen OTP sang Redis va ket noi SMS/ZNS that
+  - Bo sung ghi log toa do thuc te (trip breadcrumbs)
+
+* Giai doan 2 (6 - 8 tuan): Thanh toan, Bao mat & Tach App Tai xe
+  - Hoan thien cong thanh toan: MoMo/VNPay va luong Pre-auth/Capture
+  - Xay dung he thong Vi tai xe (Rut Napas 247 tu dong, tru hoa hong)
+  - Tach Driver App thanh app rieng, toi uu chay ngam va Floating Widget
+  - Tich hop chong Fake GPS va VoIP che so dien thoai
+
+* Giai doan 3 (4 - 6 tuan): Phap ly, He thong Dieu hanh & Chay Pilot
+  - Xay dung Admin Portal chuyen nghiep quan tri tai xe, doi soat cuoc
+  - Hoan thien ho so phap ly: Dang ky Bo Cong Thuong, ND 10, PDPD 13
+  - Ket noi xuat hoa don dien tu tu dong (MISA/VNPT)
+  - Chay Pilot tai 1 quan/khu do thi voi 20-50 tai xe truoc khi mo rong
+
+--------------------------------------------------------------------------------
+5. CAU HOI MO CAN LAM RO (UNRESOLVED QUESTIONS)
+--------------------------------------------------------------------------------
+1. Ban muon mo ban ca 4 dich vu cung luc hay chon 1 dich vu mui nhon (Vi du:
+   Lai xe ho hoac Cho khach) de pilot truoc?
+2. Ban du dinh dat may chu tai Cloud quoc te (AWS/GCP) hay Cloud noi dia (Viettel,
+   VNPT, Bizfly) de tuan thu luu tru du lieu trong nuoc?
+3. Ban da co phap nhan doanh nghiep de ky hop dong voi cong thanh toan (VNPay,
+   MoMo, PayOS) va nha mang (SMS Brandname) chua?
+================================================================================
+

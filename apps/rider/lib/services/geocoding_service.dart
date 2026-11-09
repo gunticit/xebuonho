@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
+import '../config/api_config.dart';
 
 class GeocodingResult {
   final String name;
@@ -85,9 +86,22 @@ class GeocodingService {
     return completer.future;
   }
 
-  /// Immediate search without debounce
+  /// Immediate search with Amazon Location Service (fallback to Nominatim OSM)
   Future<List<GeocodingResult>> _searchNow(String query,
       {double? lat, double? lng}) async {
+    // 1. Try Amazon Location Service Places API if API key is present
+    if (ApiConfig.awsLocationApiKey.isNotEmpty) {
+      try {
+        final awsResults = await _searchWithAmazonLocation(query, lat: lat, lng: lng);
+        if (awsResults.isNotEmpty) {
+          return awsResults;
+        }
+      } catch (_) {
+        // Fallback to OSM Nominatim
+      }
+    }
+
+    // 2. Fallback to Nominatim OSM
     try {
       final params = <String, dynamic>{
         'q': query,
@@ -125,8 +139,83 @@ class GeocodingService {
     return [];
   }
 
+  /// Search places using Amazon Location Service Places API
+  Future<List<GeocodingResult>> _searchWithAmazonLocation(String query,
+      {double? lat, double? lng}) async {
+    final dio = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 4),
+      receiveTimeout: const Duration(seconds: 4),
+    ));
+
+    final url = '${ApiConfig.awsLocationPlacesSearchUrl}?key=${ApiConfig.awsLocationApiKey}';
+    final payload = <String, dynamic>{
+      'Text': query,
+      'MaxResults': 8,
+      'FilterCountries': ['VNM'],
+    };
+
+    if (lat != null && lng != null) {
+      payload['BiasPosition'] = [lng, lat];
+    }
+
+    final res = await dio.post(
+      url,
+      data: payload,
+      options: Options(headers: {'Content-Type': 'application/json'}),
+    );
+
+    if (res.statusCode == 200 && res.data != null) {
+      final results = res.data['Results'] as List?;
+      if (results != null && results.isNotEmpty) {
+        return results.map((item) {
+          final place = item['Place'] as Map<String, dynamic>? ?? {};
+          final label = place['Label'] as String? ?? query;
+          final point = place['Geometry']?['Point'] as List?;
+          final pointLng = point != null && point.isNotEmpty ? (point[0] as num).toDouble() : (lng ?? 106.7009);
+          final pointLat = point != null && point.length > 1 ? (point[1] as num).toDouble() : (lat ?? 10.7769);
+          final shortName = label.split(',').first.trim();
+
+          return GeocodingResult(
+            name: shortName,
+            displayName: label,
+            lat: pointLat,
+            lng: pointLng,
+            type: 'place',
+          );
+        }).toList();
+      }
+    }
+
+    return [];
+  }
+
   /// Reverse geocode coordinates to address
   Future<String?> reverseGeocode(double lat, double lng) async {
+    // 1. Try Amazon Location Service Reverse Geocoding
+    if (ApiConfig.awsLocationApiKey.isNotEmpty) {
+      try {
+        final dio = Dio(BaseOptions(
+          connectTimeout: const Duration(seconds: 4),
+          receiveTimeout: const Duration(seconds: 4),
+        ));
+        final url = 'https://places.geo.${ApiConfig.awsLocationRegion}.amazonaws.com/places/v0/indexes/${ApiConfig.awsLocationPlaceIndex}/search/position?key=${ApiConfig.awsLocationApiKey}';
+        final res = await dio.post(
+          url,
+          data: {
+            'Position': [lng, lat],
+            'MaxResults': 1,
+          },
+        );
+        if (res.statusCode == 200 && res.data != null) {
+          final results = res.data['Results'] as List?;
+          if (results != null && results.isNotEmpty) {
+            return results[0]['Place']?['Label'] as String?;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Fallback to Nominatim OSM
     try {
       final response = await _dio.get('/reverse', queryParameters: {
         'lat': lat,

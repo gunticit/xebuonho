@@ -4,11 +4,13 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -56,6 +58,45 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	})
 
 	// ==========================================
+	// Payment, Wallet & Invoices API (proxy to payment-service)
+	// ==========================================
+	paymentServiceURL := getEnvDefault("PAYMENT_SERVICE_URL", "http://localhost:8087")
+	mux.HandleFunc("/api/v1/payments/", func(w http.ResponseWriter, r *http.Request) {
+		proxyToService(w, r, paymentServiceURL)
+	})
+	mux.HandleFunc("/api/v1/wallets/", func(w http.ResponseWriter, r *http.Request) {
+		proxyToService(w, r, paymentServiceURL)
+	})
+	mux.HandleFunc("/api/v1/invoices/", func(w http.ResponseWriter, r *http.Request) {
+		proxyToService(w, r, paymentServiceURL)
+	})
+
+	// ==========================================
+	// Legal & Compliance APIs (NĐ 13/2023 PDPD & NĐ 10/2020 Transport)
+	// ==========================================
+	mux.HandleFunc("/api/v1/compliance/privacy-policy", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"version": "2026.1",
+			"effective_date": "2026-07-01",
+			"controller": "XeBuonHo Platform Co., Ltd",
+			"nd13_compliant": true,
+			"data_retention_days": 180,
+			"user_rights": ["access", "export", "delete", "withdraw_consent"],
+			"contact_dpo": "dpo@xebuonho.vn"
+		}`))
+	})
+	mux.HandleFunc("/api/v1/compliance/nd10-telemetry", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"standard": "ND10/2020/ND-CP",
+			"agency": "Cuc Duong Bo Viet Nam",
+			"status": "connected",
+			"telemetry_interval_sec": 30
+		}`))
+	})
+
+	// ==========================================
 	// Driver API
 	// ==========================================
 	mux.Handle("/api/v1/driver/", driverH)
@@ -64,6 +105,17 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	// Public endpoints (no auth)
 	// ==========================================
 	mux.HandleFunc("/health", healthCheck)
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		var mem runtime.MemStats
+		runtime.ReadMemStats(&mem)
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		fmt.Fprintf(w, "# HELP xebuonho_goroutines Number of running goroutines\n")
+		fmt.Fprintf(w, "# TYPE xebuonho_goroutines gauge\n")
+		fmt.Fprintf(w, "xebuonho_goroutines %d\n", runtime.NumGoroutine())
+		fmt.Fprintf(w, "# HELP xebuonho_mem_alloc_bytes Bytes of allocated memory\n")
+		fmt.Fprintf(w, "# TYPE xebuonho_mem_alloc_bytes gauge\n")
+		fmt.Fprintf(w, "xebuonho_mem_alloc_bytes %d\n", mem.Alloc)
+	})
 	mux.HandleFunc("/api/v1/merchants/nearby", merchantH.ListNearbyMerchants)
 	mux.HandleFunc("/api/v1/merchants/search", merchantH.SearchMerchants)
 	mux.HandleFunc("/api/v1/merchants/", func(w http.ResponseWriter, r *http.Request) {

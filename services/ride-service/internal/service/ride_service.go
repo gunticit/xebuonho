@@ -7,15 +7,17 @@ import (
 	"math"
 
 	"github.com/xebuonho/pkg/kafka"
+	"github.com/xebuonho/pkg/maps"
 	"github.com/xebuonho/services/ride-service/internal/model"
 	"github.com/xebuonho/services/ride-service/internal/repository"
 )
 
 // RideService handles ride business logic
 type RideService struct {
-	rideRepo      *repository.RideRepository
-	eventProducer *kafka.Producer
+	rideRepo       *repository.RideRepository
+	eventProducer  *kafka.Producer
 	matchingClient MatchingClient
+	mapsClient     *maps.AmazonLocationClient
 }
 
 // MatchingClient defines the interface for interacting with the Matching Service
@@ -29,6 +31,7 @@ func NewRideService(rideRepo *repository.RideRepository, producer *kafka.Produce
 		rideRepo:       rideRepo,
 		eventProducer:  producer,
 		matchingClient: matchingClient,
+		mapsClient:     maps.NewClientFromEnv(nil),
 	}
 }
 
@@ -50,9 +53,19 @@ func (s *RideService) CreateRide(ctx context.Context, riderID string, pickupLat,
 		paymentMethod = "cash"
 	}
 
-	// Estimate distance & fare
-	distanceKm := haversine(pickupLat, pickupLng, dropoffLat, dropoffLng)
-	durationMin := estimateDuration(distanceKm)
+	// Calculate route distance & duration using Amazon Location Service (with fallback)
+	var distanceKm float64
+	var durationMin int
+
+	if s.mapsClient != nil {
+		routeRes, _ := s.mapsClient.CalculateRoute(ctx, pickupLat, pickupLng, dropoffLat, dropoffLng)
+		distanceKm = routeRes.DistanceKm
+		durationMin = routeRes.DurationMin
+	} else {
+		distanceKm = haversine(pickupLat, pickupLng, dropoffLat, dropoffLng)
+		durationMin = estimateDuration(distanceKm)
+	}
+
 	fareEst := calculateFare(vehicleType, distanceKm, durationMin, 1.0)
 
 	ride := &model.Ride{
@@ -167,8 +180,18 @@ func (s *RideService) ListRides(ctx context.Context, riderID string, page, pageS
 
 // EstimateFare calculates fare estimate
 func (s *RideService) EstimateFare(pickupLat, pickupLng, dropoffLat, dropoffLng float64, vehicleType string) model.FareEstimate {
-	distanceKm := haversine(pickupLat, pickupLng, dropoffLat, dropoffLng)
-	durationMin := estimateDuration(distanceKm)
+	var distanceKm float64
+	var durationMin int
+
+	if s.mapsClient != nil {
+		routeRes, _ := s.mapsClient.CalculateRoute(context.Background(), pickupLat, pickupLng, dropoffLat, dropoffLng)
+		distanceKm = routeRes.DistanceKm
+		durationMin = routeRes.DurationMin
+	} else {
+		distanceKm = haversine(pickupLat, pickupLng, dropoffLat, dropoffLng)
+		durationMin = estimateDuration(distanceKm)
+	}
+
 	return calculateFare(vehicleType, distanceKm, durationMin, 1.0)
 }
 

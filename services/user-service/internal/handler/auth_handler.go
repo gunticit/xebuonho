@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/xebuonho/services/user-service/internal/model"
 	"github.com/xebuonho/services/user-service/internal/service"
 )
@@ -17,6 +19,7 @@ import (
 // AuthHandler handles auth HTTP requests
 type AuthHandler struct {
 	authService *service.AuthService
+	redisClient *redis.Client
 	otpStore    map[string]otpEntry
 	otpMu       sync.RWMutex
 }
@@ -27,9 +30,10 @@ type otpEntry struct {
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authService *service.AuthService) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, redisClient *redis.Client) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
+		redisClient: redisClient,
 		otpStore:    make(map[string]otpEntry),
 	}
 }
@@ -204,7 +208,7 @@ func writeJSON(w http.ResponseWriter, code int, data interface{}) {
 }
 
 // ==========================================
-// OTP Methods
+// OTP Methods (Redis backed with in-memory fallback)
 // ==========================================
 
 func (h *AuthHandler) generateOTP(phone string) string {
@@ -213,6 +217,23 @@ func (h *AuthHandler) generateOTP(phone string) string {
 	code := fmt.Sprintf("%06d", int(b[0])<<16|int(b[1])<<8|int(b[2])%1000000)
 	code = code[:6]
 
+	ctx := context.Background()
+
+	// 1. If Redis is available, store in Redis with TTL 5 minutes
+	if h.redisClient != nil {
+		otpKey := fmt.Sprintf("otp:%s", phone)
+		rateKey := fmt.Sprintf("otp:rate:%s", phone)
+
+		// Set OTP code with 5-minute expiration
+		_ = h.redisClient.Set(ctx, otpKey, code, 5*time.Minute).Err()
+		// Set rate-limit key with 60-second cooldown
+		_ = h.redisClient.Set(ctx, rateKey, "1", 60*time.Second).Err()
+
+		log.Printf("[otp] 📱 [Redis] OTP for %s: %s (expires in 5m)", phone, code)
+		return code
+	}
+
+	// 2. In-memory fallback
 	h.otpMu.Lock()
 	h.otpStore[phone] = otpEntry{
 		Code:      code,
@@ -220,7 +241,7 @@ func (h *AuthHandler) generateOTP(phone string) string {
 	}
 	h.otpMu.Unlock()
 
-	log.Printf("[otp] 📱 OTP for %s: %s (expires in 5 min)", phone, code)
+	log.Printf("[otp] 📱 [In-Memory] OTP for %s: %s (expires in 5m)", phone, code)
 	return code
 }
 
@@ -242,6 +263,41 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+
+	// 1. Verify via Redis if available (Atomic Lua script: verify and delete)
+	if h.redisClient != nil {
+		otpKey := fmt.Sprintf("otp:%s", req.Phone)
+		luaScript := `
+			local val = redis.call('get', KEYS[1])
+			if not val then
+				return -1
+			end
+			if val == ARGV[1] then
+				redis.call('del', KEYS[1])
+				return 1
+			else
+				return 0
+			end
+		`
+		res, err := h.redisClient.Eval(ctx, luaScript, []string{otpKey}, req.Code).Int()
+		if err == nil {
+			switch res {
+			case 1:
+				log.Printf("[otp] ✅ [Redis] OTP verified for %s", req.Phone)
+				writeJSON(w, http.StatusOK, map[string]string{"status": "verified"})
+				return
+			case 0:
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Mã OTP không đúng"})
+				return
+			default:
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Mã OTP đã hết hạn hoặc không tồn tại. Vui lòng gửi lại."})
+				return
+			}
+		}
+	}
+
+	// 2. In-memory fallback verification
 	h.otpMu.RLock()
 	entry, exists := h.otpStore[req.Phone]
 	h.otpMu.RUnlock()
@@ -269,11 +325,11 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	delete(h.otpStore, req.Phone)
 	h.otpMu.Unlock()
 
-	log.Printf("[otp] ✅ OTP verified for %s", req.Phone)
+	log.Printf("[otp] ✅ [In-Memory] OTP verified for %s", req.Phone)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "verified"})
 }
 
-// ResendOTP resends OTP to phone
+// ResendOTP resends OTP to phone with rate limiting (60s cooldown)
 func (h *AuthHandler) ResendOTP(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Phone string `json:"phone"`
@@ -281,6 +337,19 @@ func (h *AuthHandler) ResendOTP(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
+	}
+
+	// Rate-limit check via Redis
+	if h.redisClient != nil {
+		rateKey := fmt.Sprintf("otp:rate:%s", req.Phone)
+		exists, _ := h.redisClient.Exists(r.Context(), rateKey).Result()
+		if exists > 0 {
+			ttl, _ := h.redisClient.TTL(r.Context(), rateKey).Result()
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{
+				"error": fmt.Sprintf("Vui lòng đợi %d giây trước khi yêu cầu mã OTP mới", int(ttl.Seconds())),
+			})
+			return
+		}
 	}
 
 	code := h.generateOTP(req.Phone)

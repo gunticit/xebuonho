@@ -30,12 +30,19 @@ func main() {
 	defer db.Close()
 	logger.Println("Connected to PostgreSQL")
 
+	redisClient, rErr := database.ConnectRedis(ctx, cfg.RedisURL)
+	if rErr != nil {
+		logger.Printf("⚠️ Redis connection warning: %v (running with in-memory fallback)", rErr)
+	} else {
+		logger.Println("Connected to Redis for OTP & Session")
+	}
+
 	// ==========================================
 	// Initialize Layers: Repo → Service → Handler
 	// ==========================================
 	userRepo := repository.NewUserRepository(db)
 	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
-	authHandler := handler.NewAuthHandler(authSvc)
+	authHandler := handler.NewAuthHandler(authSvc, redisClient)
 
 	// ==========================================
 	// HTTP Server
@@ -88,6 +95,7 @@ func main() {
 type Config struct {
 	HTTPPort    string
 	DatabaseURL string
+	RedisURL    string
 	JWTSecret   string
 }
 
@@ -95,6 +103,7 @@ func loadConfig() Config {
 	return Config{
 		HTTPPort:    getEnv("HTTP_PORT", "8091"),
 		DatabaseURL: getEnv("DATABASE_URL", "postgresql://app:secret@localhost:5432/xebuonho?sslmode=disable"),
+		RedisURL:    getEnv("REDIS_URL", "localhost:6379"),
 		JWTSecret:   getEnv("JWT_SECRET", "dev-secret"),
 	}
 }

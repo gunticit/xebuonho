@@ -51,6 +51,7 @@ start_service "api-gateway" env HTTP_PORT=8000 \
   RIDE_SERVICE="localhost:50051" \
   ORDER_SERVICE="localhost:50058" \
   MERCHANT_SERVICE="localhost:50059" \
-  USER_SERVICE_URL="http://localhost:8091"
+  USER_SERVICE_URL="http://localhost:8091" \
+  PAYMENT_SERVICE_URL="http://localhost:8087"
 
 echo "✅ All services started! Logs are in logs/*.log"

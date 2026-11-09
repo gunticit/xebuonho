@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xebuonho/pkg/maps"
 	"github.com/xebuonho/services/api-gateway/internal/event"
 	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
@@ -17,12 +18,17 @@ import (
 
 // RideHandler handles ride REST endpoints via gRPC and Repository (DIP: depends on OrderRepository interface)
 type RideHandler struct {
-	client *grpcclient.RideClient
-	repo   repository.OrderRepository
+	client     *grpcclient.RideClient
+	repo       repository.OrderRepository
+	mapsClient *maps.AmazonLocationClient
 }
 
 func NewRideHandler(client *grpcclient.RideClient, repo repository.OrderRepository) *RideHandler {
-	return &RideHandler{client: client, repo: repo}
+	return &RideHandler{
+		client:     client,
+		repo:       repo,
+		mapsClient: maps.NewClientFromEnv(nil),
+	}
 }
 
 // POST /api/v1/rides
@@ -72,14 +78,22 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 		req.ServiceType = "ride"
 	}
 
-	// Distance and duration calculation
-	distKm := math.Abs(req.DropoffLat-req.PickupLat)*111 + math.Abs(req.DropoffLng-req.PickupLng)*111
-	if distKm < 1.0 {
-		distKm = 2.5
-	}
-	durMin := int(distKm * 3.5)
-	if durMin < 5 {
-		durMin = 5
+	// Distance and duration calculation using Amazon Location Service (with fallback)
+	var distKm float64
+	var durMin int
+	if h.mapsClient != nil {
+		routeRes, _ := h.mapsClient.CalculateRoute(r.Context(), req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng)
+		distKm = routeRes.DistanceKm
+		durMin = routeRes.DurationMin
+	} else {
+		distKm = math.Abs(req.DropoffLat-req.PickupLat)*111 + math.Abs(req.DropoffLng-req.PickupLng)*111
+		if distKm < 1.0 {
+			distKm = 2.5
+		}
+		durMin = int(distKm * 3.5)
+		if durMin < 5 {
+			durMin = 5
+		}
 	}
 
 	// Strategy Pattern: Compute price via Pricing Engine
@@ -225,11 +239,22 @@ func (h *RideHandler) EstimateFare(w http.ResponseWriter, r *http.Request) {
 
 	estimates, err := h.client.EstimateFare(r.Context(), req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng, req.VehicleType)
 	if err != nil {
-		distKm := math.Abs(req.DropoffLat-req.PickupLat)*111 + math.Abs(req.DropoffLng-req.PickupLng)*111
-		if distKm < 1.0 {
-			distKm = 2.5
+		var distKm float64
+		var durMin int
+		if h.mapsClient != nil {
+			routeRes, _ := h.mapsClient.CalculateRoute(r.Context(), req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng)
+			distKm = routeRes.DistanceKm
+			durMin = routeRes.DurationMin
+		} else {
+			distKm = math.Abs(req.DropoffLat-req.PickupLat)*111 + math.Abs(req.DropoffLng-req.PickupLng)*111
+			if distKm < 1.0 {
+				distKm = 2.5
+			}
+			durMin = int(distKm * 3.5)
+			if durMin < 5 {
+				durMin = 5
+			}
 		}
-		durMin := int(distKm * 3.5)
 
 		bikeRes, _ := pricing.CalculatePrice(pricing.PricingContext{
 			ServiceType: "ride",

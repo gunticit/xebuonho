@@ -53,10 +53,15 @@ func main() {
 	// 4. HTTP Handlers
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		w.Write([]byte(`{"status":"ok","service":"payment-service"}`))
 	})
 	http.HandleFunc("/payments/process", paymentHandler.ProcessPayment)
 	http.HandleFunc("/payments/webhook/sepay", paymentHandler.HandleSePayWebhook)
+	http.HandleFunc("/wallets", paymentHandler.GetWallet)
+	http.HandleFunc("/wallets/topup", paymentHandler.TopUpWallet)
+	http.HandleFunc("/wallets/payout", paymentHandler.RequestPayout)
+	http.HandleFunc("/wallets/commission", paymentHandler.DeductCommission)
+	http.HandleFunc("/invoices/einvoice", paymentHandler.GenerateEInvoice)
 
 	go func() {
 		log.Printf("HTTP server listening on :%s", cfg.HTTPPort)

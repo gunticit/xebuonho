@@ -1,0 +1,77 @@
+name: XeBuonHo CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend-test-build:
+    name: Backend Test & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Verify Go Workspace & Modules
+        run: |
+          go work sync
+
+      - name: Run Go Vet
+        run: |
+          go vet ./pkg/...
+          go vet ./services/ride-service/...
+          go vet ./services/user-service/...
+          go vet ./services/driver-service/...
+          go vet ./services/payment-service/...
+          go vet ./services/matching-service/...
+          go vet ./services/location-service/...
+          go vet ./services/order-service/...
+          go vet ./services/merchant-service/...
+          go vet ./services/api-gateway/...
+
+      - name: Run Unit Tests with Race Detector
+        run: |
+          go test -v -race -coverprofile=coverage.out ./pkg/... ./services/matching-service/...
+
+      - name: Build All Microservices
+        run: |
+          make build
+
+      - name: Upload Test Coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: go-coverage-report
+          path: coverage.out
+
+  mobile-analyze:
+    name: Mobile App (Flutter) Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/rider
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Flutter Dependencies
+        run: flutter pub get
+
+      - name: Analyze Flutter Code
+        run: flutter analyze --no-fatal-infos
+
