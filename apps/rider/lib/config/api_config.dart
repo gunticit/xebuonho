@@ -31,6 +31,7 @@ class ApiConfig {
   // Map & Location Services
   static const String reverseGeocode = '$apiVersion/maps/reverse-geocode';
   static const String route = '$apiVersion/maps/route';
+  static const String searchPlaces = '$apiVersion/maps/search';
   // Amazon Location Service
   static const String awsLocationApiKey =
       'v1.public.eyJqdGkiOiI3ZjBmMzJhMi0yZWYxLTQyN2QtODAyOC04ZjQwNTlhNTQ2Y2IifZbUjXu17vZU5uBpfs62teNiNDc-WYEdXeWNGaAN7jnqD8FSQ7e8w7okGLwwT-gy2TUJ5tQuwn6RFPZyQv_0RXRWLkwasBR9dCBuln-_B5xJrwzR_YJp4DK84sJEFonix3AzFY2Mxnd5VER_5WDtMOfdw6ZMAXb03aXDRsolFTb9z4mMxE9C82D2DcjJHL2Ns6flA3aSWqHByYD4XM5I2RB9sUdBoFmZpczC-q93tb0d-GFTjrsSadPJpLmA3TcR3O377qQMWmTgykCgASkcV40BwL2vgWrv-qdSTApV0MgGGMYB_pGk53RF0tBv1B_SYITt7Axh2ru6cSD1N0l8lwo.ZTA2OTdiZTItNzgyYy00YWI5LWFmODQtZjdkYmJkODNkMmFh';

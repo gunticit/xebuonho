@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
 
@@ -32,6 +33,7 @@ class GeocodingResult {
         return '🍔';
       case 'shop':
       case 'mall':
+      case 'market':
       case 'marketplace':
         return '🛍️';
       case 'hotel':
@@ -39,165 +41,459 @@ class GeocodingResult {
       case 'park':
       case 'garden':
         return '🌳';
-      case 'place_of_worship':
-        return '⛪';
       case 'bus_station':
       case 'station':
-        return '🚉';
+        return '🚌';
+      case 'junction':
+        return '🚦';
+      case 'government':
+        return '🏛️';
+      case 'town':
+      case 'city':
+        return '🏙️';
+      case 'village':
+        return '🏡';
       default:
         return '📍';
     }
   }
 }
 
-/// Geocoding service using Nominatim (OpenStreetMap) - free, no API key needed
+/// Pre-indexed catalog of all key locations in Buôn Hồ, Krông Búk & Đắk Lắk
+final List<Map<String, dynamic>> _kLocalDakLakCatalog = [
+  {
+    'name': 'Pơng Drang',
+    'displayName': 'Thị trấn Pơng Drang, Huyện Krông Búk, Đắk Lắk',
+    'lat': 12.9628,
+    'lng': 108.2465,
+    'type': 'town',
+    'keywords': 'pongdrang pong drang pơngdrang pơng drang krong buk thi tran pong drang',
+  },
+  {
+    'name': 'Ngã ba Pơng Drang',
+    'displayName': 'Quốc lộ 14, Thị trấn Pơng Drang, Krông Búk',
+    'lat': 12.9640,
+    'lng': 108.2470,
+    'type': 'junction',
+    'keywords': 'nga ba pong drang nga 3 pongdrang nga ba pơng drang ql14',
+  },
+  {
+    'name': 'Chợ Pơng Drang',
+    'displayName': 'Chợ Pơng Drang, QL14, Krông Búk, Đắk Lắk',
+    'lat': 12.9615,
+    'lng': 108.2482,
+    'type': 'market',
+    'keywords': 'cho pong drang cho pơngdrang cho krong buk',
+  },
+  {
+    'name': 'UBND Huyện Krông Búk',
+    'displayName': 'Trung tâm Hành chính Krông Búk, Đắk Lắk',
+    'lat': 12.9700,
+    'lng': 108.2400,
+    'type': 'government',
+    'keywords': 'ubnd krong buk huyen krong buk krongbuk',
+  },
+  {
+    'name': 'Thị xã Buôn Hồ',
+    'displayName': 'Trung tâm Thị xã Buôn Hồ, Đắk Lắk',
+    'lat': 12.9247,
+    'lng': 108.2541,
+    'type': 'town',
+    'keywords': 'buonho buôn hồ tx buon ho thi xa buon ho trung tam buon ho',
+  },
+  {
+    'name': 'Chợ Buôn Hồ',
+    'displayName': 'Đường Hùng Vương, Phường An Lạc, TX. Buôn Hồ',
+    'lat': 12.9215,
+    'lng': 108.2520,
+    'type': 'market',
+    'keywords': 'cho buon ho hung vuong an lac',
+  },
+  {
+    'name': 'Bệnh viện Đa khoa Buôn Hồ',
+    'displayName': 'Trần Hưng Đạo, Phường An Lạc, TX. Buôn Hồ',
+    'lat': 12.9280,
+    'lng': 108.2560,
+    'type': 'hospital',
+    'keywords': 'benh vien buon ho bv buon ho tran hung dao',
+  },
+  {
+    'name': 'Bến xe Buôn Hồ',
+    'displayName': 'Quốc lộ 14, Phường Thiện An, TX. Buôn Hồ',
+    'lat': 12.9180,
+    'lng': 108.2505,
+    'type': 'bus_station',
+    'keywords': 'ben xe buon ho bx buon ho ql14',
+  },
+  {
+    'name': 'Quảng trường Buôn Hồ',
+    'displayName': 'Quảng trường TX. Buôn Hồ, Đắk Lắk',
+    'lat': 12.9230,
+    'lng': 108.2535,
+    'type': 'park',
+    'keywords': 'quang truong buon ho',
+  },
+  {
+    'name': 'Xã Ea Siên',
+    'displayName': 'Xã Ea Siên, Thị xã Buôn Hồ, Đắk Lắk',
+    'lat': 12.8500,
+    'lng': 108.3100,
+    'type': 'village',
+    'keywords': 'easien ea sien xa ea sien buôn hồ',
+  },
+  {
+    'name': 'Xã Ea Drông',
+    'displayName': 'Xã Ea Drông, Thị xã Buôn Hồ, Đắk Lắk',
+    'lat': 12.9800,
+    'lng': 108.3200,
+    'type': 'village',
+    'keywords': 'eadrong ea drong xa ea drong buôn hồ',
+  },
+  {
+    'name': 'Xã Ea Blang',
+    'displayName': 'Xã Ea Blang, Thị xã Buôn Hồ, Đắk Lắk',
+    'lat': 12.9400,
+    'lng': 108.2800,
+    'type': 'village',
+    'keywords': 'eablang ea blang xa ea blang',
+  },
+  {
+    'name': 'Phường An Lạc',
+    'displayName': 'Phường An Lạc, Thị xã Buôn Hồ, Đắk Lắk',
+    'lat': 12.9200,
+    'lng': 108.2500,
+    'type': 'suburb',
+    'keywords': 'an lac phuong an lac buon ho',
+  },
+  {
+    'name': 'Phường Thiện An',
+    'displayName': 'Phường Thiện An, Thị xã Buôn Hồ, Đắk Lắk',
+    'lat': 12.9100,
+    'lng': 108.2650,
+    'type': 'suburb',
+    'keywords': 'thien an phuong thien an buon ho',
+  },
+  {
+    'name': 'Phường Thống Nhất',
+    'displayName': 'Phường Thống Nhất, Thị xã Buôn Hồ, Đắk Lắk',
+    'lat': 12.9450,
+    'lng': 108.2480,
+    'type': 'suburb',
+    'keywords': 'thong nhat thongnhat phuong thong nhat',
+  },
+  {
+    'name': 'Phường Đoàn Kết',
+    'displayName': 'Phường Đoàn Kết, Thị xã Buôn Hồ, Đắk Lắk',
+    'lat': 12.9350,
+    'lng': 108.2420,
+    'type': 'suburb',
+    'keywords': 'doan ket doanket phuong doan ket',
+  },
+  {
+    'name': 'Phường Bình Tân',
+    'displayName': 'Phường Bình Tân, Thị xã Buôn Hồ, Đắk Lắk',
+    'lat': 12.9150,
+    'lng': 108.2400,
+    'type': 'suburb',
+    'keywords': 'binh tan binhtan phuong binh tan',
+  },
+  {
+    'name': 'Xã Chư Kabô',
+    'displayName': 'Xã Chư Kabô, Huyện Krông Búk, Đắk Lắk',
+    'lat': 12.9850,
+    'lng': 108.2300,
+    'type': 'village',
+    'keywords': 'chukabo chu kabo krong buk',
+  },
+  {
+    'name': 'Xã Cư Pơng',
+    'displayName': 'Xã Cư Pơng, Huyện Krông Búk, Đắk Lắk',
+    'lat': 13.0200,
+    'lng': 108.2100,
+    'type': 'village',
+    'keywords': 'cupong cu pong cu poeng krong buk',
+  },
+  {
+    'name': 'Xã Cư Né',
+    'displayName': 'Xã Cư Né, Huyện Krông Búk, Đắk Lắk',
+    'lat': 13.0100,
+    'lng': 108.2600,
+    'type': 'village',
+    'keywords': 'cune cu ne krong buk',
+  },
+  {
+    'name': 'Thị trấn Ea Drăng',
+    'displayName': 'Thị trấn Ea Drăng, Huyện Ea H\'leo, Đắk Lắk',
+    'lat': 13.2100,
+    'lng': 108.1900,
+    'type': 'town',
+    'keywords': 'eadrang eahleo ea hleo ea drang',
+  },
+  {
+    'name': 'Thị trấn Quảng Phú',
+    'displayName': 'Thị trấn Quảng Phú, Huyện Cư M\'gar, Đắk Lắk',
+    'lat': 12.8100,
+    'lng': 108.1100,
+    'type': 'town',
+    'keywords': 'quang phu quangphu cumgar cu mgar',
+  },
+  {
+    'name': 'Thị trấn Krông Năng',
+    'displayName': 'Thị trấn Krông Năng, Huyện Krông Năng, Đắk Lắk',
+    'lat': 12.9500,
+    'lng': 108.4300,
+    'type': 'town',
+    'keywords': 'krong nang krongnang',
+  },
+  {
+    'name': 'Thị trấn Phước An',
+    'displayName': 'Thị trấn Phước An, Huyện Krông Pắc, Đắk Lắk',
+    'lat': 12.7200,
+    'lng': 108.3100,
+    'type': 'town',
+    'keywords': 'phuoc an phuocan krong pac',
+  },
+  {
+    'name': 'Ngã 6 Buôn Ma Thuột',
+    'displayName': 'Tượng đài Chiến thắng, TP. Buôn Ma Thuột',
+    'lat': 12.6840,
+    'lng': 108.0475,
+    'type': 'landmark',
+    'keywords': 'nga 6 bmt nga sau bmt buon ma thuot bmt',
+  },
+  {
+    'name': 'Sân bay Buôn Ma Thuột (BMV)',
+    'displayName': 'Cảng hàng không Buôn Ma Thuột, Hòa Thắng, BMT',
+    'lat': 12.6680,
+    'lng': 108.1200,
+    'type': 'aeroway',
+    'keywords': 'san bay bmt san bay buon ma thuot bmv',
+  },
+  {
+    'name': 'Bến xe Liên tỉnh Đắk Lắk',
+    'displayName': 'Km4 Nguyễn Tất Thành, TP. Buôn Ma Thuột',
+    'lat': 12.7050,
+    'lng': 108.0700,
+    'type': 'bus_station',
+    'keywords': 'ben xe phia bac bmt ben xe lien tinh dak lak',
+  },
+];
+
+/// Remove Vietnamese diacritics and special characters for flexible fuzzy search
+String _normalizeVietnamese(String str) {
+  var s = str.toLowerCase();
+  const Map<String, String> map = {
+    'à': 'a', 'á': 'a', 'ả': 'a', 'ã': 'a', 'ạ': 'a',
+    'ă': 'a', 'ằ': 'a', 'ắ': 'a', 'ẳ': 'a', 'ẵ': 'a', 'ặ': 'a',
+    'â': 'a', 'ầ': 'a', 'ấ': 'a', 'ẩ': 'a', 'ẫ': 'a', 'ậ': 'a',
+    'è': 'e', 'é': 'e', 'ẻ': 'e', 'ẽ': 'e', 'ẹ': 'e',
+    'ê': 'e', 'ề': 'e', 'ế': 'e', 'ể': 'e', 'ễ': 'e', 'ệ': 'e',
+    'ì': 'i', 'í': 'i', 'ỉ': 'i', 'ĩ': 'i', 'ị': 'i',
+    'ò': 'o', 'ó': 'o', 'ỏ': 'o', 'õ': 'o', 'ọ': 'o',
+    'ô': 'o', 'ồ': 'o', 'ố': 'o', 'ổ': 'o', 'ỗ': 'o', 'ộ': 'o',
+    'ơ': 'o', 'ờ': 'o', 'ớ': 'o', 'ở': 'o', 'ỡ': 'o', 'ợ': 'o',
+    'ù': 'u', 'ú': 'u', 'ủ': 'u', 'ũ': 'u', 'ụ': 'u',
+    'ư': 'u', 'ừ': 'u', 'ứ': 'u', 'ử': 'u', 'ữ': 'u', 'ự': 'u',
+    'ỳ': 'y', 'ý': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y',
+    'đ': 'd', '\'': '', ' ': '', '-': '', '_': '',
+  };
+  map.forEach((k, v) {
+    s = s.replaceAll(k, v);
+  });
+  return s;
+}
+
+/// Geocoding and Place Search service with instant local matching & multi-tier fallback
 class GeocodingService {
   final Dio _dio;
   Timer? _debounceTimer;
 
   GeocodingService()
       : _dio = Dio(BaseOptions(
-          baseUrl: 'https://nominatim.openstreetmap.org',
-          headers: {
-            'User-Agent': 'XebuonhoRiderApp/1.0',
-            'Accept-Language': 'vi',
-          },
-          connectTimeout: const Duration(seconds: 5),
-          receiveTimeout: const Duration(seconds: 5),
+          connectTimeout: const Duration(seconds: 4),
+          receiveTimeout: const Duration(seconds: 4),
         ));
 
-  /// Search for addresses with debounce (400ms)
+  /// Instant local search: matches pre-indexed Buôn Hồ / Krông Búk / Đắk Lắk places (0ms)
+  List<GeocodingResult> searchLocal(String query) {
+    if (query.trim().length < 2) return [];
+    final normQ = _normalizeVietnamese(query);
+
+    final results = <GeocodingResult>[];
+    for (final p in _kLocalDakLakCatalog) {
+      final normName = _normalizeVietnamese(p['name'] as String);
+      final normDisplay = _normalizeVietnamese(p['displayName'] as String);
+      final normKey = _normalizeVietnamese(p['keywords'] as String);
+
+      if (normName.contains(normQ) ||
+          normDisplay.contains(normQ) ||
+          normKey.contains(normQ)) {
+        results.add(GeocodingResult(
+          name: p['name'] as String,
+          displayName: p['displayName'] as String,
+          lat: p['lat'] as double,
+          lng: p['lng'] as double,
+          type: p['type'] as String,
+        ));
+      }
+    }
+    return results;
+  }
+
+  /// Search for addresses with debounce (200ms) and multi-tier resolution
   Future<List<GeocodingResult>> search(String query,
       {double? lat, double? lng}) async {
-    if (query.trim().length < 2) return [];
+    final cleanQ = query.trim();
+    if (cleanQ.length < 2) return [];
 
     final completer = Completer<List<GeocodingResult>>();
 
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 400), () async {
+    _debounceTimer = Timer(const Duration(milliseconds: 200), () async {
       try {
-        final results = await _searchNow(query, lat: lat, lng: lng);
+        final results = await _searchNow(cleanQ, lat: lat, lng: lng);
         if (!completer.isCompleted) completer.complete(results);
       } catch (e) {
-        if (!completer.isCompleted) completer.complete([]);
+        if (!completer.isCompleted) completer.complete(searchLocal(cleanQ));
       }
     });
 
     return completer.future;
   }
 
-  /// Immediate search with Amazon Location Service (fallback to Nominatim OSM)
   Future<List<GeocodingResult>> _searchNow(String query,
       {double? lat, double? lng}) async {
-    // 1. Try Amazon Location Service Places API if API key is present
-    if (ApiConfig.awsLocationApiKey.isNotEmpty) {
-      try {
-        final awsResults = await _searchWithAmazonLocation(query, lat: lat, lng: lng);
-        if (awsResults.isNotEmpty) {
-          return awsResults;
-        }
-      } catch (_) {
-        // Fallback to OSM Nominatim
-      }
-    }
+    final combined = <GeocodingResult>[];
 
-    // 2. Fallback to Nominatim OSM
+    // 1. Instant local search match
+    final localMatches = searchLocal(query);
+    combined.addAll(localMatches);
+
+    // 2. Try API Gateway Search endpoint
     try {
-      final params = <String, dynamic>{
-        'q': query,
-        'format': 'json',
-        'addressdetails': '1',
-        'limit': '8',
-        'countrycodes': 'vn',
-      };
-
-      // Bias towards user's location if available
-      if (lat != null && lng != null) {
-        params['viewbox'] =
-            '${lng - 0.5},${lat + 0.5},${lng + 0.5},${lat - 0.5}';
-        params['bounded'] = '0';
+      final res = await _dio.get(
+        '${ApiConfig.baseUrl}${ApiConfig.searchPlaces}',
+        queryParameters: {'q': query, 'lat': lat, 'lng': lng},
+      );
+      if (res.statusCode == 200 && res.data is List) {
+        for (final item in res.data) {
+          final latVal = (item['lat'] as num).toDouble();
+          final lngVal = (item['lng'] as num).toDouble();
+          if (!_isDuplicate(combined, latVal, lngVal)) {
+            combined.add(GeocodingResult(
+              name: item['name'] ?? '',
+              displayName: item['display_name'] ?? '',
+              lat: latVal,
+              lng: lngVal,
+              type: item['type'] ?? 'place',
+            ));
+          }
+        }
       }
+    } catch (_) {}
 
-      final response = await _dio.get('/search', queryParameters: params);
+    // 3. Fallback to Nominatim OSM with query variant expansion
+    if (combined.length < 5) {
+      final variants = _expandQueryVariants(query);
+      for (final v in variants) {
+        try {
+          final params = <String, dynamic>{
+            'q': v,
+            'format': 'json',
+            'addressdetails': '1',
+            'limit': '6',
+            'countrycodes': 'vn',
+          };
+          if (lat != null && lng != null) {
+            params['viewbox'] =
+                '${lng - 0.5},${lat + 0.5},${lng + 0.5},${lat - 0.5}';
+            params['bounded'] = '0';
+          }
 
-      if (response.statusCode == 200) {
-        final List data = response.data;
-        return data.map((item) {
-          final name = item['name'] ?? item['display_name'].split(',').first;
-          return GeocodingResult(
-            name: name,
-            displayName: item['display_name'] ?? '',
-            lat: double.parse(item['lat']),
-            lng: double.parse(item['lon']),
-            type: item['type'] ?? 'place',
+          final response = await _dio.get(
+            'https://nominatim.openstreetmap.org/search',
+            queryParameters: params,
           );
-        }).toList();
+
+          if (response.statusCode == 200 && response.data is List) {
+            for (final item in response.data) {
+              final latVal = double.tryParse(item['lat'].toString()) ?? 0;
+              final lngVal = double.tryParse(item['lon'].toString()) ?? 0;
+              if (latVal != 0 && !_isDuplicate(combined, latVal, lngVal)) {
+                final name =
+                    item['name'] ?? item['display_name'].split(',').first.trim();
+                combined.add(GeocodingResult(
+                  name: name,
+                  displayName: item['display_name'] ?? '',
+                  lat: latVal,
+                  lng: lngVal,
+                  type: item['type'] ?? 'place',
+                ));
+              }
+            }
+          }
+        } catch (_) {}
+
+        if (combined.length >= 6) break;
       }
-    } catch (e) {
-      // Silently fail — show empty results
     }
-    return [];
+
+    return combined;
   }
 
-  /// Search places using Amazon Location Service Places API
-  Future<List<GeocodingResult>> _searchWithAmazonLocation(String query,
-      {double? lat, double? lng}) async {
-    final dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 4),
-      receiveTimeout: const Duration(seconds: 4),
-    ));
-
-    final url = '${ApiConfig.awsLocationPlacesSearchUrl}?key=${ApiConfig.awsLocationApiKey}';
-    final payload = <String, dynamic>{
-      'Text': query,
-      'MaxResults': 8,
-      'FilterCountries': ['VNM'],
-    };
-
-    if (lat != null && lng != null) {
-      payload['BiasPosition'] = [lng, lat];
-    }
-
-    final res = await dio.post(
-      url,
-      data: payload,
-      options: Options(headers: {'Content-Type': 'application/json'}),
-    );
-
-    if (res.statusCode == 200 && res.data != null) {
-      final results = res.data['Results'] as List?;
-      if (results != null && results.isNotEmpty) {
-        return results.map((item) {
-          final place = item['Place'] as Map<String, dynamic>? ?? {};
-          final label = place['Label'] as String? ?? query;
-          final point = place['Geometry']?['Point'] as List?;
-          final pointLng = point != null && point.isNotEmpty ? (point[0] as num).toDouble() : (lng ?? 106.7009);
-          final pointLat = point != null && point.length > 1 ? (point[1] as num).toDouble() : (lat ?? 10.7769);
-          final shortName = label.split(',').first.trim();
-
-          return GeocodingResult(
-            name: shortName,
-            displayName: label,
-            lat: pointLat,
-            lng: pointLng,
-            type: 'place',
-          );
-        }).toList();
+  bool _isDuplicate(List<GeocodingResult> list, double lat, double lng) {
+    for (final item in list) {
+      if ((item.lat - lat).abs() < 0.003 && (item.lng - lng).abs() < 0.003) {
+        return true;
       }
     }
+    return false;
+  }
 
-    return [];
+  List<String> _expandQueryVariants(String q) {
+    final variants = <String>[q];
+    final norm = _normalizeVietnamese(q);
+
+    if (norm == 'pongdrang') {
+      variants.add('Pơng Drang');
+      variants.add('Pong Drang');
+    } else if (norm == 'eahleo') {
+      variants.add('Ea H\'leo');
+      variants.add('Ea Hleo');
+    } else if (norm == 'krongbuk') {
+      variants.add('Krông Búk');
+      variants.add('Krong Buk');
+    } else if (norm == 'buonho') {
+      variants.add('Buôn Hồ');
+      variants.add('Buon Ho');
+    } else if (norm == 'bmt') {
+      variants.add('Buôn Ma Thuột');
+      variants.add('Buon Ma Thuot');
+    } else if (norm == 'cumgar') {
+      variants.add('Cư M\'gar');
+      variants.add('Cu Mgar');
+    } else if (norm == 'easien') {
+      variants.add('Ea Siên');
+    } else if (norm == 'eadrong') {
+      variants.add('Ea Drông');
+    }
+
+    // Split concatenated words like "ngabapongdrang" -> "Ngã ba Pơng Drang"
+    if (norm.startsWith('ngaba')) {
+      variants.add('Ngã ba ${q.substring(5).trim()}');
+    }
+    if (norm.startsWith('cho')) {
+      variants.add('Chợ ${q.substring(3).trim()}');
+    }
+
+    return variants;
   }
 
   /// Reverse geocode coordinates to address
   Future<String?> reverseGeocode(double lat, double lng) async {
-    // 1. Try Backend API Gateway Reverse Geocode (Handles CORS, caching & fallback)
+    // 1. Try Backend API Gateway Reverse Geocode
     try {
-      final dio = Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 3),
-        receiveTimeout: const Duration(seconds: 3),
-      ));
-      final res = await dio.get(
+      final res = await _dio.get(
         '${ApiConfig.baseUrl}${ApiConfig.reverseGeocode}',
         queryParameters: {'lat': lat, 'lng': lng},
       );
@@ -209,53 +505,29 @@ class GeocodingService {
       }
     } catch (_) {}
 
-    // 2. Try Amazon Location Service Reverse Geocoding
-    if (ApiConfig.awsLocationApiKey.isNotEmpty) {
-      try {
-        final dio = Dio(BaseOptions(
-          connectTimeout: const Duration(seconds: 4),
-          receiveTimeout: const Duration(seconds: 4),
-        ));
-        final url = 'https://places.geo.${ApiConfig.awsLocationRegion}.amazonaws.com/places/v0/indexes/${ApiConfig.awsLocationPlaceIndex}/search/position?key=${ApiConfig.awsLocationApiKey}';
-        final res = await dio.post(
-          url,
-          data: {
-            'Position': [lng, lat],
-            'MaxResults': 1,
-          },
-        );
-        if (res.statusCode == 200 && res.data != null) {
-          final results = res.data['Results'] as List?;
-          if (results != null && results.isNotEmpty) {
-            return results[0]['Place']?['Label'] as String?;
-          }
-        }
-      } catch (_) {}
-    }
-
-    // 3. Fallback to Nominatim OSM
+    // 2. Try Nominatim OSM
     try {
-      final response = await _dio.get('/reverse', queryParameters: {
-        'lat': lat,
-        'lon': lng,
-        'format': 'json',
-        'addressdetails': '1',
-      });
-
+      final response = await _dio.get(
+        'https://nominatim.openstreetmap.org/reverse',
+        queryParameters: {
+          'lat': lat,
+          'lon': lng,
+          'format': 'json',
+          'addressdetails': '1',
+        },
+      );
       if (response.statusCode == 200) {
         return response.data['display_name'];
       }
     } catch (_) {}
 
-    // 4. Regional Heuristic Fallback
+    // 3. Regional Heuristic Fallback
     if (lat >= 12.80 && lat <= 13.15 && lng >= 108.10 && lng <= 108.45) {
       return lat > 12.95 ? 'Huyện Krông Búk, Đắk Lắk' : 'Thị xã Buôn Hồ, Đắk Lắk';
     } else if (lat >= 12.50 && lat <= 12.80 && lng >= 107.90 && lng <= 108.20) {
       return 'TP. Buôn Ma Thuột, Đắk Lắk';
     } else if (lat >= 10.60 && lat <= 10.95 && lng >= 106.50 && lng <= 106.90) {
       return 'TP. Hồ Chí Minh';
-    } else if (lat >= 20.90 && lat <= 21.20 && lng >= 105.65 && lng <= 106.00) {
-      return 'TP. Hà Nội';
     }
     return 'Vị trí (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})';
   }

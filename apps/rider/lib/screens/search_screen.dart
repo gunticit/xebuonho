@@ -20,42 +20,46 @@ class _SearchScreenState extends State<SearchScreen> {
   List<GeocodingResult> _results = [];
 
   final List<Map<String, dynamic>> _savedPlaces = [
-    {'name': 'Nhà', 'address': 'Landmark 81, Bình Thạnh', 'emoji': '🏠', 'lat': 10.7942, 'lng': 106.7217},
-    {'name': 'Văn phòng', 'address': 'Bitexco Tower, Q.1', 'emoji': '🏢', 'lat': 10.7716, 'lng': 106.7043},
-    {'name': 'Phòng gym', 'address': 'California Fitness, Q.3', 'emoji': '💪', 'lat': 10.7838, 'lng': 106.6920},
-    {'name': 'Quán cà phê', 'address': 'The Workshop, Q.1', 'emoji': '☕', 'lat': 10.7780, 'lng': 106.6960},
+    {'name': 'Nhà', 'address': 'Thị trấn Pơng Drang, Krông Búk', 'emoji': '🏠', 'lat': 12.9628, 'lng': 108.2465},
+    {'name': 'Chợ Buôn Hồ', 'address': 'Đường Hùng Vương, TX. Buôn Hồ', 'emoji': '🛍️', 'lat': 12.9215, 'lng': 108.2520},
+    {'name': 'Bệnh viện Buôn Hồ', 'address': 'Trần Hưng Đạo, Buôn Hồ', 'emoji': '🏥', 'lat': 12.9280, 'lng': 108.2560},
+    {'name': 'Quảng trường Buôn Hồ', 'address': 'TX. Buôn Hồ, Đắk Lắk', 'emoji': '🌳', 'lat': 12.9230, 'lng': 108.2535},
   ];
 
   final List<Map<String, dynamic>> _recentTrips = [
-    {'name': 'Bệnh viện FV', 'address': '6 Nguyễn Lương Bằng, Q.7', 'emoji': '🏥', 'lat': 10.7290, 'lng': 106.7180, 'time': 'Hôm qua'},
-    {'name': 'Aeon Mall Bình Tân', 'address': 'Bình Tân, TP.HCM', 'emoji': '🛍️', 'lat': 10.7442, 'lng': 106.6140, 'time': '2 ngày trước'},
-    {'name': 'Sân bay Tân Sơn Nhất', 'address': 'Tân Bình, TP.HCM', 'emoji': '✈️', 'lat': 10.8184, 'lng': 106.6588, 'time': '3 ngày trước'},
-    {'name': 'Đại học Bách Khoa', 'address': '268 Lý Thường Kiệt, Q.10', 'emoji': '🎓', 'lat': 10.7730, 'lng': 106.6600, 'time': 'Tuần trước'},
-    {'name': 'Chợ Bến Thành', 'address': 'Quận 1, TP.HCM', 'emoji': '🏪', 'lat': 10.7721, 'lng': 106.6981, 'time': 'Tuần trước'},
+    {'name': 'Pơng Drang', 'address': 'Huyện Krông Búk, Đắk Lắk', 'emoji': '🏙️', 'lat': 12.9628, 'lng': 108.2465, 'time': 'Vừa xong'},
+    {'name': 'Xã Ea Siên', 'address': 'Thị xã Buôn Hồ, Đắk Lắk', 'emoji': '🏡', 'lat': 12.8500, 'lng': 108.3100, 'time': 'Hôm qua'},
+    {'name': 'Ngã ba Pơng Drang', 'address': 'Quốc lộ 14, Krông Búk', 'emoji': '🚦', 'lat': 12.9640, 'lng': 108.2470, 'time': '2 ngày trước'},
+    {'name': 'Bến xe Buôn Hồ', 'address': 'QL14, Phường Thiện An, Buôn Hồ', 'emoji': '🚌', 'lat': 12.9180, 'lng': 108.2505, 'time': '3 ngày trước'},
+    {'name': 'Ngã 6 Buôn Ma Thuột', 'address': 'Tượng đài Chiến thắng BMT', 'emoji': '⭐', 'lat': 12.6840, 'lng': 108.0475, 'time': 'Tuần trước'},
   ];
 
   final List<Map<String, dynamic>> _popularPlaces = [
-    {'name': 'Sân bay Tân Sơn Nhất', 'address': 'Tân Bình, TP.HCM', 'emoji': '✈️', 'lat': 10.8184, 'lng': 106.6588},
-    {'name': 'Bến Thành Market', 'address': 'Quận 1, TP.HCM', 'emoji': '🏪', 'lat': 10.7721, 'lng': 106.6981},
-    {'name': 'Landmark 81', 'address': 'Bình Thạnh, TP.HCM', 'emoji': '🏢', 'lat': 10.7942, 'lng': 106.7217},
-    {'name': 'Saigon Center', 'address': '65 Lê Lợi, Q.1', 'emoji': '🛍️', 'lat': 10.7734, 'lng': 106.7000},
-    {'name': 'Phú Mỹ Hưng', 'address': 'Quận 7, TP.HCM', 'emoji': '🌳', 'lat': 10.7290, 'lng': 106.7220},
-    {'name': 'AEON Mall Bình Tân', 'address': 'Bình Tân, TP.HCM', 'emoji': '🏬', 'lat': 10.7442, 'lng': 106.6140},
+    {'name': 'Pơng Drang', 'address': 'Thị trấn Pơng Drang, Krông Búk', 'emoji': '🏙️', 'lat': 12.9628, 'lng': 108.2465},
+    {'name': 'Chợ Buôn Hồ', 'address': 'Hùng Vương, TX. Buôn Hồ', 'emoji': '🛍️', 'lat': 12.9215, 'lng': 108.2520},
+    {'name': 'Ngã ba Pơng Drang', 'address': 'QL14, Krông Búk', 'emoji': '🚦', 'lat': 12.9640, 'lng': 108.2470},
+    {'name': 'Xã Ea Siên', 'address': 'TX. Buôn Hồ, Đắk Lắk', 'emoji': '🏡', 'lat': 12.8500, 'lng': 108.3100},
+    {'name': 'Quảng trường Buôn Hồ', 'address': 'TX. Buôn Hồ, Đắk Lắk', 'emoji': '🌳', 'lat': 12.9230, 'lng': 108.2535},
+    {'name': 'Sân bay Buôn Ma Thuột (BMV)', 'address': 'Hòa Thắng, TP. BMT', 'emoji': '✈️', 'lat': 12.6680, 'lng': 108.1200},
+    {'name': 'Bến xe Buôn Hồ', 'address': 'QL14, TX. Buôn Hồ', 'emoji': '🚌', 'lat': 12.9180, 'lng': 108.2505},
+    {'name': 'Bệnh viện Đa khoa Buôn Hồ', 'address': 'Trần Hưng Đạo, Buôn Hồ', 'emoji': '🏥', 'lat': 12.9280, 'lng': 108.2560},
   ];
 
-  /// Filter saved + recent by query text
+  /// Filter saved + recent by query text with space and accent insensitivity
   List<Map<String, dynamic>> _filterLocal(String q) {
-    final lower = q.toLowerCase();
+    final lower = q.toLowerCase().replaceAll(' ', '');
     final combined = <Map<String, dynamic>>[];
     for (final p in _savedPlaces) {
-      if (p['name'].toString().toLowerCase().contains(lower) ||
-          p['address'].toString().toLowerCase().contains(lower)) {
+      final nameNorm = p['name'].toString().toLowerCase().replaceAll(' ', '');
+      final addrNorm = p['address'].toString().toLowerCase().replaceAll(' ', '');
+      if (nameNorm.contains(lower) || addrNorm.contains(lower)) {
         combined.add({...p, 'section': 'saved'});
       }
     }
     for (final p in _recentTrips) {
-      if (p['name'].toString().toLowerCase().contains(lower) ||
-          p['address'].toString().toLowerCase().contains(lower)) {
+      final nameNorm = p['name'].toString().toLowerCase().replaceAll(' ', '');
+      final addrNorm = p['address'].toString().toLowerCase().replaceAll(' ', '');
+      if (nameNorm.contains(lower) || addrNorm.contains(lower)) {
         combined.add({...p, 'section': 'recent'});
       }
     }
@@ -77,7 +81,8 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Future<void> _search(String query) async {
-    if (query.trim().length < 2) {
+    final clean = query.trim();
+    if (clean.length < 2) {
       setState(() {
         _results = [];
         _isLoading = false;
@@ -85,18 +90,26 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    // 1. Instant local results (0ms - matches Pơng Drang, Buôn Hồ, Ea Siên, BMT, etc.)
+    final instantMatches = _geocoding.searchLocal(clean);
+    setState(() {
+      _results = instantMatches;
+      _isLoading = instantMatches.isEmpty;
+    });
 
+    // 2. Multi-tier online resolution (Gateway + OSM)
     final loc = context.read<LocationProvider>();
     final results = await _geocoding.search(
-      query,
+      clean,
       lat: loc.lat,
       lng: loc.lng,
     );
 
     if (mounted) {
       setState(() {
-        _results = results;
+        if (results.isNotEmpty) {
+          _results = results;
+        }
         _isLoading = false;
       });
     }

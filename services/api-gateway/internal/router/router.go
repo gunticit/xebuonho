@@ -121,6 +121,7 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	mux.HandleFunc("/api/v1/merchants/search", merchantH.SearchMerchants)
 	mux.HandleFunc("/api/v1/maps/reverse-geocode", mapsH.ReverseGeocode)
 	mux.HandleFunc("/api/v1/maps/route", mapsH.GetRoute)
+	mux.HandleFunc("/api/v1/maps/search", mapsH.SearchPlaces)
 	mux.HandleFunc("/api/v1/merchants/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/menu") {
 			merchantH.GetMenu(w, r)
