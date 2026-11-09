@@ -20,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _currentNavIndex = 0;
   bool _hasInitialMapCentered = false;
+  bool _isMenuExpanded = true;
 
   @override
   void initState() {
@@ -206,9 +207,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
 
           // ========== GPS CENTER BTN ==========
-          Positioned(
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.fastOutSlowIn,
             right: 16,
-            bottom: 330,
+            bottom: _isMenuExpanded ? 375 : 85,
             child: GestureDetector(
               onTap: () async {
                 final loc = context.read<LocationProvider>();
@@ -351,145 +354,267 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomSheet(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.bg2,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 24,
-            offset: const Offset(0, -8),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Drag handle
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.text3.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragUpdate: (details) {
+        if (details.primaryDelta! > 4 && _isMenuExpanded) {
+          setState(() => _isMenuExpanded = false);
+        } else if (details.primaryDelta! < -4 && !_isMenuExpanded) {
+          setState(() => _isMenuExpanded = true);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.fastOutSlowIn,
+        decoration: BoxDecoration(
+          color: AppColors.bg2,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.45),
+              blurRadius: 24,
+              offset: const Offset(0, -8),
             ),
-          ),
-          const SizedBox(height: 12),
-
-          // ========== WALLET & DEALS BAR ==========
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                const Text('💳', style: TextStyle(fontSize: 20)),
-                const SizedBox(width: 8),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Ví Xebuonho', style: TextStyle(fontSize: 10, color: AppColors.text3)),
-                    Text('500.000 đ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.text)),
-                  ],
-                ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/top-up'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.blueBg,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.add, size: 14, color: AppColors.blue),
-                        SizedBox(width: 2),
-                        Text('Nạp tiền', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.blue)),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(height: 18, width: 1, color: AppColors.border),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/promotions'),
-                  child: const Row(
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ========== INTERACTIVE DRAG HANDLE (TAP OR DRAG TO TOGGLE) ==========
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                setState(() => _isMenuExpanded = !_isMenuExpanded);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Center(
+                  child: Column(
                     children: [
-                      Text('🎟️', style: TextStyle(fontSize: 16)),
-                      SizedBox(width: 4),
-                      Text('5 Voucher', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.orange)),
+                      Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AppColors.text3.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(2.5),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isMenuExpanded
+                                ? Icons.keyboard_arrow_down
+                                : Icons.keyboard_arrow_up,
+                            color: AppColors.text3,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _isMenuExpanded
+                                ? 'Kéo xuống để ẩn menu'
+                                : 'Kéo lên để xem đầy đủ dịch vụ',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.text3,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // ========== 8 CORE SERVICES HUB GRID ==========
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildServiceBtn('🛵', 'Xe máy', AppColors.blueBg, AppColors.blue, () => Navigator.pushNamed(context, '/search')),
-              _buildServiceBtn('🚗', 'Ô tô', AppColors.greenBg, AppColors.green, () => Navigator.pushNamed(context, '/search')),
-              _buildServiceBtn('🍔', 'Đồ ăn', AppColors.orangeBg, AppColors.orange, () => Navigator.pushNamed(context, '/food')),
-              _buildServiceBtn('🚙', 'Lái xe hộ', const Color(0xFF132F4C), const Color(0xFF38BDF8), () => Navigator.pushNamed(context, '/designated-driver'), badge: 'HOT'),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildServiceBtn('🛒', 'Đi chợ', AppColors.purpleBg, AppColors.purple, () => Navigator.pushNamed(context, '/grocery')),
-              _buildServiceBtn('📦', 'Giao hàng', const Color(0xFF0F3A4A), const Color(0xFF06B6D4), () => Navigator.pushNamed(context, '/delivery'), badge: 'MỚI'),
-              _buildServiceBtn('📅', 'Đặt trước', const Color(0xFF312E81), const Color(0xFF818CF8), () => Navigator.pushNamed(context, '/schedule')),
-              _buildServiceBtn('📋', 'Hoạt động', AppColors.bg3, AppColors.border, () => Navigator.pushNamed(context, '/activities')),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // ========== DESIGNATED DRIVER PROMO BANNER ==========
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/designated-driver'),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.green.withValues(alpha: 0.2), const Color(0xFF0D9488).withValues(alpha: 0.12)],
-                ),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
               ),
-              child: const Row(
-                children: [
-                  Text('🛡️', style: TextStyle(fontSize: 24)),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
+            ),
+            const SizedBox(height: 6),
+
+            // ========== COMPACT MINI HUB (WHEN COLLAPSED) ==========
+            if (!_isMenuExpanded)
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 4),
+                child: Row(
+                  children: [
+                    // Quick Wallet summary
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('💳', style: TextStyle(fontSize: 14)),
+                          SizedBox(width: 6),
+                          Text('500.000đ',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.text)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Quick Shortcuts row
+                    Expanded(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMiniShortcut('🛵', 'Xe máy', () => Navigator.pushNamed(context, '/search')),
+                          _buildMiniShortcut('🚗', 'Ô tô', () => Navigator.pushNamed(context, '/search')),
+                          _buildMiniShortcut('🍔', 'Đồ ăn', () => Navigator.pushNamed(context, '/food')),
+                          _buildMiniShortcut('🚙', 'Lái hộ', () => Navigator.pushNamed(context, '/designated-driver')),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // ========== FULL MENU EXPANDED CONTENT ==========
+            if (_isMenuExpanded) ...[
+              // ========== WALLET & DEALS BAR ==========
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    const Text('💳', style: TextStyle(fontSize: 20)),
+                    const SizedBox(width: 8),
+                    const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Lái xe hộ — Bạn say tôi lái', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.text)),
-                        Text('Tài xế chuyên nghiệp lái xe của bạn đưa bạn về nhà', style: TextStyle(fontSize: 10, color: AppColors.text3)),
+                        Text('Ví Xebuonho', style: TextStyle(fontSize: 10, color: AppColors.text3)),
+                        Text('500.000 đ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.text)),
                       ],
                     ),
-                  ),
-                  Icon(Icons.chevron_right, color: AppColors.green, size: 18),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => Navigator.pushNamed(context, '/top-up'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.blueBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.add, size: 14, color: AppColors.blue),
+                            SizedBox(width: 2),
+                            Text('Nạp tiền', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.blue)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(height: 18, width: 1, color: AppColors.border),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => Navigator.pushNamed(context, '/promotions'),
+                      child: const Row(
+                        children: [
+                          Text('🎟️', style: TextStyle(fontSize: 16)),
+                          SizedBox(width: 4),
+                          Text('5 Voucher', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.orange)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // ========== 8 CORE SERVICES HUB GRID ==========
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildServiceBtn('🛵', 'Xe máy', AppColors.blueBg, AppColors.blue, () => Navigator.pushNamed(context, '/search')),
+                  _buildServiceBtn('🚗', 'Ô tô', AppColors.greenBg, AppColors.green, () => Navigator.pushNamed(context, '/search')),
+                  _buildServiceBtn('🍔', 'Đồ ăn', AppColors.orangeBg, AppColors.orange, () => Navigator.pushNamed(context, '/food')),
+                  _buildServiceBtn('🚙', 'Lái xe hộ', const Color(0xFF132F4C), const Color(0xFF38BDF8), () => Navigator.pushNamed(context, '/designated-driver'), badge: 'HOT'),
                 ],
               ),
-            ),
-          ),
-        ],
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildServiceBtn('🛒', 'Đi chợ', AppColors.purpleBg, AppColors.purple, () => Navigator.pushNamed(context, '/grocery')),
+                  _buildServiceBtn('📦', 'Giao hàng', const Color(0xFF0F3A4A), const Color(0xFF06B6D4), () => Navigator.pushNamed(context, '/delivery'), badge: 'MỚI'),
+                  _buildServiceBtn('📅', 'Đặt trước', const Color(0xFF312E81), const Color(0xFF818CF8), () => Navigator.pushNamed(context, '/schedule')),
+                  _buildServiceBtn('📋', 'Hoạt động', AppColors.bg3, AppColors.border, () => Navigator.pushNamed(context, '/activities')),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // ========== DESIGNATED DRIVER PROMO BANNER ==========
+              GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/designated-driver'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppColors.green.withOpacity(0.2), const Color(0xFF0D9488).withOpacity(0.12)],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.green.withOpacity(0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Text('🛡️', style: TextStyle(fontSize: 24)),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Lái xe hộ — Bạn say tôi lái', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.text)),
+                            Text('Tài xế chuyên nghiệp lái xe của bạn đưa bạn về nhà', style: TextStyle(fontSize: 10, color: AppColors.text3)),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, color: AppColors.green, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniShortcut(String emoji, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 15)),
+            const SizedBox(width: 4),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text)),
+          ],
+        ),
       ),
     );
   }

@@ -421,7 +421,7 @@ class _BookingScreenState extends State<BookingScreen> {
                       onPressed: booking.state == BookingState.estimating
                           ? null
                           : () async {
-                              await booking.confirmBooking();
+                              await booking.bookRide();
                               if (context.mounted) {
                                 Navigator.pushReplacementNamed(
                                     context, '/tracking');

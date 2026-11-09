@@ -162,6 +162,8 @@ class BookingProvider extends ChangeNotifier {
   }
 
   // Book ride
+  Future<void> confirmBooking() => bookRide();
+
   Future<void> bookRide() async {
     _state = BookingState.searching;
     _error = null;
