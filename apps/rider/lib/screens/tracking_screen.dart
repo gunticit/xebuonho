@@ -103,13 +103,21 @@ class _TrackingScreenState extends State<TrackingScreen> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: LatLng(booking.pickupLat, booking.pickupLng),
+              initialCenter: LatLng(
+                booking.pickupLat != 0 ? booking.pickupLat : 10.7769,
+                booking.pickupLng != 0 ? booking.pickupLng : 106.7009,
+              ),
               initialZoom: 15,
             ),
             children: [
               TileLayer(
                 urlTemplate: ApiConfig.mapTileUrl,
-                subdomains: const ['a', 'b', 'c', 'd'],
+                fallbackUrl: ApiConfig.mapTileFallbackUrl,
+                userAgentPackageName: 'com.xebuonho.rider',
+              ),
+              TileLayer(
+                urlTemplate: ApiConfig.mapTileLabelsUrl,
+                userAgentPackageName: 'com.xebuonho.rider',
               ),
               // Route
               PolylineLayer(

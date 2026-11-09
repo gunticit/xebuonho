@@ -30,15 +30,20 @@ class BookingScreen extends StatelessWidget {
             child: FlutterMap(
               options: MapOptions(
                 initialCenter: LatLng(
-                  (booking.pickupLat + booking.dropoffLat) / 2,
-                  (booking.pickupLng + booking.dropoffLng) / 2,
+                  booking.dropoffLat != 0 ? (booking.pickupLat + booking.dropoffLat) / 2 : (booking.pickupLat != 0 ? booking.pickupLat : 10.7769),
+                  booking.dropoffLng != 0 ? (booking.pickupLng + booking.dropoffLng) / 2 : (booking.pickupLng != 0 ? booking.pickupLng : 106.7009),
                 ),
                 initialZoom: 13,
               ),
               children: [
                 TileLayer(
                   urlTemplate: ApiConfig.mapTileUrl,
-                  subdomains: const ['a', 'b', 'c', 'd'],
+                  fallbackUrl: ApiConfig.mapTileFallbackUrl,
+                  userAgentPackageName: 'com.xebuonho.rider',
+                ),
+                TileLayer(
+                  urlTemplate: ApiConfig.mapTileLabelsUrl,
+                  userAgentPackageName: 'com.xebuonho.rider',
                 ),
                 // Route line
                 PolylineLayer(

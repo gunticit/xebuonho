@@ -191,7 +191,25 @@ class GeocodingService {
 
   /// Reverse geocode coordinates to address
   Future<String?> reverseGeocode(double lat, double lng) async {
-    // 1. Try Amazon Location Service Reverse Geocoding
+    // 1. Try Backend API Gateway Reverse Geocode (Handles CORS, caching & fallback)
+    try {
+      final dio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 3),
+        receiveTimeout: const Duration(seconds: 3),
+      ));
+      final res = await dio.get(
+        '${ApiConfig.baseUrl}${ApiConfig.reverseGeocode}',
+        queryParameters: {'lat': lat, 'lng': lng},
+      );
+      if (res.statusCode == 200 && res.data != null) {
+        final addr = res.data['address'] as String?;
+        if (addr != null && addr.isNotEmpty) {
+          return addr;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Try Amazon Location Service Reverse Geocoding
     if (ApiConfig.awsLocationApiKey.isNotEmpty) {
       try {
         final dio = Dio(BaseOptions(
@@ -215,7 +233,7 @@ class GeocodingService {
       } catch (_) {}
     }
 
-    // 2. Fallback to Nominatim OSM
+    // 3. Fallback to Nominatim OSM
     try {
       final response = await _dio.get('/reverse', queryParameters: {
         'lat': lat,
@@ -228,7 +246,18 @@ class GeocodingService {
         return response.data['display_name'];
       }
     } catch (_) {}
-    return null;
+
+    // 4. Regional Heuristic Fallback
+    if (lat >= 12.80 && lat <= 13.15 && lng >= 108.10 && lng <= 108.45) {
+      return lat > 12.95 ? 'Huyện Krông Búk, Đắk Lắk' : 'Thị xã Buôn Hồ, Đắk Lắk';
+    } else if (lat >= 12.50 && lat <= 12.80 && lng >= 107.90 && lng <= 108.20) {
+      return 'TP. Buôn Ma Thuột, Đắk Lắk';
+    } else if (lat >= 10.60 && lat <= 10.95 && lng >= 106.50 && lng <= 106.90) {
+      return 'TP. Hồ Chí Minh';
+    } else if (lat >= 20.90 && lat <= 21.20 && lng >= 105.65 && lng <= 106.00) {
+      return 'TP. Hà Nội';
+    }
+    return 'Vị trí (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})';
   }
 
   void dispose() {

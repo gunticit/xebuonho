@@ -34,6 +34,7 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	merchantH := handler.NewMerchantHandler(merchantClient, repo)
 	adminH := handler.NewAdminHandler()
 	driverH := handler.NewDriverHandler(repo)
+	mapsH := handler.NewMapsHandler()
 
 	// ==========================================
 	// Dashboard (root URL)
@@ -118,6 +119,7 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	})
 	mux.HandleFunc("/api/v1/merchants/nearby", merchantH.ListNearbyMerchants)
 	mux.HandleFunc("/api/v1/merchants/search", merchantH.SearchMerchants)
+	mux.HandleFunc("/api/v1/maps/reverse-geocode", mapsH.ReverseGeocode)
 	mux.HandleFunc("/api/v1/merchants/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/menu") {
 			merchantH.GetMenu(w, r)

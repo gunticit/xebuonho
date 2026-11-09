@@ -19,12 +19,19 @@ class _HomeScreenState extends State<HomeScreen> {
   final MapController _mapController = MapController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _currentNavIndex = 0;
+  bool _hasInitialMapCentered = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<LocationProvider>().fetchLocation();
+      final loc = context.read<LocationProvider>();
+      loc.fetchLocation().then((_) {
+        if (mounted && loc.currentPosition != null && !_hasInitialMapCentered) {
+          _hasInitialMapCentered = true;
+          _mapController.move(LatLng(loc.lat, loc.lng), 15);
+        }
+      });
     });
   }
 
@@ -32,6 +39,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final locProvider = context.watch<LocationProvider>();
     final activeOrders = context.watch<ActiveOrderProvider>().activeOrders;
+
+    if (!_hasInitialMapCentered && locProvider.currentPosition != null) {
+      _hasInitialMapCentered = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _mapController.move(LatLng(locProvider.lat, locProvider.lng), 15);
+        }
+      });
+    }
 
     return Scaffold(
       key: _scaffoldKey,
@@ -49,7 +65,11 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               TileLayer(
                 urlTemplate: ApiConfig.mapTileUrl,
-                subdomains: const ['a', 'b', 'c', 'd'],
+                fallbackUrl: ApiConfig.mapTileFallbackUrl,
+                userAgentPackageName: 'com.xebuonho.rider',
+              ),
+              TileLayer(
+                urlTemplate: ApiConfig.mapTileLabelsUrl,
                 userAgentPackageName: 'com.xebuonho.rider',
               ),
               MarkerLayer(
@@ -77,29 +97,42 @@ class _HomeScreenState extends State<HomeScreen> {
                       _buildCircleBtn('☰', () => _scaffoldKey.currentState?.openDrawer()),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.card,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: const Row(
-                            children: [
-                              Text('🏍️', style: TextStyle(fontSize: 16)),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text('Vị trí hiện tại', style: TextStyle(fontSize: 10, color: AppColors.text3)),
-                                    Text('Bitexco, 2 Hải Triều, Q.1', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.text), overflow: TextOverflow.ellipsis),
-                                  ],
+                        child: GestureDetector(
+                          onTap: () async {
+                            final loc = context.read<LocationProvider>();
+                            await loc.fetchLocation();
+                            _mapController.move(LatLng(loc.lat, loc.lng), 16);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.card,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              children: [
+                                const Text('🏍️', style: TextStyle(fontSize: 16)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text('Vị trí hiện tại', style: TextStyle(fontSize: 10, color: AppColors.text3)),
+                                      Text(
+                                        locProvider.loading
+                                            ? 'Đang xác định vị trí...'
+                                            : locProvider.currentAddress,
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.text),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              Icon(Icons.keyboard_arrow_down, color: AppColors.text3, size: 18),
-                            ],
+                                const Icon(Icons.my_location, color: AppColors.blue, size: 16),
+                              ],
+                            ),
                           ),
                         ),
                       ),
