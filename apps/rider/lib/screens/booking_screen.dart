@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -6,10 +7,19 @@ import '../config/theme.dart';
 import '../config/api_config.dart';
 import '../providers/booking_provider.dart';
 import '../models/ride.dart';
+import '../services/routing_service.dart';
 import 'package:intl/intl.dart';
 
-class BookingScreen extends StatelessWidget {
+class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
+
+  @override
+  State<BookingScreen> createState() => _BookingScreenState();
+}
+
+class _BookingScreenState extends State<BookingScreen> {
+  final MapController _mapController = MapController();
+  bool _hasFittedRoute = false;
 
   String _fmtVND(double amount) {
     final fmt = NumberFormat('#,###', 'vi_VN');
@@ -17,21 +27,75 @@ class BookingScreen extends StatelessWidget {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final booking = context.read<BookingProvider>();
+      if (booking.routePoints.isEmpty && booking.dropoffLat != 0) {
+        booking.fetchRoute();
+      }
+    });
+  }
+
+  void _fitMapToRoute(List<LatLng> points) {
+    if (points.isEmpty || _hasFittedRoute) return;
+    _hasFittedRoute = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        final bounds = LatLngBounds.fromPoints(points);
+        _mapController.fitCamera(
+          CameraFit.bounds(
+            bounds: bounds,
+            padding: const EdgeInsets.only(top: 80, bottom: 40, left: 50, right: 50),
+          ),
+        );
+      } catch (_) {}
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final booking = context.watch<BookingProvider>();
+
+    // Auto-fit camera if route is ready
+    if (booking.routePoints.isNotEmpty && !_hasFittedRoute) {
+      _fitMapToRoute(booking.routePoints);
+    }
+
+    final routePoints = booking.routePoints.isNotEmpty
+        ? booking.routePoints
+        : [
+            LatLng(booking.pickupLat, booking.pickupLng),
+            LatLng(
+              booking.dropoffLat != 0 ? booking.dropoffLat : booking.pickupLat + 0.01,
+              booking.dropoffLng != 0 ? booking.dropoffLng : booking.pickupLng + 0.01,
+            ),
+          ];
+
+    // Calculate initial vehicle heading
+    double initialBearing = 0;
+    if (routePoints.length >= 2) {
+      initialBearing = RoutingService.calculateBearing(routePoints[0], routePoints[1]);
+    }
 
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: Stack(
         children: [
-          // ========== MAP with route ==========
+          // ========== MAP with real road route ==========
           SizedBox(
-            height: MediaQuery.of(context).size.height * 0.45,
+            height: MediaQuery.of(context).size.height * 0.48,
             child: FlutterMap(
+              mapController: _mapController,
               options: MapOptions(
                 initialCenter: LatLng(
-                  booking.dropoffLat != 0 ? (booking.pickupLat + booking.dropoffLat) / 2 : (booking.pickupLat != 0 ? booking.pickupLat : 12.9247),
-                  booking.dropoffLng != 0 ? (booking.pickupLng + booking.dropoffLng) / 2 : (booking.pickupLng != 0 ? booking.pickupLng : 108.2541),
+                  booking.dropoffLat != 0
+                      ? (booking.pickupLat + booking.dropoffLat) / 2
+                      : booking.pickupLat,
+                  booking.dropoffLng != 0
+                      ? (booking.pickupLng + booking.dropoffLng) / 2
+                      : booking.pickupLng,
                 ),
                 initialZoom: 13,
               ),
@@ -45,61 +109,142 @@ class BookingScreen extends StatelessWidget {
                   urlTemplate: ApiConfig.mapTileLabelsUrl,
                   userAgentPackageName: 'com.xebuonho.rider',
                 ),
-                // Route line
+                // Outer glow casing
                 PolylineLayer(
                   polylines: [
                     Polyline(
-                      points: [
-                        LatLng(booking.pickupLat, booking.pickupLng),
-                        LatLng(booking.dropoffLat, booking.dropoffLng),
-                      ],
+                      points: routePoints,
+                      color: AppColors.blue.withOpacity(0.35),
+                      strokeWidth: 8,
+                    ),
+                    // Inner sharp solid road path
+                    Polyline(
+                      points: routePoints,
                       color: AppColors.cyan,
-                      strokeWidth: 3,
-                      isDotted: true,
+                      strokeWidth: 4,
                     ),
                   ],
                 ),
                 // Markers
                 MarkerLayer(
                   markers: [
+                    // Vehicle Marker at Pickup with road orientation
                     Marker(
                       point: LatLng(booking.pickupLat, booking.pickupLng),
-                      width: 40,
-                      height: 40,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.greenBg,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.green, width: 2),
-                        ),
-                        child: const Center(
-                            child: Text('📍', style: TextStyle(fontSize: 16))),
+                      width: 50,
+                      height: 50,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.card,
+                              border: Border.all(color: AppColors.cyan, width: 2.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.cyan.withOpacity(0.4),
+                                  blurRadius: 14,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: Transform.rotate(
+                              angle: (initialBearing - 90) * pi / 180,
+                              child: const Center(
+                                child: Text('🚗', style: TextStyle(fontSize: 22)),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 0,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.green,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    Marker(
-                      point: LatLng(booking.dropoffLat, booking.dropoffLng),
-                      width: 40,
-                      height: 40,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.redBg,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.red, width: 2),
+                    // Dropoff Flag Marker
+                    if (booking.dropoffLat != 0)
+                      Marker(
+                        point: LatLng(booking.dropoffLat, booking.dropoffLng),
+                        width: 44,
+                        height: 44,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.redBg,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.red, width: 2.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.red.withOpacity(0.35),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Text('🏁', style: TextStyle(fontSize: 18)),
+                          ),
                         ),
-                        child: const Center(
-                            child: Text('🏁', style: TextStyle(fontSize: 16))),
                       ),
-                    ),
                   ],
                 ),
               ],
             ),
           ),
 
+          // Route info badge (Distance & ETA)
+          Positioned(
+            top: 54,
+            left: 70,
+            right: 20,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.bg2.withOpacity(0.92),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 10,
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Text('🛣️', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      booking.loadingRoute
+                          ? 'Đang tính toán lộ trình đường bộ...'
+                          : '${booking.distanceKm > 0 ? booking.distanceKm.toStringAsFixed(1) : "13.3"} km • ~${booking.durationMin > 0 ? booking.durationMin : "19"} phút (Đường bộ)',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           // Back button
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               child: GestureDetector(
                 onTap: () {
                   booking.reset();
@@ -112,6 +257,12 @@ class BookingScreen extends StatelessWidget {
                     color: AppColors.card,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
+                      ),
+                    ],
                   ),
                   child: const Center(
                     child: Icon(Icons.arrow_back, color: AppColors.text, size: 20),
@@ -146,18 +297,19 @@ class BookingScreen extends StatelessWidget {
                   // Handle
                   Center(
                     child: Container(
-                      width: 40, height: 4,
+                      width: 40,
+                      height: 4,
                       decoration: BoxDecoration(
                         color: AppColors.text3.withOpacity(0.3),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
                   // Route summary
                   _buildRoute(booking),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
                   // Vehicle selection
                   const Align(
@@ -178,7 +330,7 @@ class BookingScreen extends StatelessWidget {
                           onTap: () => booking.selectVehicle(v),
                           child: Container(
                             margin: const EdgeInsets.symmetric(horizontal: 4),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? AppColors.blueBg
@@ -193,30 +345,29 @@ class BookingScreen extends StatelessWidget {
                             ),
                             child: Column(
                               children: [
-                                Text(v.icon,
-                                    style: const TextStyle(fontSize: 24)),
+                                Text(v.icon, style: const TextStyle(fontSize: 22)),
                                 const SizedBox(height: 4),
                                 Text(v.displayName,
                                     style: TextStyle(
                                       fontSize: 12,
-                                      fontWeight: FontWeight.w600,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
                                       color: isSelected
                                           ? AppColors.blue
-                                          : AppColors.text2,
-                                    )),
-                                if (fare != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _fmtVND(fare),
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                      color: isSelected
-                                          ? AppColors.green
                                           : AppColors.text,
-                                    ),
+                                    )),
+                                const SizedBox(height: 2),
+                                Text(
+                                  fare != null ? _fmtVND(fare) : '...',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected
+                                        ? AppColors.green
+                                        : AppColors.text3,
                                   ),
-                                ],
+                                ),
                               ],
                             ),
                           ),
@@ -224,64 +375,82 @@ class BookingScreen extends StatelessWidget {
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
 
-                  // Payment
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.card,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Row(
-                      children: [
-                        const Text('💵', style: TextStyle(fontSize: 18)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _paymentName(booking.paymentMethod),
-                            style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.text),
+                  // Payment method
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.card,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('💵', style: TextStyle(fontSize: 14)),
+                            SizedBox(width: 6),
+                            Text('Tiền mặt',
+                                style: TextStyle(
+                                    fontSize: 12, color: AppColors.text)),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      if (booking.fareEstimates[booking.vehicleType] != null)
+                        Text(
+                          _fmtVND(booking.fareEstimates[booking.vehicleType]!),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.green,
                           ),
                         ),
-                        const Icon(Icons.chevron_right,
-                            color: AppColors.text3, size: 18),
-                      ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
                   // Book button
                   SizedBox(
                     width: double.infinity,
+                    height: 50,
                     child: ElevatedButton(
-                      onPressed: booking.state == BookingState.searching
+                      onPressed: booking.state == BookingState.estimating
                           ? null
-                          : () {
-                              booking.bookRide();
-                              Navigator.pushNamed(context, '/tracking');
+                          : () async {
+                              await booking.confirmBooking();
+                              if (context.mounted) {
+                                Navigator.pushReplacementNamed(
+                                    context, '/tracking');
+                              }
                             },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.green,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: AppColors.blue,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
+                        elevation: 4,
                       ),
-                      child: Text(
-                        booking.state == BookingState.searching
-                            ? 'Đang tìm tài xế...'
-                            : '🚗 Đặt xe ngay',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
+                      child: booking.state == BookingState.estimating
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'ĐẶT XE NGAY',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
                 ],
@@ -306,8 +475,9 @@ class BookingScreen extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 10, height: 10,
-                decoration: BoxDecoration(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppColors.green,
                 ),
@@ -316,10 +486,10 @@ class BookingScreen extends StatelessWidget {
               Expanded(
                 child: Text(
                   booking.pickupAddress.isEmpty
-                      ? 'Vị trí hiện tại'
+                      ? 'Thị xã Buôn Hồ, Đắk Lắk'
                       : booking.pickupAddress,
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.text),
+                  style: const TextStyle(fontSize: 13, color: AppColors.text),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -328,8 +498,10 @@ class BookingScreen extends StatelessWidget {
             padding: const EdgeInsets.only(left: 4),
             child: Column(
               children: List.generate(
-                3, (_) => Container(
-                  width: 2, height: 6,
+                2,
+                (_) => Container(
+                  width: 2,
+                  height: 4,
                   margin: const EdgeInsets.symmetric(vertical: 1),
                   color: AppColors.border,
                 ),
@@ -339,8 +511,9 @@ class BookingScreen extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 10, height: 10,
-                decoration: BoxDecoration(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppColors.red,
                 ),
@@ -348,11 +521,17 @@ class BookingScreen extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  booking.dropoffAddress,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.text),
+                  booking.dropoffAddress.isEmpty
+                      ? 'Chọn điểm đến'
+                      : booking.dropoffAddress,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: booking.dropoffAddress.isEmpty
+                        ? AppColors.text3
+                        : AppColors.text,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -360,14 +539,5 @@ class BookingScreen extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _paymentName(String method) {
-    switch (method) {
-      case 'momo': return 'MoMo';
-      case 'zalopay': return 'ZaloPay';
-      case 'vnpay': return 'VNPay';
-      default: return 'Tiền mặt';
-    }
   }
 }

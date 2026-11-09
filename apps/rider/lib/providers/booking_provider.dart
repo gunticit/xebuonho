@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/ride.dart';
 import '../services/api_service.dart';
+import '../services/routing_service.dart';
 
 enum BookingState {
   idle,
@@ -32,6 +34,12 @@ class BookingProvider extends ChangeNotifier {
   // Fare estimates per vehicle type
   Map<VehicleType, double> _fareEstimates = {};
 
+  // Route along road network
+  List<LatLng> _routePoints = [];
+  double _distanceKm = 0;
+  int _durationMin = 0;
+  bool _loadingRoute = false;
+
   RideModel? _currentRide;
   String? _error;
 
@@ -47,6 +55,10 @@ class BookingProvider extends ChangeNotifier {
   String get paymentMethod => _paymentMethod;
   String? get notes => _notes;
   Map<VehicleType, double> get fareEstimates => _fareEstimates;
+  List<LatLng> get routePoints => _routePoints;
+  double get distanceKm => _distanceKm;
+  int get durationMin => _durationMin;
+  bool get loadingRoute => _loadingRoute;
   RideModel? get currentRide => _currentRide;
   String? get error => _error;
   bool get hasDestination => _dropoffAddress.isNotEmpty;
@@ -57,6 +69,9 @@ class BookingProvider extends ChangeNotifier {
     _pickupLat = lat;
     _pickupLng = lng;
     notifyListeners();
+    if (_dropoffLat != 0 && _dropoffLng != 0) {
+      fetchRoute();
+    }
   }
 
   // Set dropoff
@@ -66,7 +81,27 @@ class BookingProvider extends ChangeNotifier {
     _dropoffLng = lng;
     _state = BookingState.selectingVehicle;
     notifyListeners();
+    fetchRoute();
     estimateFare();
+  }
+
+  Future<void> fetchRoute() async {
+    if (_dropoffLat == 0 || _dropoffLng == 0) return;
+    _loadingRoute = true;
+    notifyListeners();
+    try {
+      final route = await RoutingService().getRoute(
+        startLat: _pickupLat,
+        startLng: _pickupLng,
+        endLat: _dropoffLat,
+        endLng: _dropoffLng,
+      );
+      _routePoints = route.points;
+      _distanceKm = route.distanceKm;
+      _durationMin = route.durationMin;
+    } catch (_) {}
+    _loadingRoute = false;
+    notifyListeners();
   }
 
   // Select vehicle
@@ -193,6 +228,9 @@ class BookingProvider extends ChangeNotifier {
     _dropoffAddress = '';
     _dropoffLat = 0;
     _dropoffLng = 0;
+    _routePoints = [];
+    _distanceKm = 0;
+    _durationMin = 0;
     _fareEstimates = {};
     _currentRide = null;
     _error = null;

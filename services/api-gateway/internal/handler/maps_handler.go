@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,6 +19,18 @@ type ReverseGeocodeResponse struct {
 	Source       string  `json:"source"`
 }
 
+type RoutePoint struct {
+	Lat float64 `json:"lat"`
+	Lng float64 `json:"lng"`
+}
+
+type RouteResponse struct {
+	DistanceKm  float64      `json:"distance_km"`
+	DurationMin int          `json:"duration_min"`
+	Points      []RoutePoint `json:"points"`
+	Source      string       `json:"source"`
+}
+
 type MapsHandler struct {
 	httpClient *http.Client
 }
@@ -25,7 +38,7 @@ type MapsHandler struct {
 func NewMapsHandler() *MapsHandler {
 	return &MapsHandler{
 		httpClient: &http.Client{
-			Timeout: 3 * time.Second,
+			Timeout: 4 * time.Second,
 		},
 	}
 }
@@ -53,6 +66,142 @@ func (h *MapsHandler) ReverseGeocode(w http.ResponseWriter, r *http.Request) {
 	// 2. Fallback to regional bounding box detection
 	fallback := h.fallbackRegion(lat, lng)
 	writeJSON(w, http.StatusOK, fallback)
+}
+
+// GetRoute handles GET /api/v1/maps/route?pickup_lat=...&pickup_lng=...&dropoff_lat=...&dropoff_lng=...
+func (h *MapsHandler) GetRoute(w http.ResponseWriter, r *http.Request) {
+	pLatStr := r.URL.Query().Get("pickup_lat")
+	pLngStr := r.URL.Query().Get("pickup_lng")
+	dLatStr := r.URL.Query().Get("dropoff_lat")
+	dLngStr := r.URL.Query().Get("dropoff_lng")
+
+	pLat, e1 := strconv.ParseFloat(pLatStr, 64)
+	pLng, e2 := strconv.ParseFloat(pLngStr, 64)
+	dLat, e3 := strconv.ParseFloat(dLatStr, 64)
+	dLng, e4 := strconv.ParseFloat(dLngStr, 64)
+
+	if e1 != nil || e2 != nil || e3 != nil || e4 != nil {
+		writeError(w, http.StatusBadRequest, "invalid pickup or dropoff coordinates")
+		return
+	}
+
+	// 1. Try OSRM Real Road Network
+	route, err := h.fetchOSRMRoute(pLat, pLng, dLat, dLng)
+	if err == nil && len(route.Points) > 0 {
+		writeJSON(w, http.StatusOK, route)
+		return
+	}
+
+	// 2. Fallback Curved Route Generator
+	fallback := h.fallbackCurvedRoute(pLat, pLng, dLat, dLng)
+	writeJSON(w, http.StatusOK, fallback)
+}
+
+func (h *MapsHandler) fetchOSRMRoute(pLat, pLng, dLat, dLng float64) (RouteResponse, error) {
+	url := fmt.Sprintf("https://router.project-osrm.org/route/v1/driving/%.6f,%.6f;%.6f,%.6f?overview=full&geometries=geojson",
+		pLng, pLat, dLng, dLat)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return RouteResponse{}, err
+	}
+	req.Header.Set("User-Agent", "XeBuonHo-Router/1.0 (contact@xebuonho.vn)")
+
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		return RouteResponse{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return RouteResponse{}, fmt.Errorf("osrm returned status %d", resp.StatusCode)
+	}
+
+	var osrmResp struct {
+		Code   string `json:"code"`
+		Routes []struct {
+			Distance float64 `json:"distance"` // meters
+			Duration float64 `json:"duration"` // seconds
+			Geometry struct {
+				Coordinates [][]float64 `json:"coordinates"` // [lng, lat]
+			} `json:"geometry"`
+		} `json:"routes"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&osrmResp); err != nil {
+		return RouteResponse{}, err
+	}
+
+	if osrmResp.Code != "Ok" || len(osrmResp.Routes) == 0 {
+		return RouteResponse{}, fmt.Errorf("no osrm route found")
+	}
+
+	r0 := osrmResp.Routes[0]
+	var points []RoutePoint
+	for _, c := range r0.Geometry.Coordinates {
+		if len(c) >= 2 {
+			points = append(points, RoutePoint{
+				Lat: c[1],
+				Lng: c[0],
+			})
+		}
+	}
+
+	distKm := math.Round((r0.Distance/1000.0)*100) / 100
+	durMin := int(math.Ceil(r0.Duration / 60.0))
+	if durMin < 3 {
+		durMin = 3
+	}
+
+	return RouteResponse{
+		DistanceKm:  distKm,
+		DurationMin: durMin,
+		Points:      points,
+		Source:      "osrm_road_network",
+	}, nil
+}
+
+func (h *MapsHandler) fallbackCurvedRoute(pLat, pLng, dLat, dLng float64) RouteResponse {
+	// Haversine base distance
+	const earthR = 6371.0
+	dLatRad := (dLat - pLat) * math.Pi / 180.0
+	dLngRad := (dLng - pLng) * math.Pi / 180.0
+	rLat1 := pLat * math.Pi / 180.0
+	rLat2 := dLat * math.Pi / 180.0
+
+	a := math.Sin(dLatRad/2)*math.Sin(dLatRad/2) +
+		math.Sin(dLngRad/2)*math.Sin(dLngRad/2)*math.Cos(rLat1)*math.Cos(rLat2)
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	straightKm := earthR * c
+	if straightKm < 0.1 {
+		straightKm = 0.5
+	}
+
+	// Road tortuosity factor = 1.35
+	roadKm := math.Round(straightKm*1.35*100) / 100
+	durMin := int(math.Ceil((roadKm/28.0)*60.0)) + 3
+
+	// Generate 25 smooth sinusoidal road waypoints simulating turns
+	steps := 25
+	points := make([]RoutePoint, steps+1)
+	for i := 0; i <= steps; i++ {
+		t := float64(i) / float64(steps)
+		// Lateral curve offset
+		curveOffset := math.Sin(t*math.Pi*2) * 0.002
+		lat := pLat + (dLat-pLat)*t + curveOffset
+		lng := pLng + (dLng-pLng)*t - curveOffset
+		points[i] = RoutePoint{
+			Lat: math.Round(lat*1000000) / 1000000,
+			Lng: math.Round(lng*1000000) / 1000000,
+		}
+	}
+
+	return RouteResponse{
+		DistanceKm:  roadKm,
+		DurationMin: durMin,
+		Points:      points,
+		Source:      "tortuosity_interpolated",
+	}
 }
 
 func (h *MapsHandler) fetchNominatim(lat, lng float64) (ReverseGeocodeResponse, error) {
@@ -93,7 +242,6 @@ func (h *MapsHandler) fetchNominatim(lat, lng float64) (ReverseGeocodeResponse, 
 		return ReverseGeocodeResponse{}, err
 	}
 
-	// Build clean short address
 	var parts []string
 	if data.Address.Road != "" {
 		parts = append(parts, data.Address.Road)
@@ -147,7 +295,6 @@ func (h *MapsHandler) fetchNominatim(lat, lng float64) (ReverseGeocodeResponse, 
 func (h *MapsHandler) fallbackRegion(lat, lng float64) ReverseGeocodeResponse {
 	var addr, short string
 
-	// Krông Búk / Buôn Hồ region (XeBuonHo core area)
 	if lat >= 12.80 && lat <= 13.15 && lng >= 108.10 && lng <= 108.45 {
 		if lat > 12.95 {
 			addr = "Huyện Krông Búk, Đắk Lắk"
@@ -182,4 +329,3 @@ func (h *MapsHandler) fallbackRegion(lat, lng float64) ReverseGeocodeResponse {
 		Source:       "regional_heuristic",
 	}
 }
-
