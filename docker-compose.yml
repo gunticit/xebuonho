@@ -1,0 +1,7 @@
+# XeBuonHo Development Environment Compose Root
+# Wraps deployments/docker-compose.dev.yml with root build context
+
+include:
+  - path: deployments/docker-compose.dev.yml
+    project_directory: .
+

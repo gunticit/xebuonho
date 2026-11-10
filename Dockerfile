@@ -12,8 +12,10 @@ RUN apk add --no-cache git ca-certificates
 
 WORKDIR /app
 
-# Copy workspace files
-COPY go.work go.work.sum* ./
+# Disable go.work in container build since only target service and pkg are copied
+ENV GOWORK=off
+
+# Copy shared pkg and target service
 COPY pkg/ ./pkg/
 COPY services/${SERVICE}/ ./services/${SERVICE}/
 

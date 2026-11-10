@@ -11,11 +11,11 @@ GO_PACKAGES := $(addsuffix /...,$(addprefix ./services/,$(SERVICES))) ./pkg/...
 
 ## Start all infrastructure (Redis, PostgreSQL, Kafka, EMQX)
 docker-up:
-	docker-compose -f deployments/docker-compose.dev.yml up -d
+	docker compose up -d postgres redis kafka zookeeper emqx
 
 ## Stop all infrastructure
 docker-down:
-	docker-compose -f deployments/docker-compose.dev.yml down
+	docker compose down
 
 ## Run all services (development mode)
 run-all: build
