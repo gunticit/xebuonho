@@ -57,6 +57,7 @@ Xebuonho là nền tảng gọi xe và giao hàng đa dịch vụ (Super App) ba
 | **user-service** | `8091` | HTTP | Quản lý đăng ký, đăng nhập, JWT tokens |
 | **order-service** | `8088` | HTTP / gRPC (:50058) | Quản lý đơn hàng food/grocery |
 | **merchant-service** | `8089` | HTTP / gRPC (:50059) | Quản lý quán ăn và thực đơn |
+| **trip-service** | `8086` | HTTP / gRPC (:50057) | Quản lý lịch sử chuyến đi unified (`/api/v1/trips`) & đánh giá tài xế (`/api/v1/drivers/{id}/rating-summary`) |
 | **PostgreSQL** | `5432` | TCP | `xebuonho-postgres` (User: `postgres`, Pass: `postgres`, DB: `xebuonho`) |
 | **Redis** | `6379` | TCP | `xebuonho-redis` |
 | **Kafka** | `9092` | TCP | `xebuonho-kafka` |
@@ -203,5 +204,24 @@ Toàn bộ hệ thống tuân thủ nghiêm ngặt các nguyên tắc từ [`.ag
 | **Redis Không Gian** | [`.agents/skills/redis-geospatial`](../.agents/skills/redis-geospatial/SKILL.md) | [`docs/architecture/DATA-LAYER.md`](architecture/DATA-LAYER.md) |
 | **MQTT Telemetry** | [`.agents/skills/mqtt-realtime`](../.agents/skills/mqtt-realtime/SKILL.md) | [`docs/architecture/COMMUNICATION.md`](architecture/COMMUNICATION.md) |
 | **WebSocket Realtime** | [`.agents/skills/websocket-realtime`](../.agents/skills/websocket-realtime/SKILL.md) | [`docs/architecture/COMMUNICATION.md`](architecture/COMMUNICATION.md) |
+
+---
+
+## 10. Dịch Vụ Lịch Sử & Đánh Giá (Trip-Service & Rating Architecture)
+
+`trip-service` đóng vai trò Read-Model thống nhất và xử lý đánh giá (Ratings & Tips) cho toàn bộ 4 phân hệ dịch vụ (`ride`, `food_delivery`, `grocery`, `designated_driver`):
+
+1. **Cơ chế truy vấn**:
+   - Truy vấn trực tiếp từ bảng unified `orders` với các trạng thái kết thúc (Terminal Status: `completed`, `paid`, `delivered`, `cancelled`, `cancelled_by_customer`, `cancelled_by_driver`, `merchant_rejected`).
+   - Kết nối bảng `users` để hiển thị thông tin tài xế và bảng `trip_ratings` để lấy điểm đánh giá đã gửi.
+2. **Bảng dữ liệu `trip_ratings`**:
+   - `id UUID PRIMARY KEY`, `order_id UUID NOT NULL`, `customer_id UUID`, `driver_id UUID`, `rated_by UUID NOT NULL`, `rated_role VARCHAR(20)`, `rating SMALLINT (1-5)`, `tip_amount NUMERIC(12,2)`, `comment TEXT`, `created_at TIMESTAMPTZ`.
+   - Ràng buộc duy nhất `UNIQUE(order_id, rated_by)` đảm bảo mỗi bên chỉ đánh giá 1 lần trên mỗi chuyến.
+3. **Danh sách API qua Gateway**:
+   - `GET /api/v1/trips?role=rider&service_type=ride&page=1&page_size=20`: Danh sách chuyến đi có phân trang (yêu cầu JWT).
+   - `GET /api/v1/trips/{id}`: Chi tiết chuyến đi và đánh giá liên quan (yêu cầu JWT).
+   - `POST /api/v1/trips/{id}/rating`: Gửi điểm đánh giá (1-5 sao), tiền tip và nhận xét.
+   - `GET /api/v1/drivers/{id}/rating-summary`: Điểm đánh giá trung bình và tổng tiền tip của tài xế (Công khai).
+
 
 

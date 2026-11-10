@@ -183,4 +183,40 @@ class ApiService {
       return false;
     }
   }
+
+  // ========== Trips — lịch sử chuyến & đánh giá (trip-service) ==========
+  Future<List<Map<String, dynamic>>> getTripHistory({
+    String role = 'rider',
+    String? serviceType,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    final res = await _dio.get(ApiConfig.trips, queryParameters: {
+      'role': role,
+      'page': page,
+      'page_size': pageSize,
+      if (serviceType != null && serviceType.isNotEmpty) 'service_type': serviceType,
+    });
+    final trips = res.data['trips'] as List? ?? [];
+    return trips.cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> getTripDetail(String id) async {
+    final res = await _dio.get(ApiConfig.tripDetail(id));
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> submitTripRating(
+    String tripId, {
+    required int rating,
+    double tipAmount = 0,
+    String comment = '',
+  }) async {
+    final res = await _dio.post(ApiConfig.tripRating(tripId), data: {
+      'rating': rating,
+      'tip_amount': tipAmount,
+      'comment': comment,
+    });
+    return res.data;
+  }
 }

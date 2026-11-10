@@ -8,6 +8,7 @@ import 'providers/booking_provider.dart';
 import 'providers/location_provider.dart';
 import 'providers/active_order_provider.dart';
 import 'providers/driver_provider.dart';
+import 'providers/trip_provider.dart';
 import 'widgets/responsive_shell.dart';
 
 // Driver screens
@@ -88,6 +89,7 @@ class XebuonhoApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => BookingProvider()),
         ChangeNotifierProvider(create: (_) => ActiveOrderProvider()),
         ChangeNotifierProvider(create: (_) => DriverProvider()),
+        ChangeNotifierProvider(create: (_) => TripProvider()),
       ],
       child: MaterialApp(
         title: 'Xebuonho',

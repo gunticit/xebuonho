@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/booking_provider.dart';
+import '../services/api_service.dart';
 import 'package:intl/intl.dart';
 
 class TripCompleteScreen extends StatefulWidget {
@@ -17,6 +18,8 @@ class _TripCompleteScreenState extends State<TripCompleteScreen>
   late Animation<double> _scaleAnim;
   int _rating = 5;
   int _tipAmount = 0;
+  bool _submitting = false;
+  final TextEditingController _commentCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -33,6 +36,7 @@ class _TripCompleteScreenState extends State<TripCompleteScreen>
 
   @override
   void dispose() {
+    _commentCtrl.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -45,7 +49,9 @@ class _TripCompleteScreenState extends State<TripCompleteScreen>
   @override
   Widget build(BuildContext context) {
     final booking = context.watch<BookingProvider>();
-    final fare = booking.fareEstimates[booking.vehicleType] ?? 50000;
+    final ride = booking.currentRide;
+    final driver = ride?.driver;
+    final fare = ride?.fareFinal ?? booking.fareEstimates[booking.vehicleType] ?? 50000;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -162,16 +168,19 @@ class _TripCompleteScreenState extends State<TripCompleteScreen>
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Column(
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Nguyễn Văn Tài',
-                                style: TextStyle(
+                            Text(driver?.name.isNotEmpty == true ? driver!.name : 'Tài xế XeBuonho',
+                                style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     color: AppColors.text)),
-                            Text('51F-123.45 · ⭐ 4.9',
-                                style: TextStyle(
-                                    fontSize: 12, color: AppColors.text3)),
+                            Text(
+                              driver != null && driver.licensePlate.isNotEmpty
+                                  ? '${driver.licensePlate} · ⭐ ${driver.rating > 0 ? driver.rating.toStringAsFixed(1) : '5.0'}'
+                                  : 'Cảm ơn bạn đã sử dụng dịch vụ',
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppColors.text3)),
                           ],
                         ),
                       ],
@@ -241,6 +250,27 @@ class _TripCompleteScreenState extends State<TripCompleteScreen>
                         );
                       }).toList(),
                     ),
+                    const SizedBox(height: 16),
+
+                    // Comment
+                    TextField(
+                      controller: _commentCtrl,
+                      maxLines: 2,
+                      maxLength: 200,
+                      style: const TextStyle(fontSize: 13, color: AppColors.text),
+                      decoration: InputDecoration(
+                        hintText: 'Nhận xét về tài xế (không bắt buộc)...',
+                        hintStyle: const TextStyle(fontSize: 12, color: AppColors.text3),
+                        filled: true,
+                        fillColor: AppColors.bg3,
+                        counterStyle: const TextStyle(fontSize: 10, color: AppColors.text3),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -250,11 +280,7 @@ class _TripCompleteScreenState extends State<TripCompleteScreen>
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    booking.reset();
-                    Navigator.pushNamedAndRemoveUntil(
-                        context, '/home', (_) => false);
-                  },
+                  onPressed: _submitting ? null : () => _finish(booking),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.blue,
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -262,9 +288,9 @@ class _TripCompleteScreenState extends State<TripCompleteScreen>
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
-                    'Hoàn thành',
-                    style: TextStyle(
+                  child: Text(
+                    _submitting ? 'Đang gửi...' : 'Hoàn thành',
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
@@ -277,6 +303,36 @@ class _TripCompleteScreenState extends State<TripCompleteScreen>
         ),
       ),
     );
+  }
+
+  /// Gửi đánh giá lên trip-service rồi quay về trang chủ.
+  /// Lỗi gửi rating không chặn luồng — vẫn reset và về home.
+  Future<void> _finish(BookingProvider booking) async {
+    final ride = booking.currentRide;
+    setState(() => _submitting = true);
+
+    if (ride != null && ride.id.isNotEmpty) {
+      try {
+        await ApiService().submitTripRating(
+          ride.id,
+          rating: _rating,
+          tipAmount: _tipAmount.toDouble(),
+          comment: _commentCtrl.text.trim(),
+        );
+      } catch (e) {
+        debugPrint('[TripComplete] submit rating failed: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Không gửi được đánh giá (chuyến vẫn hoàn tất)')),
+          );
+        }
+      }
+    }
+
+    if (!mounted) return;
+    booking.reset();
+    Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
   }
 
   Widget _buildFareRow(String label, String value, {Color? color}) {

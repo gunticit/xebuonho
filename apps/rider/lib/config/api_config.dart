@@ -22,6 +22,13 @@ class ApiConfig {
   static const String nearbyMerchants = '$apiVersion/merchants/nearby';
   static const String searchMerchants = '$apiVersion/merchants/search';
 
+  // Trips (history & ratings via trip-service)
+  static const String trips = '$apiVersion/trips';
+  static String tripDetail(String id) => '$apiVersion/trips/$id';
+  static String tripRating(String id) => '$apiVersion/trips/$id/rating';
+  static String driverRatingSummary(String driverId) =>
+      '$apiVersion/drivers/$driverId/rating-summary';
+
   // Driver tracking
   static const String driverLocation = '$apiVersion/driver/location/nearby';
 

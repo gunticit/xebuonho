@@ -51,6 +51,21 @@ class _TrackingScreenState extends State<TrackingScreen> {
     {'key': 'moving', 'label': 'Đang di chuyển', 'icon': '🏁'},
   ];
   int _currentStep = 1;
+  bool _hasCompleted = false;
+
+  void _completeTrip() {
+    if (_hasCompleted) return;
+    _hasCompleted = true;
+    _animTimer?.cancel();
+    _gpsSubscription?.cancel();
+    if (mounted) {
+      context.read<BookingProvider>().completeRide();
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/complete');
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -121,7 +136,15 @@ class _TrackingScreenState extends State<TrackingScreen> {
             _etaMin = 0;
             _remainingKm = 0;
             _currentSpeedKmH = 0;
+            if (progress >= 0.98 || _currentRouteIndex >= _fullRoute.length - 1) {
+              _completeTrip();
+            }
           }
+        } else {
+          _etaMin = 0;
+          _remainingKm = 0;
+          _currentSpeedKmH = 0;
+          _completeTrip();
         }
       });
     });
@@ -695,6 +718,21 @@ class _TrackingScreenState extends State<TrackingScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: ElevatedButton(
+                      onPressed: _completeTrip,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.blue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      child: const Text('Hoàn thành chuyến', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    ),
                   ),
                 ],
               ),

@@ -73,6 +73,25 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	})
 
 	// ==========================================
+	// Trips API — history & ratings (proxy to trip-service, JWT required)
+	// ==========================================
+	tripServiceURL := getEnvDefault("TRIP_SERVICE_URL", "http://localhost:8086")
+	tripAuth := middleware.AuthMiddleware(jwtSecret)
+	mux.Handle("/api/v1/trips", tripAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyToService(w, r, tripServiceURL)
+	})))
+	mux.Handle("/api/v1/trips/", tripAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyToService(w, r, tripServiceURL)
+	})))
+	mux.HandleFunc("/api/v1/drivers/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/rating-summary") {
+			proxyToService(w, r, tripServiceURL)
+			return
+		}
+		http.NotFound(w, r)
+	})
+
+	// ==========================================
 	// Legal & Compliance APIs (NĐ 13/2023 PDPD & NĐ 10/2020 Transport)
 	// ==========================================
 	mux.HandleFunc("/api/v1/compliance/privacy-policy", func(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package trip;
+
+option go_package = "github.com/xebuonho/proto/trip";
+
+import "proto/common/common.proto";
+import "google/protobuf/timestamp.proto";
+
+// TripService serves finished trips (history) and ratings.
+// Trips are a read-model over the unified orders table; ratings are owned by trip-service.
+service TripService {
+  rpc ListTrips(ListTripsRequest) returns (ListTripsResponse);
+  rpc GetTrip(GetTripRequest) returns (GetTripResponse);
+  rpc SubmitRating(SubmitRatingRequest) returns (SubmitRatingResponse);
+  rpc GetRatingSummary(GetRatingSummaryRequest) returns (GetRatingSummaryResponse);
+}
+
+message Trip {
+  string id = 1;
+  common.ServiceType service_type = 2;
+  string status = 3;
+  string customer_id = 4;
+  string driver_id = 5;
+  string driver_name = 6;
+  string driver_vehicle = 7;
+  common.Address pickup = 8;
+  common.Address dropoff = 9;
+  common.VehicleType vehicle_type = 10;
+  common.Money fare_estimate = 11;
+  common.Money fare_final = 12;
+  double distance_km = 13;
+  int32 duration_minutes = 14;
+  string payment_method = 15;
+  string cancelled_by = 16;
+  google.protobuf.Timestamp created_at = 17;
+  google.protobuf.Timestamp completed_at = 18;
+  // Customer rating for this trip (0 = not rated yet)
+  int32 rating = 19;
+  int64 tip_amount = 20;
+  string comment = 21;
+}
+
+message ListTripsRequest {
+  string user_id = 1;
+  // "rider" or "driver"
+  string role = 2;
+  string service_type = 3;
+  common.PaginationRequest pagination = 4;
+}
+
+message ListTripsResponse {
+  repeated Trip trips = 1;
+  common.PaginationResponse pagination = 2;
+}
+
+message GetTripRequest {
+  string trip_id = 1;
+  string user_id = 2;
+}
+
+message GetTripResponse {
+  Trip trip = 1;
+}
+
+message SubmitRatingRequest {
+  string trip_id = 1;
+  // Rated by this user (must be a participant)
+  string user_id = 2;
+  int32 rating = 3;
+  int64 tip_amount = 4;
+  string comment = 5;
+}
+
+message SubmitRatingResponse {
+  string message = 1;
+}
+
+message GetRatingSummaryRequest {
+  string driver_id = 1;
+}
+
+message GetRatingSummaryResponse {
+  string driver_id = 1;
+  double average_rating = 2;
+  int32 total_ratings = 3;
+  int64 total_tips = 4;
+}

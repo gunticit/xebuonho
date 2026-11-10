@@ -1,6 +1,8 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../models/trip.dart';
+import '../providers/trip_provider.dart';
 import 'package:intl/intl.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -10,7 +12,8 @@ class HistoryScreen extends StatefulWidget {
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProviderStateMixin {
+class _HistoryScreenState extends State<HistoryScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
 
   String _fmtVND(double amount) {
@@ -22,6 +25,9 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 3, vsync: this);
+    // Tải lịch sử thật từ trip-service (qua gateway) khi vào màn hình
+    Future.microtask(
+        () => context.read<TripProvider>().loadTrips(refresh: true));
   }
 
   @override
@@ -32,10 +38,11 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    final rng = Random(42);
-    final allTrips = _generateTrips(rng);
-    final rideTrips = allTrips.where((t) => t['service_type'] == 'ride' || t['service_type'] == 'designated_driver').toList();
-    final foodTrips = allTrips.where((t) => t['service_type'] == 'food_delivery').toList();
+    final tripProvider = context.watch<TripProvider>();
+    final allTrips = tripProvider.trips;
+    final rideTrips = tripProvider.tripsByService({'ride', 'designated_driver'});
+    final foodTrips =
+        tripProvider.tripsByService({'food_delivery', 'grocery'});
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -57,7 +64,49 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
           ],
         ),
       ),
-      body: TabBarView(
+      body: _buildBody(tripProvider, allTrips, rideTrips, foodTrips),
+    );
+  }
+
+  Widget _buildBody(
+    TripProvider provider,
+    List<TripModel> allTrips,
+    List<TripModel> rideTrips,
+    List<TripModel> foodTrips,
+  ) {
+    if (provider.state == TripLoadState.loading && !provider.hasData) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.blue));
+    }
+
+    if (provider.state == TripLoadState.error && !provider.hasData) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('⚠️', style: TextStyle(fontSize: 48)),
+            const SizedBox(height: 12),
+            Text(provider.errorMessage ?? 'Có lỗi xảy ra',
+                style: const TextStyle(color: AppColors.text3, fontSize: 15),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => provider.refresh(),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Thử lại'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.blue,
+      onRefresh: () => provider.refresh(),
+      child: TabBarView(
         controller: _tabCtrl,
         children: [
           _buildTripList(allTrips),
@@ -68,13 +117,18 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildTripList(List<Map<String, dynamic>> trips) {
+  Widget _buildTripList(List<TripModel> trips) {
     if (trips.isEmpty) {
-      return const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('📋', style: TextStyle(fontSize: 48)),
-        SizedBox(height: 12),
-        Text('Chưa có chuyến nào', style: TextStyle(color: AppColors.text3, fontSize: 15)),
-      ]));
+      return ListView( // bọc trong ListView để RefreshIndicator hoạt động
+        children: const [
+          SizedBox(height: 120),
+          Center(child: Column(children: [
+            Text('📋', style: TextStyle(fontSize: 48)),
+            SizedBox(height: 12),
+            Text('Chưa có chuyến nào', style: TextStyle(color: AppColors.text3, fontSize: 15)),
+          ])),
+        ],
+      );
     }
     return ListView.separated(
       padding: const EdgeInsets.all(16),
@@ -84,13 +138,18 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildFoodList(List<Map<String, dynamic>> trips) {
+  Widget _buildFoodList(List<TripModel> trips) {
     if (trips.isEmpty) {
-      return const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('🍔', style: TextStyle(fontSize: 48)),
-        SizedBox(height: 12),
-        Text('Chưa có đơn đồ ăn nào', style: TextStyle(color: AppColors.text3, fontSize: 15)),
-      ]));
+      return ListView(
+        children: const [
+          SizedBox(height: 120),
+          Center(child: Column(children: [
+            Text('🍔', style: TextStyle(fontSize: 48)),
+            SizedBox(height: 12),
+            Text('Chưa có đơn đồ ăn nào', style: TextStyle(color: AppColors.text3, fontSize: 15)),
+          ])),
+        ],
+      );
     }
     return ListView.separated(
       padding: const EdgeInsets.all(16),
@@ -100,7 +159,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildTripCard(Map<String, dynamic> trip) {
+  Widget _buildTripCard(TripModel trip) {
     final typeColors = {
       'ride': AppColors.blueBg,
       'food_delivery': AppColors.orangeBg,
@@ -114,12 +173,14 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
       'designated_driver': '🚙',
     };
 
-    final sType = trip['service_type'] as String;
-    final isCompleted = trip['status'] == 'completed';
+    final sType = trip.serviceType;
+    final isCompleted = !trip.isCancelled;
+    final time = DateFormat('HH:mm').format(trip.displayTime);
+    final date = DateFormat('dd/MM').format(trip.displayTime);
 
     return GestureDetector(
       onTap: () {
-        if (sType == 'food_delivery') {
+        if (sType == 'food_delivery' || sType == 'grocery') {
           Navigator.pushNamed(context, '/order-detail');
         } else {
           Navigator.pushNamed(context, '/ride-detail');
@@ -146,18 +207,16 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(
-                  sType == 'food_delivery'
-                    ? trip['restaurant'] as String
-                    : '${trip['pickup']} → ${trip['dropoff']}',
+                  '${trip.pickupAddress} → ${trip.dropoffAddress}',
                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text),
                   overflow: TextOverflow.ellipsis,
                 ),
                 Row(children: [
-                  if (sType == 'food_delivery')
-                    Text('${trip['items']} món', style: const TextStyle(fontSize: 12, color: AppColors.text3))
-                  else
-                    Text('${(trip['distance_km'] as double).toStringAsFixed(1)} km · ${trip['duration_min']} phút',
-                      style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+                  if (trip.distanceKm != null)
+                    Text(
+                      '${trip.distanceKm!.toStringAsFixed(1)} km${trip.durationMin != null ? ' · ${trip.durationMin} phút' : ''}',
+                      style: const TextStyle(fontSize: 12, color: AppColors.text3),
+                    ),
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -170,13 +229,17 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                       style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isCompleted ? AppColors.green : AppColors.red),
                     ),
                   ),
+                  if (trip.rating != null) ...[
+                    const SizedBox(width: 6),
+                    Text('⭐ ${trip.rating}', style: const TextStyle(fontSize: 11, color: AppColors.text3)),
+                  ],
                 ]),
               ]),
             ),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(_fmtVND(trip['fare'] as double),
+              Text(_fmtVND(trip.displayFare),
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text)),
-              Text('${trip['time']} · ${trip['date']}',
+              Text('$time · $date',
                 style: const TextStyle(fontSize: 11, color: AppColors.text3)),
             ]),
           ],
@@ -185,8 +248,12 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildFoodCard(Map<String, dynamic> trip) {
-    final isCompleted = trip['status'] == 'completed';
+  Widget _buildFoodCard(TripModel trip) {
+    final isCompleted = !trip.isCancelled;
+    final time = DateFormat('HH:mm').format(trip.displayTime);
+    final date = DateFormat('dd/MM').format(trip.displayTime);
+    final isGrocery = trip.serviceType == 'grocery';
+
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, '/order-detail'),
       child: Container(
@@ -196,16 +263,16 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
           Row(children: [
             Container(
               width: 44, height: 44,
-              decoration: BoxDecoration(color: AppColors.orangeBg, borderRadius: BorderRadius.circular(12)),
-              child: Center(child: Text(trip['emoji'] as String, style: const TextStyle(fontSize: 22))),
+              decoration: BoxDecoration(color: isGrocery ? AppColors.greenBg : AppColors.orangeBg, borderRadius: BorderRadius.circular(12)),
+              child: Center(child: Text(isGrocery ? '🛒' : '🍔', style: const TextStyle(fontSize: 22))),
             ),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(trip['restaurant'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text)),
-              Text('${trip['items']} món  •  ${trip['time']} · ${trip['date']}', style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+              Text(trip.pickupAddress, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text), overflow: TextOverflow.ellipsis),
+              Text('Đến: ${trip.dropoffAddress}  •  $time · $date', style: const TextStyle(fontSize: 12, color: AppColors.text3), overflow: TextOverflow.ellipsis),
             ])),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(_fmtVND(trip['fare'] as double), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text)),
+              Text(_fmtVND(trip.displayFare), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(color: isCompleted ? AppColors.greenBg : AppColors.redBg, borderRadius: BorderRadius.circular(4)),
@@ -213,14 +280,13 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
               ),
             ]),
           ]),
-          // Menu items preview
-          if (trip['menuItems'] != null) ...[
+          if (trip.rating != null) ...[
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: AppColors.bg3, borderRadius: BorderRadius.circular(10)),
-              child: Text(trip['menuItems'] as String, style: TextStyle(fontSize: 12, color: AppColors.text3), maxLines: 2, overflow: TextOverflow.ellipsis),
+              child: Text('⭐ ${trip.rating}${trip.comment != null && trip.comment!.isNotEmpty ? ' — "${trip.comment}"' : ''}', style: const TextStyle(fontSize: 12, color: AppColors.text3), maxLines: 2, overflow: TextOverflow.ellipsis),
             ),
           ],
           const SizedBox(height: 8),
@@ -235,7 +301,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             )),
             const SizedBox(width: 8),
             Expanded(child: GestureDetector(
-              onTap: () => Navigator.pushNamed(context, '/food'),
+              onTap: () => Navigator.pushNamed(context, isGrocery ? '/grocery' : '/food'),
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(color: AppColors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
@@ -246,41 +312,5 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
         ]),
       ),
     );
-  }
-
-  List<Map<String, dynamic>> _generateTrips(Random rng) {
-    final serviceTypes = ['ride', 'food_delivery', 'grocery', 'designated_driver'];
-    final pickups = ['Landmark 81', 'Bến Thành', 'Bitexco', 'Phú Mỹ Hưng', 'Nguyễn Huệ'];
-    final dropoffs = ['TSN Airport', 'Q.7', 'Saigon Center', 'Thủ Đức', 'Gò Vấp'];
-    final restaurants = ['Phở Thìn Bờ Hồ', 'Bánh Mì Huỳnh Hoa', 'Pizza 4P\'s', 'Highlands Coffee', 'Phúc Long'];
-    final emojis = ['🍜', '🥖', '🍕', '☕', '🧋'];
-    final menuPreviews = [
-      '2x Phở tái nạm, 1x Nước chanh',
-      '1x Đặc biệt, 1x Thịt nguội',
-      '1x Margherita, 1x Carbonara',
-      '2x Cà phê sữa đá',
-      '1x Trà đào, 1x Matcha',
-    ];
-
-    return List.generate(15, (i) {
-      final sType = serviceTypes[rng.nextInt(serviceTypes.length)];
-      final now = DateTime.now().subtract(Duration(hours: rng.nextInt(120)));
-      final rIdx = rng.nextInt(restaurants.length);
-      return {
-        'service_type': sType,
-        'status': rng.nextDouble() < 0.85 ? 'completed' : 'cancelled',
-        'pickup': pickups[rng.nextInt(pickups.length)],
-        'dropoff': dropoffs[rng.nextInt(dropoffs.length)],
-        'restaurant': restaurants[rIdx],
-        'emoji': emojis[rIdx],
-        'items': 2 + rng.nextInt(4),
-        'menuItems': menuPreviews[rIdx],
-        'fare': 25000 + rng.nextDouble() * 300000,
-        'distance_km': 1.5 + rng.nextDouble() * 18,
-        'duration_min': 8 + rng.nextInt(45),
-        'time': DateFormat('HH:mm').format(now),
-        'date': DateFormat('dd/MM').format(now),
-      };
-    });
   }
 }
