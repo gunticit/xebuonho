@@ -117,9 +117,10 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	})
 
 	// ==========================================
-	// Driver API
+	// Driver API (JWT required — verified identity for KYC gates)
 	// ==========================================
-	mux.Handle("/api/v1/driver/", driverH)
+	driverAuth := middleware.AuthMiddleware(jwtSecret)
+	mux.Handle("/api/v1/driver/", driverAuth(driverH))
 
 	// ==========================================
 	// Public endpoints (no auth)

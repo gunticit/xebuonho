@@ -13,6 +13,7 @@ import (
 	"github.com/xebuonho/services/user-service/internal/handler"
 	"github.com/xebuonho/services/user-service/internal/repository"
 	"github.com/xebuonho/services/user-service/internal/service"
+	"github.com/xebuonho/services/user-service/internal/storage"
 )
 
 func main() {
@@ -40,8 +41,11 @@ func main() {
 	// ==========================================
 	// Initialize Layers: Repo → Service → Handler
 	// ==========================================
+	minioStore := storage.NewMinIOStore(
+		cfg.MinIOEndpoint, cfg.MinIOAccessKey, cfg.MinIOSecretKey, cfg.MinIOBucket, cfg.MinIOSecure,
+	)
 	userRepo := repository.NewUserRepository(db)
-	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
+	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret, redisClient, minioStore)
 	authHandler := handler.NewAuthHandler(authSvc, redisClient)
 
 	// ==========================================
@@ -93,18 +97,28 @@ func main() {
 }
 
 type Config struct {
-	HTTPPort    string
-	DatabaseURL string
-	RedisURL    string
-	JWTSecret   string
+	HTTPPort      string
+	DatabaseURL   string
+	RedisURL      string
+	JWTSecret     string
+	MinIOEndpoint string
+	MinIOAccessKey string
+	MinIOSecretKey string
+	MinIOBucket   string
+	MinIOSecure   bool
 }
 
 func loadConfig() Config {
 	return Config{
-		HTTPPort:    getEnv("HTTP_PORT", "8091"),
-		DatabaseURL: getEnv("DATABASE_URL", "postgresql://app:secret@localhost:5432/xebuonho?sslmode=disable"),
-		RedisURL:    getEnv("REDIS_URL", "localhost:6379"),
-		JWTSecret:   getEnv("JWT_SECRET", "dev-secret"),
+		HTTPPort:       getEnv("HTTP_PORT", "8091"),
+		DatabaseURL:    getEnv("DATABASE_URL", "postgresql://app:secret@localhost:5432/xebuonho?sslmode=disable"),
+		RedisURL:       getEnv("REDIS_URL", "localhost:6379"),
+		JWTSecret:      getEnv("JWT_SECRET", "dev-secret"),
+		MinIOEndpoint:  getEnv("MINIO_ENDPOINT", "localhost:9000"),
+		MinIOAccessKey: getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+		MinIOSecretKey: getEnv("MINIO_SECRET_KEY", "minioadmin123"),
+		MinIOBucket:    getEnv("MINIO_BUCKET", "xebuonho-kyc"),
+		MinIOSecure:    getEnv("MINIO_SECURE", "false") == "true",
 	}
 }
 

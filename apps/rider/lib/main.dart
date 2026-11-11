@@ -9,11 +9,17 @@ import 'providers/location_provider.dart';
 import 'providers/active_order_provider.dart';
 import 'providers/driver_provider.dart';
 import 'providers/trip_provider.dart';
+import 'providers/admin_provider.dart';
 import 'widgets/responsive_shell.dart';
 
 // Driver screens
 import 'screens/driver/driver_dashboard_screen.dart';
 import 'screens/driver/driver_history_screen.dart';
+import 'screens/driver/driver_kyc_screen.dart';
+
+// Admin screens (KYC moderation)
+import 'screens/admin/admin_driver_list_screen.dart';
+import 'screens/admin/admin_driver_detail_screen.dart';
 
 // Core screens
 import 'screens/onboarding_screen.dart';
@@ -90,6 +96,7 @@ class XebuonhoApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ActiveOrderProvider()),
         ChangeNotifierProvider(create: (_) => DriverProvider()),
         ChangeNotifierProvider(create: (_) => TripProvider()),
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: MaterialApp(
         title: 'Xebuonho',
@@ -108,6 +115,11 @@ class XebuonhoApp extends StatelessWidget {
           // Driver
           '/driver': (_) => const DriverDashboardScreen(),
           '/driver/history': (_) => const DriverHistoryScreen(),
+          '/driver/kyc': (_) => const DriverKYCScreen(),
+
+          // Admin (KYC moderation, role=admin)
+          '/admin': (_) => const AdminDriverListScreen(),
+          '/admin/driver': (_) => const AdminDriverDetailScreen(),
 
           // Ride flow
           '/search': (_) => const SearchScreen(),

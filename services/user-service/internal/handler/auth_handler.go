@@ -60,6 +60,16 @@ func (h *AuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.VerifyOTP(w, r)
 	case path == "/resend-otp" && r.Method == "POST":
 		h.ResendOTP(w, r)
+	case path == "/driver/kyc" && r.Method == "POST":
+		h.SubmitDriverKYC(w, r)
+	case path == "/uploads/presign" && r.Method == "POST":
+		h.PresignUpload(w, r)
+	case path == "/admin/drivers" && r.Method == "GET":
+		h.AdminListDrivers(w, r)
+	case strings.HasPrefix(path, "/admin/drivers/") && strings.HasSuffix(path, "/approval") && r.Method == "PATCH":
+		h.AdminDriverApproval(w, r)
+	case strings.HasPrefix(path, "/admin/drivers/") && r.Method == "GET":
+		h.AdminDriverDetail(w, r)
 	default:
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	}
@@ -160,6 +170,141 @@ func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, &model.ProfileResponse{User: user})
 }
 
+// SubmitDriverKYC handles driver KYC submission
+func (h *AuthHandler) SubmitDriverKYC(w http.ResponseWriter, r *http.Request) {
+	userID := h.extractUserID(r)
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var req model.DriverKYCRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.authService.SubmitDriverKYC(r.Context(), userID, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":  "pending_approval",
+		"message": "Hồ sơ đối tác tài xế đã được ghi nhận và đang chờ đội ngũ kiểm duyệt.",
+	})
+}
+
+// AdminDriverApproval handles admin approving/rejecting a driver
+func (h *AuthHandler) AdminDriverApproval(w http.ResponseWriter, r *http.Request) {
+	adminID, ok := h.requireAdmin(w, r)
+	if !ok {
+		return
+	}
+
+	// path format: /api/v1/auth/admin/drivers/{id}/approval
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if len(parts) < 4 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path"})
+		return
+	}
+	driverID := parts[len(parts)-2]
+
+	var req model.DriverApprovalRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	// Audit trail: record which admin made the decision (NĐ 10/2020 traceability)
+	if err := h.authService.UpdateDriverApprovalStatusBy(r.Context(), driverID, req.Status, req.Reason, adminID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"driver_id": driverID,
+		"status":    req.Status,
+		"message":   fmt.Sprintf("Trạng thái phê duyệt đối tác tài xế đã được cập nhật thành %s", req.Status),
+	})
+}
+
+// PresignUpload returns a presigned PUT URL for KYC document upload
+func (h *AuthHandler) PresignUpload(w http.ResponseWriter, r *http.Request) {
+	userID := h.extractUserID(r)
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var req model.PresignUploadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	resp, err := h.authService.PresignUpload(r.Context(), userID, &req)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// AdminListDrivers returns the KYC moderation queue (admin only)
+func (h *AuthHandler) AdminListDrivers(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAdmin(w, r); !ok {
+		return
+	}
+
+	list, err := h.authService.ListDriversForAdmin(r.Context(),
+		r.URL.Query().Get("status"), r.URL.Query().Get("kind"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"drivers": list})
+}
+
+// AdminDriverDetail returns a driver profile with presigned document URLs (admin only)
+func (h *AuthHandler) AdminDriverDetail(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAdmin(w, r); !ok {
+		return
+	}
+
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	driverID := parts[len(parts)-1]
+	if driverID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path"})
+		return
+	}
+
+	detail, err := h.authService.GetDriverDetailForAdmin(r.Context(), driverID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, detail)
+}
+
+// requireAdmin enforces admin role for moderation endpoints. Returns the admin's
+// user ID for audit logging; writes the error response and returns false on failure.
+func (h *AuthHandler) requireAdmin(w http.ResponseWriter, r *http.Request) (string, bool) {
+	userID, role := h.extractAuth(r)
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return "", false
+	}
+	if role != "admin" {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin access required"})
+		return "", false
+	}
+	return userID, true
+}
+
 // UpdateProfile handles profile update
 func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	userID := h.extractUserID(r)
@@ -185,20 +330,26 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 // extractUserID extracts user ID from JWT in Authorization header
 func (h *AuthHandler) extractUserID(r *http.Request) string {
+	userID, _ := h.extractAuth(r)
+	return userID
+}
+
+// extractAuth extracts user ID and role from a validated JWT in Authorization header
+func (h *AuthHandler) extractAuth(r *http.Request) (string, string) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		return ""
+		return "", ""
 	}
 	parts := strings.SplitN(authHeader, " ", 2)
 	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-		return ""
+		return "", ""
 	}
 
-	userID, _, err := h.authService.ValidateJWT(parts[1])
+	userID, role, err := h.authService.ValidateJWT(parts[1])
 	if err != nil {
-		return ""
+		return "", ""
 	}
-	return userID
+	return userID, role
 }
 
 func writeJSON(w http.ResponseWriter, code int, data interface{}) {

@@ -103,6 +103,7 @@ func (r *RedisGeoRepository) FindNearby(ctx context.Context, lat, lng float64, r
 			driver.Capabilities = meta.Capabilities
 			driver.VehicleType = meta.VehicleType
 			driver.WaitTimeMinutes = meta.WaitTimeMinutes
+			driver.ApprovalStatus = meta.ApprovalStatus
 		}
 
 		drivers = append(drivers, driver)
@@ -123,9 +124,10 @@ func (r *RedisGeoRepository) GetDriverMeta(ctx context.Context, driverID string)
 	}
 
 	meta := &model.DriverMeta{
-		DriverID:    driverID,
-		Status:      data["status"],
-		VehicleType: data["vehicle_type"],
+		DriverID:       driverID,
+		Status:         data["status"],
+		VehicleType:    data["vehicle_type"],
+		ApprovalStatus: data["approval_status"],
 	}
 
 	if val, ok := data["rating"]; ok {

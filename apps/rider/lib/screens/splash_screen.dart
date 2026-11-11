@@ -58,10 +58,16 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _navigate() {
     final auth = context.read<AuthProvider>();
-    if (auth.isLoggedIn) {
-      Navigator.pushReplacementNamed(context, '/home');
-    } else {
+    if (!auth.isLoggedIn) {
       Navigator.pushReplacementNamed(context, '/login');
+      return;
+    }
+    if (auth.isAdmin) {
+      Navigator.pushReplacementNamed(context, '/admin');
+    } else if (auth.isDriver) {
+      Navigator.pushReplacementNamed(context, '/driver');
+    } else {
+      Navigator.pushReplacementNamed(context, '/home');
     }
   }
 

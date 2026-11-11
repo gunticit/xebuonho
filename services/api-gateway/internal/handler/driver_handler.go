@@ -44,12 +44,58 @@ func NewDriverHandler(repo repository.OrderRepository) *DriverHandler {
 	}
 }
 
+// resolveDriverID returns the authenticated driver's ID from the verified JWT.
+// The gateway wraps /api/v1/driver/ with AuthMiddleware, so this is authoritative.
+// Never fall back to unverified token payloads or hardcoded demo IDs.
+func (h *DriverHandler) resolveDriverID(r *http.Request) string {
+	return middleware.GetUserID(r)
+}
+
+// requireDriverID writes a 401 and returns "" when the caller is unauthenticated.
+func (h *DriverHandler) requireDriverID(w http.ResponseWriter, r *http.Request) string {
+	driverID := h.resolveDriverID(r)
+	if driverID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized: driver authentication required"})
+	}
+	return driverID
+}
+
+// checkDriverApproved is the fail-closed KYC gate: any error means deny.
+func (h *DriverHandler) checkDriverApproved(w http.ResponseWriter, r *http.Request, driverID string) bool {
+	if h.repo == nil {
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{
+			"error": "Không thể xác minh trạng thái phê duyệt tài xế (cơ sở dữ liệu không khả dụng).",
+		})
+		return false
+	}
+	status, err := h.repo.GetDriverApprovalStatus(r.Context(), driverID)
+	if err != nil || status != "approved" {
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{
+			"error":           "Tài khoản đối tác tài xế chưa được phê duyệt. Vui lòng hoàn tất nộp hồ sơ KYC và chờ quản trị viên kiểm duyệt.",
+			"approval_status": status,
+		})
+		return false
+	}
+	return true
+}
+
 // POST /api/v1/driver/toggle — Toggle online/offline
 func (h *DriverHandler) ToggleStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
 		return
 	}
+
+	driverID := h.requireDriverID(w, r)
+	if driverID == "" {
+		return
+	}
+
+	// When turning online, verify driver has approved status according to ND10/2020 (fail-closed)
+	if !h.driverOnline && !h.checkDriverApproved(w, r, driverID) {
+		return
+	}
+
 	h.driverOnline = !h.driverOnline
 	if !h.driverOnline {
 		h.onTrip = false
@@ -128,9 +174,14 @@ func (h *DriverHandler) AcceptRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&body)
 
-	driverID := middleware.GetUserID(r)
+	driverID := h.requireDriverID(w, r)
 	if driverID == "" {
-		driverID = "93623b04-ecc7-4654-8846-e05f72ab8069" // default demo driver
+		return
+	}
+
+	// Only approved drivers may claim rides (NĐ 10/2020, fail-closed)
+	if !h.checkDriverApproved(w, r, driverID) {
+		return
 	}
 
 	if h.repo != nil && body.RequestID != "" {
@@ -175,9 +226,9 @@ func (h *DriverHandler) DeclineRequest(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/driver/trip/current — Current active trip
 func (h *DriverHandler) GetCurrentTrip(w http.ResponseWriter, r *http.Request) {
-	driverID := middleware.GetUserID(r)
+	driverID := h.requireDriverID(w, r)
 	if driverID == "" {
-		driverID = "93623b04-ecc7-4654-8846-e05f72ab8069"
+		return
 	}
 
 	if h.repo != nil {
@@ -212,9 +263,9 @@ func (h *DriverHandler) UpdateTripStatus(w http.ResponseWriter, r *http.Request)
 		targetID = body.OrderID
 	}
 
-	driverID := middleware.GetUserID(r)
+	driverID := h.requireDriverID(w, r)
 	if driverID == "" {
-		driverID = "93623b04-ecc7-4654-8846-e05f72ab8069"
+		return
 	}
 
 	messages := map[string]string{
@@ -282,9 +333,9 @@ func (h *DriverHandler) UpdateTripStatus(w http.ResponseWriter, r *http.Request)
 
 // GET /api/v1/driver/earnings — Earnings summary
 func (h *DriverHandler) GetEarnings(w http.ResponseWriter, r *http.Request) {
-	driverID := middleware.GetUserID(r)
+	driverID := h.requireDriverID(w, r)
 	if driverID == "" {
-		driverID = "93623b04-ecc7-4654-8846-e05f72ab8069"
+		return
 	}
 
 	if h.repo != nil {
@@ -340,9 +391,9 @@ func (h *DriverHandler) GetEarnings(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/driver/history — Trip history
 func (h *DriverHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
-	driverID := middleware.GetUserID(r)
+	driverID := h.requireDriverID(w, r)
 	if driverID == "" {
-		driverID = "93623b04-ecc7-4654-8846-e05f72ab8069"
+		return
 	}
 
 	if h.repo != nil {

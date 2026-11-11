@@ -10,40 +10,66 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/xebuonho/services/user-service/internal/model"
 	"github.com/xebuonho/services/user-service/internal/repository"
+	"github.com/xebuonho/services/user-service/internal/storage"
 )
 
 const (
 	accessTokenTTL  = 15 * time.Minute
 	refreshTokenTTL = 30 * 24 * time.Hour
 	bcryptCost      = 12
+	presignTTL      = 15 * time.Minute
 )
+
+// Upload whitelists for KYC documents (presigned PUT flow)
+var allowedDocTypes = map[string]bool{
+	"cccd_front": true, "cccd_back": true,
+	"gplx_front": true, "gplx_back": true,
+	"vehicle_registration": true, "vehicle_insurance": true,
+	"business_license": true, "transport_license": true, "employment_contract": true,
+}
+var allowedContentTypes = map[string]string{
+	"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+}
+var idCardPattern = regexp.MustCompile(`^\d{12}$`)
+var datePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 // AuthService handles authentication business logic
 type AuthService struct {
-	userRepo  *repository.UserRepository
-	jwtSecret string
-	logger    *log.Logger
+	userRepo    *repository.UserRepository
+	jwtSecret   string
+	redisClient *redis.Client
+	store       *storage.MinIOStore
+	logger      *log.Logger
 }
 
 // NewAuthService creates a new auth service
-func NewAuthService(userRepo *repository.UserRepository, jwtSecret string) *AuthService {
+func NewAuthService(userRepo *repository.UserRepository, jwtSecret string, redisClient *redis.Client, store *storage.MinIOStore) *AuthService {
 	return &AuthService{
-		userRepo:  userRepo,
-		jwtSecret: jwtSecret,
-		logger:    log.New(log.Writer(), "[auth] ", log.LstdFlags),
+		userRepo:    userRepo,
+		jwtSecret:   jwtSecret,
+		redisClient: redisClient,
+		store:       store,
+		logger:      log.New(log.Writer(), "[auth] ", log.LstdFlags),
 	}
 }
 
 // Register creates a new user account
 func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) (*model.TokenResponse, error) {
-	// Validate
+	// Validate compliance consent (Nghị định 13/2023/NĐ-CP)
+	if !req.ConsentAccepted {
+		return nil, fmt.Errorf("consent_required: bạn phải đồng ý với Điều khoản dịch vụ và Chính sách bảo vệ dữ liệu cá nhân (NĐ 13/2023/NĐ-CP)")
+	}
+
+	// Validate inputs
 	if req.Phone == "" {
 		return nil, fmt.Errorf("phone is required")
 	}
@@ -85,25 +111,280 @@ func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) 
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
 
+	consentVersion := req.ConsentVersion
+	if consentVersion == "" {
+		consentVersion = "2026.1"
+	}
+	now := time.Now()
+
+	approvalStatus := "approved"
+	if req.Role == "driver" {
+		approvalStatus = "pending_approval"
+	}
+
+	driverKind := "personal"
+	if req.Role == "driver" && req.DriverKind == "business" {
+		driverKind = "business"
+	}
+
 	// Create user
 	user := &model.User{
-		Phone:        &req.Phone,
-		FullName:     req.FullName,
-		Role:         req.Role,
-		PasswordHash: string(hash),
+		Phone:          &req.Phone,
+		FullName:       req.FullName,
+		Role:           req.Role,
+		PasswordHash:   string(hash),
+		ConsentTermsAt: &now,
+		ConsentVersion: consentVersion,
+		ApprovalStatus: approvalStatus,
+		DriverKind:     driverKind,
 	}
 	if req.Email != "" {
 		user.Email = &req.Email
+	}
+	if req.VehicleType != "" {
+		user.VehicleType = &req.VehicleType
+	}
+	if req.LicensePlate != "" {
+		user.LicensePlate = &req.LicensePlate
+	}
+	if req.VehicleModel != "" {
+		user.VehicleModel = &req.VehicleModel
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, fmt.Errorf("create user: %w", err)
 	}
 
-	s.logger.Printf("✅ User registered: %s [%s] %s", user.ID, user.Role, req.Phone)
+	s.logger.Printf("✅ User registered: %s [%s] %s (status: %s)", user.ID, user.Role, req.Phone, approvalStatus)
 
 	// Generate tokens
 	return s.generateTokenResponse(ctx, user)
+}
+
+// SubmitDriverKYC handles driver KYC documentation submission
+func (s *AuthService) SubmitDriverKYC(ctx context.Context, driverID string, req *model.DriverKYCRequest) error {
+	if req.IDCardNumber == "" {
+		return fmt.Errorf("id_card_number is required")
+	}
+	if !idCardPattern.MatchString(req.IDCardNumber) {
+		return fmt.Errorf("id_card_number phải gồm đúng 12 chữ số")
+	}
+	if req.DriverLicenseNumber == "" {
+		return fmt.Errorf("driver_license_number is required")
+	}
+	if req.LicensePlate == "" {
+		return fmt.Errorf("license_plate is required")
+	}
+	if req.VehicleType == "" {
+		req.VehicleType = "car"
+	}
+	// If the request omits driver_kind, keep the kind on record so a business
+	// driver can never be silently downgraded by submitting a personal form.
+	if req.DriverKind == "" {
+		existing, err := s.userRepo.GetByID(ctx, driverID)
+		if err != nil {
+			return fmt.Errorf("lookup driver: %w", err)
+		}
+		if existing == nil || existing.Role != "driver" {
+			return fmt.Errorf("driver not found")
+		}
+		if existing.DriverKind == "business" {
+			req.DriverKind = "business"
+		} else {
+			req.DriverKind = "personal"
+		}
+	}
+	if req.DriverKind != "personal" && req.DriverKind != "business" {
+		return fmt.Errorf("driver_kind must be personal or business")
+	}
+	if err := validateOptionalDate(req.DriverLicenseExpiry, "driver_license_expiry"); err != nil {
+		return err
+	}
+	if err := validateOptionalDate(req.VehicleInsuranceExpiry, "vehicle_insurance_expiry"); err != nil {
+		return err
+	}
+
+	// Business drivers (xe ô tô hợp đồng) must declare company + transport license per NĐ 10/2020 & 47/2022
+	if req.DriverKind == "business" {
+		if req.CompanyName == "" {
+			return fmt.Errorf("company_name is required for business drivers")
+		}
+		if req.BusinessLicenseNumber == "" {
+			return fmt.Errorf("business_license_number is required for business drivers")
+		}
+		if req.TransportLicenseNumber == "" {
+			return fmt.Errorf("transport_license_number is required for business drivers")
+		}
+		if req.EmploymentContractURL == "" {
+			return fmt.Errorf("employment_contract_url is required for business drivers")
+		}
+		if err := validateOptionalDate(req.TransportLicenseExpiry, "transport_license_expiry"); err != nil {
+			return err
+		}
+	} else {
+		// Personal drivers must not carry business paperwork
+		req.CompanyName, req.BusinessLicenseNumber, req.TransportLicenseNumber = "", "", ""
+		req.BusinessLicenseURL, req.TransportLicenseExpiry, req.EmploymentContractURL = "", "", ""
+	}
+
+	if err := s.userRepo.SubmitDriverKYC(ctx, driverID, req); err != nil {
+		return err
+	}
+	s.publishDriverMeta(ctx, driverID, "pending_approval")
+	return nil
+}
+
+// PresignUpload returns a presigned PUT URL for a KYC document upload
+func (s *AuthService) PresignUpload(ctx context.Context, userID string, req *model.PresignUploadRequest) (*model.PresignUploadResponse, error) {
+	if !allowedDocTypes[req.DocType] {
+		return nil, fmt.Errorf("invalid doc_type %q", req.DocType)
+	}
+	expectedExt, ok := allowedContentTypes[req.ContentType]
+	if !ok {
+		return nil, fmt.Errorf("content_type must be image/jpeg, image/png or image/webp")
+	}
+	ext := strings.ToLower(strings.TrimPrefix(req.FileExt, "."))
+	if ext != expectedExt {
+		return nil, fmt.Errorf("file_ext %q does not match content_type %q", ext, req.ContentType)
+	}
+
+	objectKey := fmt.Sprintf("kyc/%s/%s/%d.%s", userID, req.DocType, time.Now().UnixNano(), ext)
+	uploadURL, err := s.store.PresignPut(ctx, objectKey, presignTTL)
+	if err != nil {
+		return nil, fmt.Errorf("presign upload: %w", err)
+	}
+	return &model.PresignUploadResponse{
+		ObjectKey: objectKey,
+		UploadURL: uploadURL,
+		ExpiresIn: int64(presignTTL.Seconds()),
+	}, nil
+}
+
+// ListDriversForAdmin returns the driver moderation queue
+func (s *AuthService) ListDriversForAdmin(ctx context.Context, status, driverKind string) ([]*model.AdminDriverListItem, error) {
+	if status != "" && !isValidApprovalStatus(status) {
+		return nil, fmt.Errorf("invalid status filter %q", status)
+	}
+	if driverKind != "" && driverKind != "personal" && driverKind != "business" {
+		return nil, fmt.Errorf("invalid kind filter %q", driverKind)
+	}
+	return s.userRepo.ListDriversByStatus(ctx, status, driverKind, 100)
+}
+
+// GetDriverDetailForAdmin returns a driver profile with presigned document URLs for review
+func (s *AuthService) GetDriverDetailForAdmin(ctx context.Context, driverID string) (*model.AdminDriverDetailResponse, error) {
+	user, err := s.userRepo.GetByID(ctx, driverID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil || user.Role != "driver" {
+		return nil, fmt.Errorf("driver not found")
+	}
+
+	docURLs := map[string]string{}
+	docFields := map[string]*string{
+		"id_card_front":         user.IDCardFrontURL,
+		"id_card_back":          user.IDCardBackURL,
+		"driver_license_front":  user.DriverLicenseFrontURL,
+		"driver_license_back":   user.DriverLicenseBackURL,
+		"vehicle_registration":  user.VehicleRegistrationURL,
+		"vehicle_insurance":     user.VehicleInsuranceURL,
+		"business_license":      user.BusinessLicenseURL,
+		"transport_license":     user.TransportLicenseURL,
+		"employment_contract":   user.EmploymentContractURL,
+	}
+	for name, key := range docFields {
+		if key == nil || *key == "" {
+			continue
+		}
+		url, err := s.store.PresignGet(ctx, *key, presignTTL)
+		if err != nil {
+			s.logger.Printf("⚠️ presign get failed for %s of driver %s: %v", name, driverID, err)
+			continue
+		}
+		docURLs[name] = url
+	}
+
+	// Warn admins about expired/expiring documents instead of blocking approval
+	warnings := []string{}
+	now := time.Now()
+	for _, w := range []struct {
+		label string
+		exp   *string
+	}{
+		{"Giấy phép lái xe đã hết hạn", user.DriverLicenseExpiry},
+		{"Bảo hiểm TNDS đã hết hạn", user.VehicleInsuranceExpiry},
+		{"Giấy phép vận tải đã hết hạn", user.TransportLicenseExpiry},
+	} {
+		if w.exp == nil || *w.exp == "" || !datePattern.MatchString(*w.exp) {
+			continue
+		}
+		expTime, err := time.Parse("2006-01-02", *w.exp)
+		if err == nil && expTime.Before(now) {
+			warnings = append(warnings, w.label+" ("+*w.exp+")")
+		}
+	}
+
+	return &model.AdminDriverDetailResponse{User: user, DocURLs: docURLs, Warnings: warnings}, nil
+}
+
+// UpdateDriverApprovalStatus handles admin review of driver application
+func (s *AuthService) UpdateDriverApprovalStatus(ctx context.Context, driverID, status, reason string) error {
+	if !isValidApprovalStatus(status) {
+		return fmt.Errorf("invalid approval status %q", status)
+	}
+	if err := s.userRepo.UpdateDriverApprovalStatus(ctx, driverID, status, reason, ""); err != nil {
+		return err
+	}
+	s.publishDriverMeta(ctx, driverID, status)
+	s.logger.Printf("🛡 Driver %s approval status changed to %s", driverID, status)
+	return nil
+}
+
+// UpdateDriverApprovalStatusBy records the admin actor for audit (NĐ 10/2020 traceability)
+func (s *AuthService) UpdateDriverApprovalStatusBy(ctx context.Context, driverID, status, reason, adminID string) error {
+	if !isValidApprovalStatus(status) {
+		return fmt.Errorf("invalid approval status %q", status)
+	}
+	if err := s.userRepo.UpdateDriverApprovalStatus(ctx, driverID, status, reason, adminID); err != nil {
+		return err
+	}
+	s.publishDriverMeta(ctx, driverID, status)
+	s.logger.Printf("🛡 Driver %s approval status changed to %s by admin %s", driverID, status, adminID)
+	return nil
+}
+
+func isValidApprovalStatus(status string) bool {
+	switch status {
+	case "unverified", "pending_approval", "approved", "rejected", "suspended":
+		return true
+	}
+	return false
+}
+
+// publishDriverMeta mirrors approval_status into Redis so matching-service
+// never proposes unapproved drivers (best-effort, demo data stays compatible).
+func (s *AuthService) publishDriverMeta(ctx context.Context, driverID, status string) {
+	if s.redisClient == nil {
+		return
+	}
+	key := fmt.Sprintf("driver:%s:meta", driverID)
+	if err := s.redisClient.HSet(ctx, key, "approval_status", status).Err(); err != nil {
+		s.logger.Printf("⚠️ publish driver meta failed for %s: %v", driverID, err)
+	}
+}
+
+func validateOptionalDate(value, field string) error {
+	if value == "" {
+		return nil
+	}
+	if !datePattern.MatchString(value) {
+		return fmt.Errorf("%s must be YYYY-MM-DD", field)
+	}
+	if _, err := time.Parse("2006-01-02", value); err != nil {
+		return fmt.Errorf("%s is not a valid date: %w", field, err)
+	}
+	return nil
 }
 
 // Login authenticates a user

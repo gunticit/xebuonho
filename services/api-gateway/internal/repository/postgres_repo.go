@@ -279,17 +279,24 @@ func (r *PostgresRepo) ListPendingRides(ctx context.Context) ([]PendingRide, err
 }
 
 func (r *PostgresRepo) AcceptRide(ctx context.Context, orderID, driverID string) error {
+	// The approval subquery makes the KYC gate atomic with the ride claim:
+	// an unapproved/suspended driver can never win the race for a ride.
 	query := `
 		UPDATE orders
 		SET driver_id = $2, status = 'accepted', accepted_at = NOW(), updated_at = NOW()
 		WHERE id = $1 AND status = 'created' AND customer_id != $2
+			AND EXISTS (
+				SELECT 1 FROM users u
+				WHERE u.id = $2 AND u.role = 'driver'
+					AND u.approval_status = 'approved' AND u.is_active = TRUE
+			)
 	`
 	cmd, err := r.db.Exec(ctx, query, orderID, driverID)
 	if err != nil {
 		return fmt.Errorf("accept ride: %w", err)
 	}
 	if cmd.RowsAffected() == 0 {
-		return fmt.Errorf("ride already accepted, not found, or driver cannot accept own ride")
+		return fmt.Errorf("ride already accepted, not found, driver cannot accept own ride, or driver not approved")
 	}
 	return nil
 }
@@ -544,6 +551,16 @@ func (r *PostgresRepo) GetDriverHistory(ctx context.Context, driverID string, li
 		list = append(list, h)
 	}
 	return list, nil
+}
+
+func (r *PostgresRepo) GetDriverApprovalStatus(ctx context.Context, driverID string) (string, error) {
+	var status string
+	// Fail-closed: callers must treat a lookup error as "not approved".
+	err := r.db.QueryRow(ctx, "SELECT COALESCE(approval_status, 'unverified') FROM users WHERE id = $1 AND is_active = TRUE", driverID).Scan(&status)
+	if err != nil {
+		return "", fmt.Errorf("lookup driver approval status: %w", err)
+	}
+	return status, nil
 }
 
 

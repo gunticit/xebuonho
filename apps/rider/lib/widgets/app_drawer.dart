@@ -152,6 +152,11 @@ class AppDrawer extends StatelessWidget {
                   _buildMenuItem(context, Icons.receipt_long, 'Hoạt động & Đơn hàng', '/activities'),
                   _buildMenuItem(context, Icons.schedule, 'Đặt lịch chuyến', '/schedule', emoji: '📅'),
                   _buildMenuItem(context, Icons.notifications_outlined, 'Thông báo', '/notifications', badge: '3'),
+                  if (auth.isAdmin) ...[
+                    _buildDivider(),
+                    _buildSectionTitle('QUẢN TRỊ'),
+                    _buildMenuItem(context, Icons.shield_outlined, 'Duyệt hồ sơ tài xế (KYC)', '/admin', emoji: '🛡️'),
+                  ],
                   _buildDivider(),
                   _buildSectionTitle('DỊCH VỤ'),
                   _buildMenuItem(context, Icons.two_wheeler, 'Xe máy', '/search', emoji: '🏍️'),

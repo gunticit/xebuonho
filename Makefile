@@ -1,4 +1,4 @@
-.PHONY: all proto build build-service test test-service lint vet fmt tidy run-all stop-all docker-up docker-down clean
+.PHONY: all proto build build-service test test-service lint vet fmt tidy run-all stop-all docker-up docker-down migrate-up clean
 
 SERVICES := ride-service driver-service user-service payment-service \
 	matching-service location-service trip-service notification-service \
@@ -9,9 +9,9 @@ GO_PACKAGES := $(addsuffix /...,$(addprefix ./services/,$(SERVICES))) ./pkg/...
 # DEVELOPMENT
 # ============================================
 
-## Start all infrastructure (Redis, PostgreSQL, Kafka, EMQX)
+## Start all infrastructure (Redis, PostgreSQL, Kafka, EMQX, MinIO)
 docker-up:
-	docker compose up -d postgres redis kafka zookeeper emqx
+	docker compose up -d postgres redis kafka zookeeper emqx minio
 
 ## Stop all infrastructure
 docker-down:
@@ -95,8 +95,12 @@ tidy:
 # DATABASE
 # ============================================
 
-## Run migrations up
+## Run migrations up (shared top-level migrations first, then per-service)
 migrate-up:
+	@if [ -n "$$(ls migrations/*.up.sql 2>/dev/null)" ]; then \
+		echo "Migrating shared migrations..."; \
+		migrate -path migrations -database "$(DATABASE_URL)" up; \
+	fi
 	@for service in ride-service driver-service user-service payment-service trip-service \
 		order-service merchant-service; do \
 		echo "Migrating $$service..."; \

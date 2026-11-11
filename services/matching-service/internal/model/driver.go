@@ -12,7 +12,10 @@ type NearbyDriver struct {
 	Capabilities    []string `json:"capabilities"`
 	VehicleType     string   `json:"vehicle_type"`
 	Status          string   `json:"status"`
-	Score           float64  `json:"score"`
+	// ApprovalStatus mirrors users.approval_status via Redis driver:{id}:meta.
+	// Empty means the hash was never published (legacy/demo data) and is NOT blocked.
+	ApprovalStatus string `json:"approval_status,omitempty"`
+	Score          float64 `json:"score"`
 }
 
 // DriverMeta contains cached driver metadata read from Redis driver:{id}:meta
@@ -23,6 +26,7 @@ type DriverMeta struct {
 	VehicleType     string   `json:"vehicle_type"`
 	Capabilities    []string `json:"capabilities"`
 	WaitTimeMinutes float64  `json:"wait_time_minutes"`
+	ApprovalStatus  string   `json:"approval_status"`
 	LastUpdated     int64    `json:"last_updated"`
 }
 

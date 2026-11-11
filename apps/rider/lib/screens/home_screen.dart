@@ -354,15 +354,27 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomSheet(BuildContext context) {
+    void handleDragUpdate(DragUpdateDetails details) {
+      if (details.primaryDelta! > 4 && _isMenuExpanded) {
+        setState(() => _isMenuExpanded = false);
+      } else if (details.primaryDelta! < -4 && !_isMenuExpanded) {
+        setState(() => _isMenuExpanded = true);
+      }
+    }
+
+    void handleDragEnd(DragEndDetails details) {
+      final velocity = details.primaryVelocity ?? 0;
+      if (velocity > 200 && _isMenuExpanded) {
+        setState(() => _isMenuExpanded = false);
+      } else if (velocity < -200 && !_isMenuExpanded) {
+        setState(() => _isMenuExpanded = true);
+      }
+    }
+
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onVerticalDragUpdate: (details) {
-        if (details.primaryDelta! > 4 && _isMenuExpanded) {
-          setState(() => _isMenuExpanded = false);
-        } else if (details.primaryDelta! < -4 && !_isMenuExpanded) {
-          setState(() => _isMenuExpanded = true);
-        }
-      },
+      onVerticalDragUpdate: handleDragUpdate,
+      onVerticalDragEnd: handleDragEnd,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 280),
         curve: Curves.fastOutSlowIn,
@@ -389,16 +401,20 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () {
                 setState(() => _isMenuExpanded = !_isMenuExpanded);
               },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+              onVerticalDragUpdate: handleDragUpdate,
+              onVerticalDragEnd: handleDragEnd,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                color: Colors.transparent,
                 child: Center(
                   child: Column(
                     children: [
                       Container(
-                        width: 44,
+                        width: 48,
                         height: 5,
                         decoration: BoxDecoration(
-                          color: AppColors.text3.withOpacity(0.4),
+                          color: AppColors.text3.withOpacity(0.5),
                           borderRadius: BorderRadius.circular(2.5),
                         ),
                       ),

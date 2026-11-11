@@ -70,6 +70,7 @@ docker ps
 | xebuonho-zookeeper | 2181 | Zookeeper |
 | xebuonho-emqx | 1883, 18083 | MQTT broker |
 | xebuonho-kafka-ui | 8090 | Kafka UI dashboard |
+| xebuonho-minio | 9000, 9001 | MinIO (KYC documents, console tại :9001) |
 
 ### 3️⃣ Chạy Database Migrations
 
@@ -111,6 +112,7 @@ flutter run -d chrome
 > **Hỗ trợ Dual Role & Dữ liệu thật:**
 > - Tại màn hình đăng nhập, bấm **[🙋‍♂️ Khách (Demo)]** hoặc **[🚕 Tài xế (Demo)]** để trải nghiệm với tài khoản thật đã seed trong PostgreSQL.
 > - Đổi vai trò linh hoạt bất cứ lúc nào qua thanh Drawer bên trái màn hình.
+> - **Admin KYC moderation:** đăng nhập bằng `0900000001` / `admin123` (seed trong migration 000005 — mật khẩu demo, đổi trước production) hoặc bấm "Đăng nhập Quản trị viên". Admin duyệt hồ sơ tài xế tại `/admin`.
 > - Xem tài liệu mở rộng chi tiết tại: [docs/AI_DEVELOPER_GUIDE.md](file:///Users/hwg/Documents/xebuonho/docs/AI_DEVELOPER_GUIDE.md).
 
 ### 6️⃣ Nạp Dữ Liệu Thật (PostgreSQL + PostGIS Seed)

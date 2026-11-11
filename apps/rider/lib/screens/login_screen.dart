@@ -15,8 +15,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
   String _selectedRole = 'rider';
+  String _driverKind = 'personal'; // personal | business (chỉ khi role = driver)
   bool _isRegister = false;
   bool _showPassword = false;
+  bool _termsAccepted = false;
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
 
@@ -64,11 +66,23 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         );
         return;
       }
+      if (!_termsAccepted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng đồng ý với Điều khoản và Chính sách bảo vệ dữ liệu (NĐ 13/2023/NĐ-CP)'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
       success = await auth.register(
         phone: _phoneController.text,
         password: _passwordController.text,
         fullName: _nameController.text,
         role: _selectedRole,
+        driverKind: _driverKind,
+        consentAccepted: _termsAccepted,
+        consentVersion: '2026.1',
       );
     } else {
       success = await auth.login(
@@ -79,9 +93,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
     if (success && mounted) {
       if (_isRegister) {
+        // Tài xế cũng phải xác thực OTP trước khi vào KYC (số điện thoại là
+        // định danh pháp lý của hồ sơ NĐ 10/2020).
         Navigator.pushReplacementNamed(context, '/otp');
       } else {
-        if (auth.isDriver) {
+        if (auth.isAdmin) {
+          Navigator.pushReplacementNamed(context, '/admin');
+        } else if (auth.isDriver) {
           Navigator.pushReplacementNamed(context, '/driver');
         } else {
           Navigator.pushReplacementNamed(context, '/home');
@@ -94,7 +112,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final auth = context.read<AuthProvider>();
     await auth.demoLogin(role: role);
     if (!mounted) return;
-    if (auth.isDriver) {
+    if (auth.isAdmin) {
+      Navigator.pushReplacementNamed(context, '/admin');
+    } else if (auth.isDriver) {
       Navigator.pushReplacementNamed(context, '/driver');
     } else {
       Navigator.pushReplacementNamed(context, '/home');
@@ -229,6 +249,25 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       ),
                     ],
                   ),
+                  // Driver kind sub-toggle (Luồng riêng: cá nhân / doanh nghiệp NĐ 10/2020)
+                  if (_selectedRole == 'driver') ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.bg2,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(child: _buildDriverKindChip('personal', '🏍️ Cá nhân', 'Xe máy/xe cá nhân')),
+                          const SizedBox(width: 8),
+                          Expanded(child: _buildDriverKindChip('business', '🚗 Doanh nghiệp', 'Xe ô tô hợp đồng')),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                 ],
 
@@ -302,7 +341,86 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   ),
                 ],
 
-                const SizedBox(height: 24),
+                // PDPD Decree 13/2023/ND-CP Consent checkbox (register only)
+                if (_isRegister) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.bg2,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _termsAccepted ? AppColors.green.withValues(alpha: 0.5) : AppColors.border,
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: Checkbox(
+                            value: _termsAccepted,
+                            activeColor: AppColors.green,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                            onChanged: (val) {
+                              setState(() => _termsAccepted = val ?? false);
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() => _termsAccepted = !_termsAccepted);
+                            },
+                            child: RichText(
+                              text: TextSpan(
+                                style: const TextStyle(fontSize: 12, color: AppColors.text2, height: 1.4),
+                                children: [
+                                  const TextSpan(text: 'Tôi đồng ý với '),
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.middle,
+                                    child: GestureDetector(
+                                      onTap: () => Navigator.pushNamed(context, '/terms'),
+                                      child: const Text(
+                                        'Điều khoản sử dụng',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.blue,
+                                          fontWeight: FontWeight.w600,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const TextSpan(text: ' & '),
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.middle,
+                                    child: GestureDetector(
+                                      onTap: () => Navigator.pushNamed(context, '/privacy'),
+                                      child: const Text(
+                                        'Chính sách bảo vệ DLCN (NĐ 13/2023/NĐ-CP)',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.blue,
+                                          fontWeight: FontWeight.w600,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 20),
 
                 // Submit button
                 SizedBox(
@@ -337,6 +455,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 ),
 
                 const SizedBox(height: 16),
+
+                // Admin login (chỉ đăng nhập, không cho tự đăng ký role admin)
+                if (!_isRegister)
+                  TextButton.icon(
+                    onPressed: () => _demoLogin('admin'),
+                    icon: const Icon(Icons.shield_outlined, size: 16, color: AppColors.text3),
+                    label: const Text(
+                      'Đăng nhập Quản trị viên (Admin)',
+                      style: TextStyle(fontSize: 12, color: AppColors.text3),
+                    ),
+                  ),
+
+                const SizedBox(height: 8),
 
                 // Dual Real DB login buttons (Rider vs Driver)
                 Row(
@@ -379,6 +510,27 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDriverKindChip(String kind, String label, String subtitle) {
+    final active = _driverKind == kind;
+    return GestureDetector(
+      onTap: () => setState(() => _driverKind = kind),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        decoration: BoxDecoration(
+          color: active ? AppColors.orangeBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: active ? AppColors.orange : AppColors.border, width: active ? 1.5 : 1),
+        ),
+        child: Column(
+          children: [
+            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: active ? AppColors.orange : AppColors.text2)),
+            Text(subtitle, style: TextStyle(fontSize: 9, color: active ? AppColors.orange : AppColors.text3)),
+          ],
         ),
       ),
     );

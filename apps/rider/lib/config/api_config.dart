@@ -12,6 +12,11 @@ class ApiConfig {
   static const String profile = '$apiVersion/auth/profile';
   static const String verifyOtp = '$apiVersion/auth/verify-otp';
   static const String resendOtp = '$apiVersion/auth/resend-otp';
+  static const String driverKYC = '$apiVersion/auth/driver/kyc';
+  static const String uploadsPresign = '$apiVersion/auth/uploads/presign';
+  static const String adminDrivers = '$apiVersion/auth/admin/drivers';
+  static String adminDriverDetail(String id) => '$apiVersion/auth/admin/drivers/$id';
+  static String adminDriverApproval(String id) => '$apiVersion/auth/admin/drivers/$id/approval';
 
   // Rides
   static const String estimateFare = '$apiVersion/rides/estimate';

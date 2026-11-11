@@ -55,8 +55,15 @@ class _OtpScreenState extends State<OtpScreen> {
     final auth = context.read<AuthProvider>();
     final success = await auth.verifyOtp(_code);
     if (success && mounted) {
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushReplacementNamed(context, _nextRoute(auth));
     }
+  }
+
+  /// Sau OTP: tài xế đi thẳng vào KYC (NĐ 10/2020), admin vào panel duyệt hồ sơ.
+  String _nextRoute(AuthProvider auth) {
+    if (auth.isAdmin) return '/admin';
+    if (auth.isDriver) return '/driver/kyc';
+    return '/home';
   }
 
   void _onChanged(int index, String value) {
@@ -239,7 +246,7 @@ class _OtpScreenState extends State<OtpScreen> {
                 child: GestureDetector(
                   onTap: () {
                     auth.skipOtp();
-                    Navigator.pushReplacementNamed(context, '/home');
+                    Navigator.pushReplacementNamed(context, _nextRoute(auth));
                   },
                   child: const Text('Bỏ qua (Demo) →',
                     style: TextStyle(fontSize: 13, color: AppColors.text3)),

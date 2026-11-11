@@ -14,6 +14,7 @@ type OrderRepository interface {
 	GetCurrentTrip(ctx context.Context, driverID string) (*ActiveDriverTrip, error)
 	GetDriverEarnings(ctx context.Context, driverID string) (*DriverEarningsSummary, error)
 	GetDriverHistory(ctx context.Context, driverID string, limit int) ([]DriverHistoryItem, error)
+	GetDriverApprovalStatus(ctx context.Context, driverID string) (string, error)
 }
 
 // MerchantRepository (Repository Pattern) trừu tượng hóa các truy vấn danh bạ quán và thực đơn

@@ -86,6 +86,13 @@ func (s *matchingService) FindNearbyDrivers(ctx context.Context, lat, lng float6
 			continue
 		}
 
+		// KYC gate: never propose drivers explicitly marked as not approved.
+		// Missing approval_status (legacy/demo hash) stays allowed — the
+		// authoritative gate lives in api-gateway AcceptRide SQL.
+		if d.ApprovalStatus != "" && d.ApprovalStatus != "approved" {
+			continue
+		}
+
 		// Filter by service capability if requested
 		if serviceType != "" && len(d.Capabilities) > 0 {
 			if !hasCapability(d.Capabilities, serviceType) {

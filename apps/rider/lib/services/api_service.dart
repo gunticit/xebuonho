@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
@@ -35,6 +36,92 @@ class ApiService {
 
   void setAuthToken(String token) {
     _authToken = token;
+  }
+
+  // ========== Driver KYC & Compliance ==========
+  Future<Response> submitDriverKYC(Map<String, dynamic> data) async {
+    return await _dio.post(
+      '${ApiConfig.authBaseUrl}${ApiConfig.driverKYC}',
+      data: data,
+    );
+  }
+
+  /// Ask user-service for a presigned MinIO PUT URL, then upload the file
+  /// directly to object storage. Returns the object key to embed in the KYC payload.
+  Future<String> uploadKycDocument({
+    required String docType,
+    required File file,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final contentType = _contentTypeFor(file.path);
+    final ext = file.path.split('.').last.toLowerCase();
+
+    final presignRes = await _dio.post(
+      '${ApiConfig.authBaseUrl}${ApiConfig.uploadsPresign}',
+      data: {
+        'doc_type': docType,
+        'file_ext': ext,
+        'content_type': contentType,
+      },
+    );
+
+    final uploadUrl = presignRes.data['upload_url'] as String;
+    final objectKey = presignRes.data['object_key'] as String;
+
+    final bytes = await file.readAsBytes();
+    final uploadDio = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 60),
+    ));
+    await uploadDio.put(
+      uploadUrl,
+      data: bytes,
+      options: Options(
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': bytes.length,
+        },
+      ),
+      onSendProgress: onProgress,
+    );
+    return objectKey;
+  }
+
+  static String _contentTypeFor(String path) {
+    final ext = path.toLowerCase().split('.').last;
+    switch (ext) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  // ========== Admin KYC Moderation ==========
+  Future<List<Map<String, dynamic>>> adminListDrivers({
+    String status = '',
+    String kind = '',
+  }) async {
+    final res = await _dio.get(
+      '${ApiConfig.authBaseUrl}${ApiConfig.adminDrivers}',
+      queryParameters: {'status': status, 'kind': kind},
+    );
+    final drivers = res.data['drivers'] as List? ?? [];
+    return drivers.cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> adminDriverDetail(String driverId) async {
+    final res = await _dio.get('${ApiConfig.authBaseUrl}${ApiConfig.adminDriverDetail(driverId)}');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Response> adminSetApproval(String driverId, String status, {String reason = ''}) async {
+    return await _dio.patch(
+      '${ApiConfig.authBaseUrl}${ApiConfig.adminDriverApproval(driverId)}',
+      data: {'status': status, 'reason': reason},
+    );
   }
 
   // ========== Health ==========

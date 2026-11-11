@@ -45,20 +45,21 @@ class _SearchScreenState extends State<SearchScreen> {
     {'name': 'Bệnh viện Đa khoa Buôn Hồ', 'address': 'Trần Hưng Đạo, Buôn Hồ', 'emoji': '🏥', 'lat': 12.9280, 'lng': 108.2560},
   ];
 
-  /// Filter saved + recent by query text with space and accent insensitivity
+  /// Filter saved + recent by query text with space and accent insensitivity (NFD/NFC)
   List<Map<String, dynamic>> _filterLocal(String q) {
-    final lower = q.toLowerCase().replaceAll(' ', '');
+    final lower = normalizeVietnameseText(q);
+    if (lower.isEmpty) return [];
     final combined = <Map<String, dynamic>>[];
     for (final p in _savedPlaces) {
-      final nameNorm = p['name'].toString().toLowerCase().replaceAll(' ', '');
-      final addrNorm = p['address'].toString().toLowerCase().replaceAll(' ', '');
+      final nameNorm = normalizeVietnameseText(p['name'].toString());
+      final addrNorm = normalizeVietnameseText(p['address'].toString());
       if (nameNorm.contains(lower) || addrNorm.contains(lower)) {
         combined.add({...p, 'section': 'saved'});
       }
     }
     for (final p in _recentTrips) {
-      final nameNorm = p['name'].toString().toLowerCase().replaceAll(' ', '');
-      final addrNorm = p['address'].toString().toLowerCase().replaceAll(' ', '');
+      final nameNorm = normalizeVietnameseText(p['name'].toString());
+      final addrNorm = normalizeVietnameseText(p['address'].toString());
       if (nameNorm.contains(lower) || addrNorm.contains(lower)) {
         combined.add({...p, 'section': 'recent'});
       }

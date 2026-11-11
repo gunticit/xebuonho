@@ -278,9 +278,10 @@ final List<Map<String, dynamic>> _kLocalDakLakCatalog = [
   },
 ];
 
-/// Remove Vietnamese diacritics and special characters for flexible fuzzy search
-String _normalizeVietnamese(String str) {
+/// Remove Vietnamese diacritics and special characters for flexible fuzzy search (NFD & NFC)
+String normalizeVietnameseText(String str) {
   var s = str.toLowerCase();
+  s = s.replaceAll('đ', 'd').replaceAll('Đ', 'd');
   const Map<String, String> map = {
     'à': 'a', 'á': 'a', 'ả': 'a', 'ã': 'a', 'ạ': 'a',
     'ă': 'a', 'ằ': 'a', 'ắ': 'a', 'ẳ': 'a', 'ẵ': 'a', 'ặ': 'a',
@@ -294,13 +295,18 @@ String _normalizeVietnamese(String str) {
     'ù': 'u', 'ú': 'u', 'ủ': 'u', 'ũ': 'u', 'ụ': 'u',
     'ư': 'u', 'ừ': 'u', 'ứ': 'u', 'ử': 'u', 'ữ': 'u', 'ự': 'u',
     'ỳ': 'y', 'ý': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y',
-    'đ': 'd', '\'': '', ' ': '', '-': '', '_': '',
   };
   map.forEach((k, v) {
     s = s.replaceAll(k, v);
   });
+  // Strip combining diacritical marks (U+0300 to U+036F) for NFD support (Mac/iOS/Android keyboard)
+  s = s.replaceAll(RegExp(r'[\u0300-\u036f]'), '');
+  // Strip non-alphanumeric chars (spaces, hyphens, punctuation)
+  s = s.replaceAll(RegExp(r'[^a-z0-9]'), '');
   return s;
 }
+
+String _normalizeVietnamese(String str) => normalizeVietnameseText(str);
 
 /// Geocoding and Place Search service with instant local matching & multi-tier fallback
 class GeocodingService {

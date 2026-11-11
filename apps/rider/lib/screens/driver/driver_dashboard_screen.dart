@@ -78,8 +78,14 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // 0. Compliance & Approval Status Banner
+                if (!auth.isDriverApproved) ...[
+                  _buildApprovalBanner(auth),
+                  const SizedBox(height: 16),
+                ],
+
                 // 1. Online / Offline Status Toggle Card
-                _buildStatusCard(driver),
+                _buildStatusCard(driver, auth),
                 const SizedBox(height: 16),
 
                 // 2. Today's Performance Metrics
@@ -115,11 +121,134 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   }
 
   // ==========================================
+  // Compliance & Approval Banner (NĐ 10/2020)
+  // ==========================================
+  Widget _buildApprovalBanner(AuthProvider auth) {
+    final isPending = auth.approvalStatus == 'pending_approval';
+    final isRejected = auth.approvalStatus == 'rejected';
+
+    Color bgColor = isRejected
+        ? AppColors.redBg
+        : (isPending ? AppColors.orangeBg : AppColors.blueBg);
+    Color borderColor = isRejected
+        ? AppColors.red.withValues(alpha: 0.5)
+        : (isPending ? AppColors.orange.withValues(alpha: 0.5) : AppColors.blue.withValues(alpha: 0.5));
+    Color accentColor = isRejected
+        ? AppColors.red
+        : (isPending ? AppColors.orange : AppColors.blue);
+    IconData icon = isRejected
+        ? Icons.cancel_outlined
+        : (isPending ? Icons.pending_actions : Icons.verified_user_outlined);
+
+    String title = isRejected
+        ? 'HỒ SƠ BỊ TỪ CHỐI'
+        : (isPending ? 'HỒ SƠ ĐANG CHỜ PHÊ DUYỆT' : 'YÊU CẦU ĐỊNH DANH PHÁP LÝ');
+
+    String desc = isRejected
+        ? 'Lý do: ${auth.rejectionReason ?? "Giấy tờ chưa đạt chuẩn theo quy định"}. Vui lòng cập nhật lại hồ sơ.'
+        : (isPending
+            ? 'Hồ sơ pháp lý của bạn đang được quản trị viên xét duyệt theo NĐ 10/2020/NĐ-CP. Bạn chưa thể bật nhận cuốc lúc này.'
+            : 'Vui lòng hoàn tất nộp định danh CCCD và GPLX để được kích hoạt nhận cuốc thương mại.');
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: accentColor, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: accentColor,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/driver/kyc'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    isRejected ? 'Sửa hồ sơ' : 'Xem hồ sơ',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            desc,
+            style: const TextStyle(fontSize: 11, color: AppColors.text2, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showApprovalRequiredDialog(String status) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.shield_outlined, color: AppColors.orange, size: 24),
+            SizedBox(width: 8),
+            Text('Chưa thể nhận cuốc', style: TextStyle(color: AppColors.text, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          status == 'rejected'
+              ? 'Hồ sơ đối tác của bạn chưa được duyệt. Vui lòng cập nhật lại thông tin để tiếp tục.'
+              : 'Theo quy định thương mại vận tải (NĐ 10/2020/NĐ-CP), bạn chỉ có thể bật nhận cuốc sau khi hồ sơ CCCD, GPLX và đăng ký xe được ban quản trị phê duyệt.',
+          style: const TextStyle(color: AppColors.text2, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Đóng', style: TextStyle(color: AppColors.text3)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pushNamed(context, '/driver/kyc');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.orange),
+            child: const Text('Kiểm tra KYC', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
   // Status Card (Online / Offline)
   // ==========================================
-  Widget _buildStatusCard(DriverProvider driver) {
+  Widget _buildStatusCard(DriverProvider driver, AuthProvider auth) {
     final isOnline = driver.isOnline;
     final isBusy = driver.isBusy;
+    final isApproved = auth.isDriverApproved;
 
     Color cardBg = isOnline ? AppColors.greenBg : AppColors.bg2;
     Color borderColor = isOnline ? AppColors.green.withValues(alpha: 0.5) : AppColors.border;
@@ -182,10 +311,16 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  isBusy
-                      ? 'Đang phục vụ hành khách'
-                      : (isOnline ? 'Sẵn sàng nhận cuốc xe mới' : 'Gạt nút để bắt đầu nhận cuốc'),
-                  style: const TextStyle(fontSize: 12, color: AppColors.text3),
+                  !isApproved
+                      ? 'Khóa nhận cuốc (Đang chờ duyệt KYC)'
+                      : (isBusy
+                          ? 'Đang phục vụ hành khách'
+                          : (isOnline ? 'Sẵn sàng nhận cuốc xe mới' : 'Gạt nút để bắt đầu nhận cuốc')),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: !isApproved ? AppColors.orange : AppColors.text3,
+                    fontWeight: !isApproved ? FontWeight.w600 : FontWeight.normal,
+                  ),
                 ),
               ],
             ),
@@ -194,7 +329,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
             Switch.adaptive(
               value: isOnline,
               activeThumbColor: AppColors.green,
-              onChanged: (val) => driver.toggleOnline(val),
+              onChanged: !isApproved
+                  ? (val) => _showApprovalRequiredDialog(auth.approvalStatus)
+                  : (val) => driver.toggleOnline(val),
             ),
         ],
       ),

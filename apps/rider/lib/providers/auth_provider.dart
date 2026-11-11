@@ -14,6 +14,9 @@ class AuthProvider extends ChangeNotifier {
   String _vehicleType = 'car';
   String _licensePlate = '59-A1 999.88';
   String _vehicleModel = 'Toyota Vios 2023';
+  String _driverKind = 'personal'; // personal | business
+  String _approvalStatus = 'approved';
+  String? _rejectionReason;
   bool _isLoggedIn = false;
   bool _isLoading = false;
   bool _needsOtp = false;
@@ -29,7 +32,13 @@ class AuthProvider extends ChangeNotifier {
   String get vehicleType => _vehicleType;
   String get licensePlate => _licensePlate;
   String get vehicleModel => _vehicleModel;
+  String get driverKind => _driverKind;
+  bool get isBusinessDriver => isDriver && _driverKind == 'business';
+  String get approvalStatus => _approvalStatus;
+  String? get rejectionReason => _rejectionReason;
   bool get isDriver => _userRole == 'driver';
+  bool get isAdmin => _userRole == 'admin';
+  bool get isDriverApproved => !isDriver || _approvalStatus == 'approved';
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
   bool get needsOtp => _needsOtp;
@@ -49,6 +58,9 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     required String fullName,
     String role = 'rider',
+    String driverKind = 'personal',
+    bool consentAccepted = false,
+    String consentVersion = '2026.1',
   }) async {
     _isLoading = true;
     _error = null;
@@ -60,6 +72,9 @@ class AuthProvider extends ChangeNotifier {
         'password': password,
         'full_name': fullName,
         'role': role,
+        if (role == 'driver') 'driver_kind': driverKind,
+        'consent_accepted': consentAccepted,
+        'consent_version': consentVersion,
       });
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -75,13 +90,13 @@ class AuthProvider extends ChangeNotifier {
       if (_isConnectionError(e)) {
         // Server unavailable → use demo/offline mode
         debugPrint('⚠️ Server không chạy → đăng ký offline mode');
-        _registerOffline(fullName, phone);
+        _registerOffline(fullName, phone, role: role, driverKind: driverKind);
         return true;
       }
       _error = e.response?.data?['error'] ?? 'Đăng ký thất bại';
     } catch (e) {
       debugPrint('⚠️ Register error: $e → fallback offline');
-      _registerOffline(fullName, phone);
+      _registerOffline(fullName, phone, role: role, driverKind: driverKind);
       return true;
     }
 
@@ -90,11 +105,12 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
-  void _registerOffline(String name, String phone) {
+  void _registerOffline(String name, String phone, {String role = 'rider', String driverKind = 'personal'}) {
     _userId = 'local-${DateTime.now().millisecondsSinceEpoch}';
     _userName = name;
     _userPhone = phone;
-    _userRole = 'rider';
+    _userRole = role;
+    _driverKind = driverKind;
     _token = 'offline-token';
     _isLoggedIn = true;
     _needsOtp = true;
@@ -261,8 +277,21 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    final phone = role == 'driver' ? '0912345678' : '0901234567';
-    final password = role == 'driver' ? 'secret123' : 'password123';
+    final String phone;
+    final String password;
+    switch (role) {
+      case 'driver':
+        phone = '0912345678';
+        password = 'secret123';
+        break;
+      case 'admin':
+        phone = '0900000001';
+        password = 'admin123';
+        break;
+      default:
+        phone = '0901234567';
+        password = 'password123';
+    }
 
     try {
       final success = await login(phone: phone, password: password);
@@ -284,6 +313,11 @@ class AuthProvider extends ChangeNotifier {
       _vehicleType = 'car';
       _licensePlate = '59-E1 888.66';
       _vehicleModel = 'Toyota Vios 2023';
+    } else if (role == 'admin') {
+      _userName = 'Quản trị viên';
+      _userPhone = '0900 000 001';
+      _userEmail = 'admin@xebuonho.vn';
+      _approvalStatus = 'approved';
     } else {
       _userName = 'Nguyễn Văn An';
       _userPhone = '0901 234 567';
@@ -343,6 +377,7 @@ class AuthProvider extends ChangeNotifier {
       _userPhone = user['phone'] ?? '';
       _userEmail = user['email'] ?? '';
       _userRole = user['role'] ?? 'rider';
+      _driverKind = user['driver_kind'] ?? 'personal';
       if (user['vehicle_type'] != null) {
         _vehicleType = user['vehicle_type'];
       }
@@ -352,6 +387,30 @@ class AuthProvider extends ChangeNotifier {
       if (user['vehicle_model'] != null) {
         _vehicleModel = user['vehicle_model'];
       }
+      if (user['approval_status'] != null) {
+        _approvalStatus = user['approval_status'];
+      } else {
+        _approvalStatus = _userRole == 'driver' ? 'pending_approval' : 'approved';
+      }
+      _rejectionReason = user['rejection_reason'];
     }
+  }
+
+  void setApprovalStatus(String status, {String? reason}) {
+    _approvalStatus = status;
+    _rejectionReason = reason;
+    notifyListeners();
+  }
+
+  void updateDriverKYC({
+    required String vehicleType,
+    required String licensePlate,
+    required String vehicleModel,
+  }) {
+    _vehicleType = vehicleType;
+    _licensePlate = licensePlate;
+    _vehicleModel = vehicleModel;
+    _approvalStatus = 'pending_approval';
+    notifyListeners();
   }
 }
