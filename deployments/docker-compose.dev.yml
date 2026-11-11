@@ -36,6 +36,11 @@ services:
 
   minio:
     image: minio/minio:latest
+    # Opt-in storage profile: some networks block pulling minio/minio.
+    # Start with: docker compose --profile storage up -d minio
+    # Or use any S3-compatible server and point MINIO_ENDPOINT at it
+    # (dev on restricted networks: docker run -d -p 8333:8333 chrislusf/seaweedfs server -dir=/data -s3)
+    profiles: ["storage"]
     container_name: xebuonho-minio
     command: server /data --console-address ":9001"
     environment:
@@ -151,9 +156,17 @@ services:
       HTTP_PORT: "8091"
       DATABASE_URL: postgresql://app:secret@postgres:5432/xebuonho?sslmode=disable
       JWT_SECRET: dev-secret
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      MINIO_BUCKET: xebuonho-kyc
+      MINIO_SECURE: "false"
     depends_on:
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_healthy
+        required: false
 
   ride-service:
     build:

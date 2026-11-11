@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'dart:math';
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
@@ -46,21 +46,22 @@ class ApiService {
     );
   }
 
-  /// Ask user-service for a presigned MinIO PUT URL, then upload the file
+  /// Ask user-service for a presigned MinIO PUT URL, then upload the bytes
   /// directly to object storage. Returns the object key to embed in the KYC payload.
+  /// Dùng Uint8List (không dart:io) để chạy được trên cả Web lẫn Mobile.
   Future<String> uploadKycDocument({
     required String docType,
-    required File file,
+    required Uint8List bytes,
+    required String fileExt,
     void Function(int sent, int total)? onProgress,
   }) async {
-    final contentType = _contentTypeFor(file.path);
-    final ext = file.path.split('.').last.toLowerCase();
+    final contentType = _contentTypeForExt(fileExt);
 
     final presignRes = await _dio.post(
       '${ApiConfig.authBaseUrl}${ApiConfig.uploadsPresign}',
       data: {
         'doc_type': docType,
-        'file_ext': ext,
+        'file_ext': fileExt,
         'content_type': contentType,
       },
     );
@@ -68,7 +69,6 @@ class ApiService {
     final uploadUrl = presignRes.data['upload_url'] as String;
     final objectKey = presignRes.data['object_key'] as String;
 
-    final bytes = await file.readAsBytes();
     final uploadDio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 60),
@@ -87,9 +87,8 @@ class ApiService {
     return objectKey;
   }
 
-  static String _contentTypeFor(String path) {
-    final ext = path.toLowerCase().split('.').last;
-    switch (ext) {
+  static String _contentTypeForExt(String ext) {
+    switch (ext.toLowerCase()) {
       case 'png':
         return 'image/png';
       case 'webp':

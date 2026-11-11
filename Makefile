@@ -1,4 +1,4 @@
-.PHONY: all proto build build-service test test-service lint vet fmt tidy run-all stop-all docker-up docker-down migrate-up clean
+.PHONY: all proto build build-service test test-service lint vet fmt tidy run-all stop-all docker-up docker-up-storage docker-down migrate-up clean
 
 SERVICES := ride-service driver-service user-service payment-service \
 	matching-service location-service trip-service notification-service \
@@ -9,9 +9,13 @@ GO_PACKAGES := $(addsuffix /...,$(addprefix ./services/,$(SERVICES))) ./pkg/...
 # DEVELOPMENT
 # ============================================
 
-## Start all infrastructure (Redis, PostgreSQL, Kafka, EMQX, MinIO)
+## Start all infrastructure (Redis, PostgreSQL, Kafka, EMQX)
 docker-up:
-	docker compose up -d postgres redis kafka zookeeper emqx minio
+	docker compose up -d postgres redis kafka zookeeper emqx
+
+## Start MinIO object storage (opt-in profile — needs minio image pull access)
+docker-up-storage:
+	docker compose --profile storage up -d minio
 
 ## Stop all infrastructure
 docker-down:

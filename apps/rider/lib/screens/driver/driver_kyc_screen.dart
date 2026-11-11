@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -8,10 +8,10 @@ import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 
-/// Each KYC document slot: local preview + uploaded object key.
+/// Each KYC document slot: local preview bytes + uploaded object key.
 class _DocSlot {
   String? objectKey;
-  String? localPath;
+  Uint8List? previewBytes;
   double progress = 0;
   bool uploading = false;
   String? error;
@@ -121,11 +121,15 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
       return;
     }
     if (picked == null) return;
-    final pickedPath = picked.path;
+    final bytes = await picked.readAsBytes();
+    // Trên web picked.path là blob URL; tên file thật nằm ở picked.name.
+    final ext = picked.name.isNotEmpty
+        ? picked.name.split('.').last.toLowerCase()
+        : picked.path.split('.').last.toLowerCase();
 
     final slot = _docs[docType]!;
     setState(() {
-      slot.localPath = pickedPath;
+      slot.previewBytes = bytes;
       slot.uploading = true;
       slot.error = null;
       slot.progress = 0;
@@ -134,7 +138,8 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
     try {
       final key = await ApiService().uploadKycDocument(
         docType: docType,
-        file: File(pickedPath),
+        bytes: bytes,
+        fileExt: ext,
         onProgress: (sent, total) {
           if (total > 0 && mounted) {
             setState(() => slot.progress = sent / total);
@@ -743,7 +748,7 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
   Widget _buildDocSlot(String docType, String title) {
     final slot = _docs[docType]!;
     final isUploaded = slot.objectKey != null;
-    final hasPreview = slot.localPath != null;
+    final hasPreview = slot.previewBytes != null;
 
     return GestureDetector(
       onTap: slot.uploading ? null : () => _pickAndUpload(docType),
@@ -763,11 +768,12 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
             if (hasPreview)
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: Image.file(
-                  File(slot.localPath!),
+                child: Image.memory(
+                  slot.previewBytes!,
                   height: 56,
                   width: double.infinity,
                   fit: BoxFit.cover,
+                  gaplessPlayback: true,
                 ),
               )
             else

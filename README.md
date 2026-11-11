@@ -115,6 +115,18 @@ flutter run -d chrome
 > - **Admin KYC moderation:** đăng nhập bằng `0900000001` / `admin123` (seed trong migration 000005 — mật khẩu demo, đổi trước production) hoặc bấm "Đăng nhập Quản trị viên". Admin duyệt hồ sơ tài xế tại `/admin`.
 > - Xem tài liệu mở rộng chi tiết tại: [docs/AI_DEVELOPER_GUIDE.md](file:///Users/hwg/Documents/xebuonho/docs/AI_DEVELOPER_GUIDE.md).
 
+### 🪣 Object storage cho KYC (S3-compatible)
+
+`user-service` dùng minio-go, tương thích mọi server S3 qua biến môi trường:
+
+```bash
+# Mặc định: MinIO (make docker-up-storage, console :9001)
+# Máy không pull được minio/minio → dùng SeaweedFS S3-compatible:
+docker run -d --name xebuonho-s3 -p 8333:8333 chrislusf/seaweedfs:latest server -dir=/data -s3
+# rồi chạy user-service với:
+MINIO_ENDPOINT=localhost:8333 MINIO_ACCESS_KEY=minioadmin MINIO_SECRET_KEY=minioadmin123
+```
+
 ### 6️⃣ Nạp Dữ Liệu Thật (PostgreSQL + PostGIS Seed)
 ```bash
 docker exec -i xebuonho-postgres psql -U postgres -d xebuonho < migrations/seed_real_data.sql

@@ -56,10 +56,31 @@ func NewMinIOStore(endpoint, accessKey, secretKey, bucket string, secure bool) *
 // Available reports whether uploads are usable.
 func (s *MinIOStore) Available() bool { return s.available }
 
+// ensureBucket re-checks the bucket before each presign: the S3 server may be
+// recreated with empty storage between user-service restarts (dev containers
+// wiped), which otherwise surfaces as 403/404 on every upload until restart.
+func (s *MinIOStore) ensureBucket(ctx context.Context) error {
+	exists, err := s.client.BucketExists(ctx, s.bucket)
+	if err != nil {
+		return fmt.Errorf("check bucket: %w", err)
+	}
+	if exists {
+		return nil
+	}
+	if err := s.client.MakeBucket(ctx, s.bucket, minio.MakeBucketOptions{}); err != nil {
+		return fmt.Errorf("recreate bucket: %w", err)
+	}
+	s.logger.Printf("✅ Recreated missing bucket %q", s.bucket)
+	return nil
+}
+
 // PresignPut returns a presigned PUT URL for the object key.
 func (s *MinIOStore) PresignPut(ctx context.Context, objectKey string, ttl time.Duration) (string, error) {
 	if !s.available {
 		return "", fmt.Errorf("object storage unavailable")
+	}
+	if err := s.ensureBucket(ctx); err != nil {
+		return "", err
 	}
 	url, err := s.client.PresignedPutObject(ctx, s.bucket, objectKey, ttl)
 	if err != nil {
@@ -72,6 +93,9 @@ func (s *MinIOStore) PresignPut(ctx context.Context, objectKey string, ttl time.
 func (s *MinIOStore) PresignGet(ctx context.Context, objectKey string, ttl time.Duration) (string, error) {
 	if !s.available {
 		return "", fmt.Errorf("object storage unavailable")
+	}
+	if err := s.ensureBucket(ctx); err != nil {
+		return "", err
 	}
 	url, err := s.client.PresignedGetObject(ctx, s.bucket, objectKey, ttl, nil)
 	if err != nil {
