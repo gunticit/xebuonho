@@ -301,10 +301,10 @@ class _AdminDriverDetailScreenState extends State<AdminDriverDetailScreen> {
 
   Widget _buildDocsCard(Map<String, dynamic> docUrls) {
     final labels = {
-      'id_card_front': 'CCCD mặt trước',
-      'id_card_back': 'CCCD mặt sau',
-      'driver_license_front': 'GPLX mặt trước',
-      'driver_license_back': 'GPLX mặt sau',
+      'cccd_front': 'CCCD mặt trước',
+      'cccd_back': 'CCCD mặt sau',
+      'gplx_front': 'GPLX mặt trước',
+      'gplx_back': 'GPLX mặt sau',
       'vehicle_registration': 'Đăng ký xe',
       'vehicle_insurance': 'Bảo hiểm TNDS',
       'business_license': 'GPKD doanh nghiệp',

@@ -46,6 +46,12 @@ class ApiService {
     );
   }
 
+  /// Hồ sơ KYC đã nộp của chính tài xế (fields + ảnh presigned GET)
+  Future<Map<String, dynamic>> getMyKyc() async {
+    final res = await _dio.get('${ApiConfig.authBaseUrl}${ApiConfig.driverKYC}');
+    return res.data as Map<String, dynamic>;
+  }
+
   /// Ask user-service for a presigned MinIO PUT URL, then upload the bytes
   /// directly to object storage. Returns the object key to embed in the KYC payload.
   /// Dùng Uint8List (không dart:io) để chạy được trên cả Web lẫn Mobile.

@@ -141,11 +141,12 @@ type AdminDriverListItem struct {
 	RejectionReason *string    `json:"rejection_reason,omitempty"`
 }
 
-// AdminDriverDetailResponse wraps the full profile plus presigned document URLs
-type AdminDriverDetailResponse struct {
-	User       *User              `json:"user"`
-	DocURLs    map[string]string  `json:"doc_urls"`
-	Warnings   []string           `json:"warnings"`
+// DriverKYCDetailResponse wraps the full KYC profile plus presigned document URLs.
+// Used by both the admin moderation view and the driver's own "view profile".
+type DriverKYCDetailResponse struct {
+	User     *User             `json:"user"`
+	DocURLs  map[string]string `json:"doc_urls"`
+	Warnings []string          `json:"warnings"`
 }
 
 // DriverApprovalRequest is the request payload for admin approving/rejecting driver

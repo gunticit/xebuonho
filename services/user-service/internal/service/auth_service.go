@@ -271,8 +271,9 @@ func (s *AuthService) ListDriversForAdmin(ctx context.Context, status, driverKin
 	return s.userRepo.ListDriversByStatus(ctx, status, driverKind, 100)
 }
 
-// GetDriverDetailForAdmin returns a driver profile with presigned document URLs for review
-func (s *AuthService) GetDriverDetailForAdmin(ctx context.Context, driverID string) (*model.AdminDriverDetailResponse, error) {
+// GetDriverDetail returns a driver KYC profile with presigned document URLs
+// (used by admin moderation and by the driver viewing their own submission)
+func (s *AuthService) GetDriverDetail(ctx context.Context, driverID string) (*model.DriverKYCDetailResponse, error) {
 	user, err := s.userRepo.GetByID(ctx, driverID)
 	if err != nil {
 		return nil, err
@@ -283,15 +284,15 @@ func (s *AuthService) GetDriverDetailForAdmin(ctx context.Context, driverID stri
 
 	docURLs := map[string]string{}
 	docFields := map[string]*string{
-		"id_card_front":         user.IDCardFrontURL,
-		"id_card_back":          user.IDCardBackURL,
-		"driver_license_front":  user.DriverLicenseFrontURL,
-		"driver_license_back":   user.DriverLicenseBackURL,
-		"vehicle_registration":  user.VehicleRegistrationURL,
-		"vehicle_insurance":     user.VehicleInsuranceURL,
-		"business_license":      user.BusinessLicenseURL,
-		"transport_license":     user.TransportLicenseURL,
-		"employment_contract":   user.EmploymentContractURL,
+		"cccd_front":           user.IDCardFrontURL,
+		"cccd_back":            user.IDCardBackURL,
+		"gplx_front":           user.DriverLicenseFrontURL,
+		"gplx_back":            user.DriverLicenseBackURL,
+		"vehicle_registration": user.VehicleRegistrationURL,
+		"vehicle_insurance":    user.VehicleInsuranceURL,
+		"business_license":     user.BusinessLicenseURL,
+		"transport_license":    user.TransportLicenseURL,
+		"employment_contract":  user.EmploymentContractURL,
 	}
 	for name, key := range docFields {
 		if key == nil || *key == "" {
@@ -325,7 +326,7 @@ func (s *AuthService) GetDriverDetailForAdmin(ctx context.Context, driverID stri
 		}
 	}
 
-	return &model.AdminDriverDetailResponse{User: user, DocURLs: docURLs, Warnings: warnings}, nil
+	return &model.DriverKYCDetailResponse{User: user, DocURLs: docURLs, Warnings: warnings}, nil
 }
 
 // UpdateDriverApprovalStatus handles admin review of driver application

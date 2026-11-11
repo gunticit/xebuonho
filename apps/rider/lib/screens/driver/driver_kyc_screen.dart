@@ -8,10 +8,11 @@ import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 
-/// Each KYC document slot: local preview bytes + uploaded object key.
+/// Each KYC document slot: local preview bytes + uploaded object key + presigned view URL.
 class _DocSlot {
   String? objectKey;
   Uint8List? previewBytes;
+  String? existingUrl; // presigned GET URL từ hồ sơ đã nộp
   double progress = 0;
   bool uploading = false;
   String? error;
@@ -50,6 +51,11 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
   bool _isSubmitting = false;
   bool _submittedSuccess = false;
   String? _errorMessage;
+
+  // Trạng thái hồ sơ đã nộp (load lại từ server khi mở màn)
+  String? _existingStatus;
+  String? _existingRejectionReason;
+  bool _hasExisting = false;
 
   // Real document uploads: docType -> slot
   final Map<String, _DocSlot> _docs = {
@@ -91,6 +97,91 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
     if (_vehicleType == 'motorcycle') {
       _licenseClass = 'A1';
     }
+    // Load hồ sơ đã nộp (nếu có) để "Xem hồ sơ" hiển thị lại đầy đủ
+    _loadExistingKyc();
+  }
+
+  Future<void> _loadExistingKyc() async {
+    Map<String, dynamic>? detail;
+    try {
+      detail = await ApiService().getMyKyc();
+    } catch (_) {
+      return; // offline demo mode: giữ form trống như cũ
+    }
+    if (!mounted) return;
+    final user = detail['user'] as Map<String, dynamic>? ?? {};
+    final docUrls = detail['doc_urls'] as Map<String, dynamic>? ?? {};
+
+    // driver_kind theo server (anti-downgrade phía client)
+    final serverKind = user['driver_kind']?.toString();
+    if (serverKind == 'business' && !_docs.containsKey('business_license')) {
+      _docs['business_license'] = _DocSlot();
+      _docs['transport_license'] = _DocSlot();
+      _docs['employment_contract'] = _DocSlot();
+    }
+    if (serverKind != null && serverKind.isNotEmpty) {
+      _driverKind = serverKind;
+    }
+
+    String? s(dynamic v) {
+      final str = v?.toString();
+      return (str == null || str.isEmpty) ? null : str;
+    }
+
+    _idCardController.text = s(user['id_card_number']) ?? '';
+    _licenseNumController.text = s(user['driver_license_number']) ?? '';
+    _licenseExpiryController.text = s(user['driver_license_expiry']) ?? '';
+    _insuranceExpiryController.text = s(user['vehicle_insurance_expiry']) ?? '';
+    if (s(user['license_plate']) != null) {
+      _vehiclePlateController.text = s(user['license_plate'])!;
+    }
+    if (s(user['vehicle_model']) != null) {
+      _vehicleModelController.text = s(user['vehicle_model'])!;
+    }
+    final licenseClass = s(user['driver_license_class']);
+    if (licenseClass != null && ['A1','A2','B1','B2','C','D','E'].contains(licenseClass)) {
+      _licenseClass = licenseClass;
+    }
+    final vehicleType = s(user['vehicle_type']);
+    if (_driverKind == 'business') {
+      _vehicleType = 'car';
+    } else if (vehicleType == 'car' || vehicleType == 'motorcycle') {
+      _vehicleType = vehicleType!;
+    }
+    _companyNameController.text = s(user['company_name']) ?? '';
+    _companyTaxController.text = s(user['company_tax_code']) ?? '';
+    _businessLicenseController.text = s(user['business_license_number']) ?? '';
+    _transportLicenseController.text = s(user['transport_license_number']) ?? '';
+    _transportLicenseExpiryController.text = s(user['transport_license_expiry']) ?? '';
+    _blackboxInstalled = user['blackbox_installed'] == true;
+    _cabinCameraInstalled = user['cabin_camera_installed'] == true;
+
+    // Doc slots đã nộp: object key + presigned URL để xem lại ảnh
+    void fillSlot(String slotKey, String? objectKey) {
+      if (objectKey == null) return;
+      final slot = _docs[slotKey];
+      if (slot == null) return;
+      slot.objectKey = objectKey;
+      final url = docUrls[slotKey]?.toString();
+      slot.existingUrl = (url != null && url.isNotEmpty) ? url : null;
+    }
+    fillSlot('cccd_front', s(user['id_card_front_url']));
+    fillSlot('cccd_back', s(user['id_card_back_url']));
+    fillSlot('gplx_front', s(user['driver_license_front_url']));
+    fillSlot('gplx_back', s(user['driver_license_back_url']));
+    fillSlot('vehicle_registration', s(user['vehicle_registration_url']));
+    fillSlot('vehicle_insurance', s(user['vehicle_insurance_url']));
+    fillSlot('business_license', s(user['business_license_url']));
+    fillSlot('transport_license', s(user['transport_license_url']));
+    fillSlot('employment_contract', s(user['employment_contract_url']));
+
+    setState(() {
+      _existingStatus = s(user['approval_status']);
+      _existingRejectionReason = s(user['rejection_reason']);
+      _hasExisting = _docs.values.any((d) => d.objectKey != null) ||
+          _idCardController.text.isNotEmpty ||
+          _licenseNumController.text.isNotEmpty;
+    });
   }
 
   @override
@@ -266,9 +357,11 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
         backgroundColor: AppColors.bg2,
         elevation: 0,
         title: Text(
-          _driverKind == 'business'
-              ? 'Đăng ký Tài xế Doanh nghiệp & KYC'
-              : 'Đăng ký Pháp lý & KYC Tài xế',
+          _hasExisting
+              ? 'Hồ sơ Pháp lý & KYC Tài xế'
+              : (_driverKind == 'business'
+                  ? 'Đăng ký Tài xế Doanh nghiệp & KYC'
+                  : 'Đăng ký Pháp lý & KYC Tài xế'),
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text),
         ),
       ),
@@ -329,6 +422,61 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
     );
   }
 
+  Widget _buildStatusBanner() {
+    switch (_existingStatus) {
+      case 'pending_approval':
+        return _banner(
+          color: AppColors.orange,
+          bg: AppColors.orangeBg,
+          icon: Icons.pending_actions,
+          text: 'Hồ sơ đang chờ xét duyệt theo NĐ 10/2020/NĐ-CP. Bạn có thể xem lại hoặc cập nhật và gửi xét duyệt lại.',
+        );
+      case 'rejected':
+        return _banner(
+          color: AppColors.red,
+          bg: AppColors.redBg,
+          icon: Icons.cancel_outlined,
+          text: 'Hồ sơ bị từ chối${_existingRejectionReason != null ? ': $_existingRejectionReason' : ''}. Vui lòng sửa và gửi lại.',
+        );
+      case 'approved':
+        return _banner(
+          color: AppColors.green,
+          bg: AppColors.greenBg,
+          icon: Icons.verified_outlined,
+          text: 'Hồ sơ đã được phê duyệt. Bạn có thể cập nhật giấy tờ khi có thay đổi (sẽ xét duyệt lại).',
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _banner({
+    required Color color,
+    required Color bg,
+    required IconData icon,
+    required String text,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: TextStyle(fontSize: 12, color: color, height: 1.4)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFormView() {
     return Form(
       key: _formKey,
@@ -336,7 +484,8 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _buildComplianceBanner(),
-          const SizedBox(height: 20),
+          _buildStatusBanner(),
+          const SizedBox(height: 8),
 
           // Section 1: CCCD
           _buildSectionHeader('1. Định danh cá nhân (CCCD / ĐDCN)'),
@@ -493,9 +642,9 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text(
-                      'Gửi hồ sơ xét duyệt',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                  : Text(
+                      _hasExisting ? 'Cập nhật hồ sơ xét duyệt' : 'Gửi hồ sơ xét duyệt',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
             ),
           ),
@@ -776,6 +925,20 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
                   gaplessPlayback: true,
                 ),
               )
+            else if (slot.existingUrl != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Image.network(
+                  slot.existingUrl!,
+                  height: 56,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox(
+                    height: 56,
+                    child: Icon(Icons.image_not_supported_outlined, color: AppColors.text3, size: 24),
+                  ),
+                ),
+              )
             else
               Icon(
                 isUploaded ? Icons.check_circle : Icons.camera_alt_outlined,
@@ -796,7 +959,7 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
             Text(
               slot.uploading
                   ? 'Đang tải ${(slot.progress * 100).toInt()}%'
-                  : (isUploaded ? 'Đã tải lên ✓' : (slot.error ?? 'Bấm để chụp/chọn')),
+                  : (isUploaded ? 'Đã nộp ✓ — chạm để thay' : (slot.error ?? 'Bấm để chụp/chọn')),
               style: TextStyle(
                 fontSize: 10,
                 color: slot.error != null

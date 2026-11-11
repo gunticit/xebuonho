@@ -62,6 +62,8 @@ func (h *AuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.ResendOTP(w, r)
 	case path == "/driver/kyc" && r.Method == "POST":
 		h.SubmitDriverKYC(w, r)
+	case path == "/driver/kyc" && r.Method == "GET":
+		h.GetMyKYC(w, r)
 	case path == "/uploads/presign" && r.Method == "POST":
 		h.PresignUpload(w, r)
 	case path == "/admin/drivers" && r.Method == "GET":
@@ -268,6 +270,23 @@ func (h *AuthHandler) AdminListDrivers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"drivers": list})
 }
 
+// GetMyKYC returns the driver's own KYC submission (fields + presigned doc URLs)
+func (h *AuthHandler) GetMyKYC(w http.ResponseWriter, r *http.Request) {
+	userID := h.extractUserID(r)
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	detail, err := h.authService.GetDriverDetail(r.Context(), userID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "chưa có hồ sơ KYC cho tài khoản này"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, detail)
+}
+
 // AdminDriverDetail returns a driver profile with presigned document URLs (admin only)
 func (h *AuthHandler) AdminDriverDetail(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.requireAdmin(w, r); !ok {
@@ -281,7 +300,7 @@ func (h *AuthHandler) AdminDriverDetail(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	detail, err := h.authService.GetDriverDetailForAdmin(r.Context(), driverID)
+	detail, err := h.authService.GetDriverDetail(r.Context(), driverID)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 		return
