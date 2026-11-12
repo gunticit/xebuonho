@@ -8,6 +8,7 @@ class LocationProvider extends ChangeNotifier {
   String _currentAddress = 'Đang định vị...';
   String _shortAddress = 'Buôn Hồ';
   bool _loading = false;
+  bool _isManualPin = false;
   String? _error;
   StreamSubscription<Position>? _positionSubscription;
   double _lastGeocodedLat = 0;
@@ -17,6 +18,7 @@ class LocationProvider extends ChangeNotifier {
   String get currentAddress => _currentAddress;
   String get shortAddress => _shortAddress;
   bool get loading => _loading;
+  bool get isManualPin => _isManualPin;
   String? get error => _error;
 
   // Defaults to Buôn Hồ, Đắk Lắk (12.9247, 108.2541)
@@ -29,6 +31,7 @@ class LocationProvider extends ChangeNotifier {
 
   Future<void> fetchLocation({bool forceAddress = false}) async {
     _loading = true;
+    _isManualPin = false;
     _error = null;
     notifyListeners();
 
@@ -67,11 +70,35 @@ class LocationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Cho phép người dùng chạm trực tiếp trên bản đồ để chọn điểm đón chính xác
+  Future<void> selectLocationOnMap(double lat, double lng) async {
+    _isManualPin = true;
+    _currentPosition = Position(
+      latitude: lat,
+      longitude: lng,
+      timestamp: DateTime.now(),
+      accuracy: 5,
+      altitude: 0,
+      heading: 0,
+      speed: 0,
+      speedAccuracy: 0,
+      altitudeAccuracy: 0,
+      headingAccuracy: 0,
+    );
+    _currentAddress = 'Đang xác định địa chỉ...';
+    _shortAddress = 'Đang ghim vị trí...';
+    notifyListeners();
+
+    await _resolveAddress(lat, lng);
+  }
+
   void _startLiveTracking() {
     _positionSubscription?.cancel();
     try {
       _positionSubscription = LocationService.getLocationStream().listen(
         (Position position) {
+          // Nếu người dùng đang tự ghim vị trí đón thủ công thì không để GPS đè lên
+          if (_isManualPin) return;
           _currentPosition = position;
           // Re-reverse geocode if moved > 30m hoặc lần đầu
           final distKm = LocationService.distanceBetween(
@@ -114,6 +141,7 @@ class LocationProvider extends ChangeNotifier {
     required double lng,
     required String address,
   }) {
+    _isManualPin = true;
     _currentAddress = address;
     _shortAddress = address.split(',').first.trim();
     _currentPosition = Position(

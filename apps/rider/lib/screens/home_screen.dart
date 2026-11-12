@@ -74,6 +74,34 @@ class _HomeScreenState extends State<HomeScreen> {
             options: MapOptions(
               initialCenter: LatLng(locProvider.lat, locProvider.lng),
               initialZoom: 15,
+              onTap: (tapPosition, point) {
+                // Chạm vào bản đồ để chọn điểm đón chính xác từng mét
+                context.read<LocationProvider>().selectLocationOnMap(point.latitude, point.longitude);
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    duration: const Duration(seconds: 2),
+                    backgroundColor: AppColors.card,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: AppColors.green),
+                    ),
+                    content: const Row(
+                      children: [
+                        Text('📍', style: TextStyle(fontSize: 18)),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Đã ghim điểm đón trên bản đồ. Bấm 🎯 nếu muốn quay lại GPS.',
+                            style: TextStyle(color: AppColors.text, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
             children: [
               TileLayer(
@@ -85,13 +113,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 urlTemplate: ApiConfig.mapTileLabelsUrl,
                 userAgentPackageName: 'com.xebuonho.rider',
               ),
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: LatLng(locProvider.lat, locProvider.lng),
+                    radius: (locProvider.currentPosition?.accuracy ?? 25.0).clamp(10.0, 90.0),
+                    useRadiusInMeter: true,
+                    color: (locProvider.isManualPin ? AppColors.green : AppColors.blue).withValues(alpha: 0.12),
+                    borderColor: (locProvider.isManualPin ? AppColors.green : AppColors.blue).withValues(alpha: 0.45),
+                    borderStrokeWidth: 1.5,
+                  ),
+                ],
+              ),
               MarkerLayer(
                 markers: [
                   Marker(
                     point: LatLng(locProvider.lat, locProvider.lng),
                     width: 50,
                     height: 50,
-                    child: _buildUserMarker(),
+                    child: _buildUserMarker(locProvider.isManualPin),
                   ),
                 ],
               ),
@@ -121,14 +161,21 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             child: Row(
                               children: [
-                                const Text('🏍️', style: TextStyle(fontSize: 16)),
+                                Text(locProvider.isManualPin ? '📍' : '🏍️', style: const TextStyle(fontSize: 16)),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Text('Vị trí hiện tại', style: TextStyle(fontSize: 10, color: AppColors.text3)),
+                                      Text(
+                                        locProvider.isManualPin ? '📍 Điểm đón đã ghim' : 'Vị trí hiện tại',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: locProvider.isManualPin ? FontWeight.w600 : FontWeight.normal,
+                                          color: locProvider.isManualPin ? AppColors.green : AppColors.text3,
+                                        ),
+                                      ),
                                       Text(
                                         locProvider.loading
                                             ? 'Đang xác định vị trí...'
@@ -139,7 +186,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.my_location, color: AppColors.blue, size: 16),
+                                Icon(
+                                  locProvider.isManualPin ? Icons.edit_location_alt : Icons.my_location,
+                                  color: locProvider.isManualPin ? AppColors.green : AppColors.blue,
+                                  size: 16,
+                                ),
                               ],
                             ),
                           ),
@@ -319,22 +370,23 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildUserMarker() {
+  Widget _buildUserMarker([bool isManual = false]) {
+    final color = isManual ? AppColors.green : AppColors.blue;
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppColors.blue.withValues(alpha: 0.15),
-        border: Border.all(color: AppColors.blue, width: 3),
+        color: color.withValues(alpha: 0.18),
+        border: Border.all(color: color, width: 3),
         boxShadow: [
           BoxShadow(
-            color: AppColors.blue.withValues(alpha: 0.3),
+            color: color.withValues(alpha: 0.35),
             blurRadius: 16,
             spreadRadius: 4,
           ),
         ],
       ),
-      child: const Center(
-        child: Text('📍', style: TextStyle(fontSize: 20)),
+      child: Center(
+        child: Text(isManual ? '📍' : '🏍️', style: const TextStyle(fontSize: 20)),
       ),
     );
   }
