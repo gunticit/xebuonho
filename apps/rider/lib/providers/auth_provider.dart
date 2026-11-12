@@ -275,6 +275,51 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ==========================================
+  // Delete Account (PDPD NĐ 13/2023 & Store Guidelines)
+  // ==========================================
+  Future<bool> deleteAccount() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      if (_token != null && _token != 'offline-token' && !_token!.startsWith('demo-')) {
+        final response = await _dio.delete(
+          ApiConfig.deleteAccount,
+          options: Options(headers: {
+            'Authorization': 'Bearer $_token',
+          }),
+        );
+        if (response.statusCode != 200) {
+          _error = response.data?['error'] ?? 'Xóa tài khoản không thành công';
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
+      }
+      // Xóa thành công hoặc demo offline -> Đăng xuất và dọn dẹp state
+      logout();
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on DioException catch (e) {
+      if (_isConnectionError(e)) {
+        logout();
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+      _error = e.response?.data?['error'] ?? 'Lỗi khi gửi yêu cầu xóa tài khoản';
+    } catch (e) {
+      _error = 'Lỗi không xác định: $e';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
   Future<void> demoLogin({String role = 'rider'}) async {
     _isLoading = true;
     notifyListeners();

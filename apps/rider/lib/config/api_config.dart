@@ -10,6 +10,7 @@ class ApiConfig {
   static const String refresh = '$apiVersion/auth/refresh';
   static const String logout = '$apiVersion/auth/logout';
   static const String profile = '$apiVersion/auth/profile';
+  static const String deleteAccount = '$apiVersion/auth/profile';
   static const String verifyOtp = '$apiVersion/auth/verify-otp';
   static const String resendOtp = '$apiVersion/auth/resend-otp';
   static const String driverKYC = '$apiVersion/auth/driver/kyc';

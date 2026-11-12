@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -281,4 +282,56 @@ func (r *UserRepository) UpdateProfile(ctx context.Context, id string, req *mode
 		req.VehicleType, req.LicensePlate, req.VehicleModel,
 	)
 	return err
+}
+
+// HasActiveOrders checks if user currently has active trips/orders
+func (r *UserRepository) HasActiveOrders(ctx context.Context, userID string) (bool, error) {
+	query := `
+		SELECT EXISTS (
+			SELECT 1 FROM orders
+			WHERE (customer_id = $1 OR driver_id = $1)
+			  AND status IN ('created', 'accepted', 'arrived', 'picking_up', 'in_trip', 'delivering', 'in_transit')
+		)
+	`
+	var hasActive bool
+	err := r.db.QueryRow(ctx, query, userID).Scan(&hasActive)
+	if err != nil {
+		if strings.Contains(err.Error(), "does not exist") {
+			return false, nil
+		}
+		return false, err
+	}
+	return hasActive, nil
+}
+
+// DeleteAccount soft-deletes user account, clears PII & credentials, and frees up UNIQUE constraints
+func (r *UserRepository) DeleteAccount(ctx context.Context, id string) error {
+	query := `
+		UPDATE users SET
+			phone = NULL,
+			email = NULL,
+			full_name = 'Người dùng đã xóa',
+			avatar_url = NULL,
+			password_hash = NULL,
+			refresh_token = NULL,
+			is_active = FALSE,
+			id_card_number = NULL,
+			id_card_front_url = NULL,
+			id_card_back_url = NULL,
+			driver_license_number = NULL,
+			driver_license_front_url = NULL,
+			driver_license_back_url = NULL,
+			vehicle_registration_url = NULL,
+			vehicle_insurance_url = NULL,
+			updated_at = NOW()
+		WHERE id = $1
+	`
+	tag, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
 }

@@ -466,6 +466,48 @@ func (s *AuthService) Logout(ctx context.Context, userID string) error {
 	return s.userRepo.ClearRefreshToken(ctx, userID)
 }
 
+// DeleteAccount handles account deletion following industry standards (PDPD NĐ 13/2023 & Store guidelines)
+func (s *AuthService) DeleteAccount(ctx context.Context, userID, token string) error {
+	// 1. Kiểm tra tài khoản tồn tại
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("lookup user: %w", err)
+	}
+	if user == nil {
+		return fmt.Errorf("user not found")
+	}
+
+	// 2. Tiền điều kiện: Kiểm tra có đơn hàng/chuyến đi đang thực hiện không
+	hasActive, err := s.userRepo.HasActiveOrders(ctx, userID)
+	if err != nil {
+		s.logger.Printf("⚠️ Warning checking active orders: %v", err)
+	} else if hasActive {
+		return fmt.Errorf("active_order_conflict: Bạn đang có chuyến đi hoặc đơn hàng đang thực hiện. Vui lòng hoàn thành chuyến đi trước khi xóa tài khoản.")
+	}
+
+	// 3. Vô hiệu hóa và ẩn danh hóa thông tin cá nhân (PII) trong cơ sở dữ liệu
+	if err := s.userRepo.DeleteAccount(ctx, userID); err != nil {
+		return fmt.Errorf("delete account: %w", err)
+	}
+
+	// 4. Thu hồi Token và xóa Cache trong Redis
+	if s.redisClient != nil {
+		if token != "" {
+			_ = s.redisClient.Set(ctx, fmt.Sprintf("jwt:blacklist:%s", token), "1", 24*time.Hour).Err()
+		}
+		if user.Phone != nil && *user.Phone != "" {
+			_ = s.redisClient.Del(ctx, fmt.Sprintf("otp:%s", *user.Phone)).Err()
+			_ = s.redisClient.Del(ctx, fmt.Sprintf("otp:rate:%s", *user.Phone)).Err()
+		}
+		_ = s.redisClient.ZRem(ctx, "drivers:locations", userID).Err()
+		_ = s.redisClient.Del(ctx, fmt.Sprintf("driver:location:%s", userID)).Err()
+		_ = s.redisClient.Del(ctx, fmt.Sprintf("driver:meta:%s", userID)).Err()
+	}
+
+	s.logger.Printf("🗑️ User account deleted & PII anonymized: %s (role: %s)", userID, user.Role)
+	return nil
+}
+
 // generateTokenResponse creates access + refresh tokens
 func (s *AuthService) generateTokenResponse(ctx context.Context, user *model.User) (*model.TokenResponse, error) {
 	now := time.Now()

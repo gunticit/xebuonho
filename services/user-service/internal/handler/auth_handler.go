@@ -56,6 +56,8 @@ func (h *AuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.GetProfile(w, r)
 	case path == "/profile" && r.Method == "PATCH":
 		h.UpdateProfile(w, r)
+	case (path == "/profile" || path == "/account") && r.Method == "DELETE":
+		h.DeleteAccount(w, r)
 	case path == "/verify-otp" && r.Method == "POST":
 		h.VerifyOTP(w, r)
 	case path == "/resend-otp" && r.Method == "POST":
@@ -345,6 +347,35 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, &model.ProfileResponse{User: user})
+}
+
+// DeleteAccount handles account deletion request
+func (h *AuthHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
+	userID := h.extractUserID(r)
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var token string
+	authHeader := r.Header.Get("Authorization")
+	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+		token = strings.TrimSpace(authHeader[7:])
+	}
+
+	if err := h.authService.DeleteAccount(r.Context(), userID, token); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "active_order_conflict") {
+			status = http.StatusConflict
+		}
+		writeJSON(w, status, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":  "success",
+		"message": "Tài khoản của bạn đã được xóa thành công. Toàn bộ thông tin cá nhân và phiên đăng nhập đã được hủy bỏ.",
+	})
 }
 
 // extractUserID extracts user ID from JWT in Authorization header

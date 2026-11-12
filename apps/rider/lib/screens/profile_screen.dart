@@ -130,7 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Quick actions
             _buildAction(Icons.verified_user, 'Xác minh tài khoản', 'Đã xác minh', AppColors.green),
             _buildAction(Icons.security, 'Đổi mật khẩu', '', AppColors.blue),
-            _buildAction(Icons.delete_outline, 'Xóa tài khoản', '', AppColors.red),
+            _buildAction(Icons.delete_outline, 'Xóa tài khoản', '', AppColors.red, () => _confirmDeleteAccount(context)),
 
             if (_editing) ...[
               const SizedBox(height: 24),
@@ -190,25 +190,110 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildAction(IconData icon, String title, String subtitle, Color color) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.bg2, borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+  Widget _buildAction(IconData icon, String title, String subtitle, Color color, [VoidCallback? onTap]) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.bg2, borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 12),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.text))),
+            if (subtitle.isNotEmpty)
+              Text(subtitle, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: AppColors.text3, size: 18),
+          ],
+        ),
       ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 12),
-          Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.text))),
-          if (subtitle.isNotEmpty)
-            Text(subtitle, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
-          const SizedBox(width: 4),
-          const Icon(Icons.chevron_right, color: AppColors.text3, size: 18),
+    );
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bg2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.border),
+        ),
+        title: Row(
+          children: const [
+            Text('⚠️', style: TextStyle(fontSize: 22)),
+            SizedBox(width: 8),
+            Text('Xác nhận xóa tài khoản', style: TextStyle(color: AppColors.text, fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text(
+              'Bạn có chắc chắn muốn xóa tài khoản này không? Hành động này sẽ:',
+              style: TextStyle(color: AppColors.text, fontSize: 13, height: 1.4),
+            ),
+            SizedBox(height: 10),
+            Text('• Hủy toàn bộ phiên đăng nhập trên mọi thiết bị.', style: TextStyle(color: AppColors.text2, fontSize: 12)),
+            Text('• Ẩn toàn bộ thông tin cá nhân (PII) theo Nghị định 13/2023/NĐ-CP.', style: TextStyle(color: AppColors.text2, fontSize: 12)),
+            Text('• Giải phóng số điện thoại để có thể đăng ký tài khoản mới khi cần.', style: TextStyle(color: AppColors.text2, fontSize: 12)),
+            SizedBox(height: 6),
+            Text('• Bạn sẽ không thể hoàn tác sau khi đã xóa.', style: TextStyle(color: AppColors.red, fontSize: 12, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy bỏ', style: TextStyle(color: AppColors.text3, fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Xác nhận xóa', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
         ],
       ),
     );
+
+    if (confirmed == true && context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.red)),
+      );
+
+      final auth = context.read<AuthProvider>();
+      final success = await auth.deleteAccount();
+
+      if (context.mounted) {
+        Navigator.pop(context); // Đóng loading dialog
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Đã xóa tài khoản thành công. Hẹn gặp lại bạn!'),
+              backgroundColor: AppColors.green,
+            ),
+          );
+          Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(auth.error ?? 'Không thể xóa tài khoản. Vui lòng thử lại.'),
+              backgroundColor: AppColors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 }
