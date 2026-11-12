@@ -27,19 +27,15 @@ class LocationService {
 
       // 1. Thử lấy GPS chính xác cao (High Accuracy) với timeout 10 giây
       return await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
-        ),
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
       );
     } catch (_) {
       try {
         // 2. Dự phòng độ chính xác trung bình (Medium Accuracy) nếu High bị timeout
         return await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.medium,
-            timeLimit: Duration(seconds: 5),
-          ),
+          desiredAccuracy: LocationAccuracy.medium,
+          timeLimit: const Duration(seconds: 5),
         );
       } catch (_) {
         try {
