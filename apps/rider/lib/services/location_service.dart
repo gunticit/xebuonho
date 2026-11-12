@@ -25,15 +25,28 @@ class LocationService {
         return await Geolocator.getLastKnownPosition();
       }
 
+      // 1. Thử lấy GPS chính xác cao (High Accuracy) với timeout 10 giây
       return await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 7),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
       );
     } catch (_) {
       try {
-        return await Geolocator.getLastKnownPosition();
+        // 2. Dự phòng độ chính xác trung bình (Medium Accuracy) nếu High bị timeout
+        return await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 5),
+          ),
+        );
       } catch (_) {
-        return null;
+        try {
+          return await Geolocator.getLastKnownPosition();
+        } catch (_) {
+          return null;
+        }
       }
     }
   }

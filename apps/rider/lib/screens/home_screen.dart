@@ -22,6 +22,18 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _hasInitialMapCentered = false;
   bool _isMenuExpanded = true;
 
+  Future<void> _recenterToCurrentLocation() async {
+    final loc = context.read<LocationProvider>();
+    // 1. Ngay lập tức di chuyển camera map về vị trí hiện tại đã có (0ms latency, không chờ mạng)
+    _mapController.move(LatLng(loc.lat, loc.lng), 16);
+
+    // 2. Refresh GPS ngầm trong nền
+    await loc.fetchLocation();
+    if (mounted) {
+      _mapController.move(LatLng(loc.lat, loc.lng), 16);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -99,11 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () async {
-                            final loc = context.read<LocationProvider>();
-                            await loc.fetchLocation();
-                            _mapController.move(LatLng(loc.lat, loc.lng), 16);
-                          },
+                          onTap: _recenterToCurrentLocation,
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
@@ -213,11 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
             right: 16,
             bottom: _isMenuExpanded ? 375 : 85,
             child: GestureDetector(
-              onTap: () async {
-                final loc = context.read<LocationProvider>();
-                await loc.fetchLocation();
-                _mapController.move(LatLng(loc.lat, loc.lng), 16);
-              },
+              onTap: _recenterToCurrentLocation,
               child: Container(
                 width: 44,
                 height: 44,

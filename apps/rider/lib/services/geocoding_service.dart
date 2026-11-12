@@ -312,6 +312,7 @@ String _normalizeVietnamese(String str) => normalizeVietnameseText(str);
 class GeocodingService {
   final Dio _dio;
   Timer? _debounceTimer;
+  static final Map<String, String> _reverseGeocodeCache = {};
 
   GeocodingService()
       : _dio = Dio(BaseOptions(
@@ -496,6 +497,12 @@ class GeocodingService {
 
   /// Reverse geocode coordinates to address
   Future<String?> reverseGeocode(double lat, double lng) async {
+    // 0. Cache check: làm tròn ~11m (4 số thập phân) để tránh spam API
+    final cacheKey = '${lat.toStringAsFixed(4)},${lng.toStringAsFixed(4)}';
+    if (_reverseGeocodeCache.containsKey(cacheKey)) {
+      return _reverseGeocodeCache[cacheKey];
+    }
+
     // 1. Try Backend API Gateway Reverse Geocode
     try {
       final res = await _dio.get(
@@ -505,12 +512,13 @@ class GeocodingService {
       if (res.statusCode == 200 && res.data != null) {
         final addr = res.data['address'] as String?;
         if (addr != null && addr.isNotEmpty) {
+          _reverseGeocodeCache[cacheKey] = addr;
           return addr;
         }
       }
     } catch (_) {}
 
-    // 2. Try Nominatim OSM
+    // 2. Try Nominatim OSM với User-Agent hợp lệ (chống 403 / 429)
     try {
       final response = await _dio.get(
         'https://nominatim.openstreetmap.org/reverse',
@@ -520,9 +528,19 @@ class GeocodingService {
           'format': 'json',
           'addressdetails': '1',
         },
+        options: Options(
+          headers: {
+            'User-Agent': 'XeBuonHo-RiderApp/1.0 (contact@xebuonho.vn)',
+            'Accept-Language': 'vi,en;q=0.8',
+          },
+        ),
       );
-      if (response.statusCode == 200) {
-        return response.data['display_name'];
+      if (response.statusCode == 200 && response.data != null) {
+        final displayName = response.data['display_name'] as String?;
+        if (displayName != null && displayName.isNotEmpty) {
+          _reverseGeocodeCache[cacheKey] = displayName;
+          return displayName;
+        }
       }
     } catch (_) {}
 

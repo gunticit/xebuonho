@@ -27,25 +27,40 @@ class LocationProvider extends ChangeNotifier {
     fetchLocation();
   }
 
-  Future<void> fetchLocation() async {
+  Future<void> fetchLocation({bool forceAddress = false}) async {
     _loading = true;
     _error = null;
     notifyListeners();
 
     try {
-      _currentPosition = await LocationService.getCurrentLocation();
-      if (_currentPosition == null) {
-        _currentAddress = LocationService.defaultAddress;
-        _shortAddress = 'Buôn Hồ';
-        _error = 'Chưa bật GPS, dùng vị trí mặc định.';
+      final newPos = await LocationService.getCurrentLocation();
+      if (newPos != null) {
+        _currentPosition = newPos;
+        final distKm = LocationService.distanceBetween(
+          _lastGeocodedLat,
+          _lastGeocodedLng,
+          newPos.latitude,
+          newPos.longitude,
+        );
+        // Chỉ resolve lại địa chỉ nếu di chuyển > 30m hoặc đang là địa chỉ mặc định
+        if (forceAddress || distKm > 0.03 || _currentAddress == 'Đang định vị...' || _currentAddress == LocationService.defaultAddress) {
+          await _resolveAddress(newPos.latitude, newPos.longitude);
+        }
       } else {
-        await _resolveAddress(_currentPosition!.latitude, _currentPosition!.longitude);
+        // Chỉ fallback về Buôn Hồ nếu CHƯA TỪNG có vị trí trước đó (không xóa vị trí tốt đang có)
+        if (_currentPosition == null) {
+          _currentAddress = LocationService.defaultAddress;
+          _shortAddress = 'Buôn Hồ';
+          _error = 'Chưa bật GPS, dùng vị trí mặc định.';
+        }
       }
       _startLiveTracking();
     } catch (e) {
       _error = 'Lỗi GPS: $e';
-      _currentAddress = LocationService.defaultAddress;
-      _shortAddress = 'Buôn Hồ';
+      if (_currentPosition == null) {
+        _currentAddress = LocationService.defaultAddress;
+        _shortAddress = 'Buôn Hồ';
+      }
     }
 
     _loading = false;
@@ -58,14 +73,14 @@ class LocationProvider extends ChangeNotifier {
       _positionSubscription = LocationService.getLocationStream().listen(
         (Position position) {
           _currentPosition = position;
-          // Re-reverse geocode if moved > 50m or first time
+          // Re-reverse geocode if moved > 30m hoặc lần đầu
           final distKm = LocationService.distanceBetween(
             _lastGeocodedLat,
             _lastGeocodedLng,
             position.latitude,
             position.longitude,
           );
-          if (distKm > 0.05 || _currentAddress == 'Đang định vị...') {
+          if (distKm > 0.03 || _currentAddress == 'Đang định vị...' || _currentAddress == LocationService.defaultAddress) {
             _resolveAddress(position.latitude, position.longitude);
           } else {
             notifyListeners();
