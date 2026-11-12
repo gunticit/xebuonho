@@ -96,13 +96,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                 _buildHotspotsCard(),
                 const SizedBox(height: 20),
 
-                // 4. Quick Simulator Trigger (For testing & demo)
-                if (driver.isOnline && driver.currentTrip == null) ...[
-                  _buildSimulatorCard(driver),
-                  const SizedBox(height: 20),
-                ],
-
-                // 5. Vehicle & Partner Info Card
+                // 4. Vehicle & Partner Info Card
                 _buildVehicleInfoCard(auth),
               ],
             ),
@@ -498,51 +492,6 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   }
 
   // ==========================================
-  // Quick Simulator Card
-  // ==========================================
-  Widget _buildSimulatorCard(DriverProvider driver) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.blueBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.blue.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.bolt, color: AppColors.blue, size: 22),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Demo kiểm thử',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.blue),
-                ),
-                Text(
-                  'Bấm để tạo ngay 1 cuốc xe mô phỏng tới tài xế',
-                  style: TextStyle(fontSize: 11, color: AppColors.text2),
-                ),
-              ],
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => driver.simulateIncomingRide(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.blue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Tạo cuốc ngay', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================
   // Vehicle Info Card
   // ==========================================
   Widget _buildVehicleInfoCard(AuthProvider auth) {
@@ -728,7 +677,15 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
-                      onPressed: () => driver.acceptIncomingRide(),
+                      onPressed: () async {
+                        await driver.acceptIncomingRide();
+                        final err = driver.consumeError();
+                        if (err != null && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(err), backgroundColor: AppColors.card),
+                          );
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.green,
                         foregroundColor: Colors.white,

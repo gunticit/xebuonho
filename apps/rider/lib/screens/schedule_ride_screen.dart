@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../config/theme.dart';
+import '../services/api_service.dart';
 
 class ScheduleRideScreen extends StatefulWidget {
   const ScheduleRideScreen({super.key});
@@ -15,6 +16,7 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
   String _pickup = '';
   String _dropoff = '';
   bool _remind15 = true;
+  bool _isSubmitting = false;
 
   final _vehicles = [
     {'id': 'bike', 'emoji': '🏍️', 'name': 'Xe máy', 'price': '~25.000đ'},
@@ -59,45 +61,84 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
     }
   }
 
-  void _confirmSchedule() {
+  /// Đặt lịch thật: tạo order status='scheduled' + scheduled_at.
+  /// Worker của gateway sẽ flip sang 'created' khi tới giờ → tài xế thấy cuốc.
+  Future<void> _confirmSchedule() async {
     if (_pickup.trim().isEmpty || _dropoff.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: const Text('⚠️ Vui lòng nhập điểm đón và điểm đến'), backgroundColor: AppColors.orange),
       );
       return;
     }
-    final fmt = DateFormat('HH:mm — EEE, dd/MM', 'vi_VN');
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.bg2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(children: [
-          Text('🎉', style: TextStyle(fontSize: 28)),
-          SizedBox(width: 10),
-          Text('Đã đặt lịch!', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.text)),
-        ]),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Chuyến của bạn đã được lên lịch:', style: TextStyle(fontSize: 13, color: AppColors.text3)),
-          const SizedBox(height: 12),
-          _kv('🕐 Thời gian', fmt.format(_scheduled)),
-          _kv('🚦 Loại xe', _vehicles.firstWhere((v) => v['id'] == _vehicle)['name']!),
-          _kv('📍 Đón', _pickup),
-          _kv('🎯 Đến', _dropoff),
-          if (_remind15)
-            _kv('🔔 Nhắc nhở', 'Trước 15 phút'),
-        ]),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('Đóng', style: TextStyle(color: AppColors.blue)),
-          ),
-        ],
-      ),
-    );
+    if (_scheduled.isBefore(DateTime.now().add(const Duration(minutes: 10)))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: const Text('⚠️ Giờ đón phải cách hiện tại ít nhất 10 phút'), backgroundColor: AppColors.orange),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      // Điểm đón dùng vị trí hiện tại (demo); địa chỉ là dữ liệu thật cho tài xế
+      double lat = 12.9247, lng = 108.2541;
+      await ApiService().createRide(
+        serviceType: 'ride',
+        pickupAddress: _pickup,
+        pickupLat: lat,
+        pickupLng: lng,
+        dropoffAddress: _dropoff,
+        dropoffLat: lat + 0.02,
+        dropoffLng: lng + 0.02,
+        vehicleType: _vehicle,
+        paymentMethod: 'cash',
+        scheduledAt: _scheduled.toUtc().toIso8601String(),
+      );
+      if (!mounted) return;
+      final fmt = DateFormat('HH:mm — EEE, dd/MM', 'vi_VN');
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: AppColors.bg2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(children: [
+            Text('🎉', style: TextStyle(fontSize: 28)),
+            SizedBox(width: 10),
+            Text('Đã đặt lịch!', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.text)),
+          ]),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Chuyến của bạn đã được lên lịch:', style: TextStyle(fontSize: 13, color: AppColors.text3)),
+            const SizedBox(height: 12),
+            _kv('🕐 Thời gian', fmt.format(_scheduled)),
+            _kv('🚦 Loại xe', _vehicles.firstWhere((v) => v['id'] == _vehicle)['name']!),
+            _kv('📍 Đón', _pickup),
+            _kv('🎯 Đến', _dropoff),
+            if (_remind15)
+              _kv('🔔 Nhắc nhở', 'Trước 15 phút'),
+          ]),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              child: const Text('Đóng', style: TextStyle(color: AppColors.blue)),
+            ),
+          ],
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.card),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không đặt được lịch. Kiểm tra server và thử lại.'), backgroundColor: AppColors.card),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   Widget _kv(String k, String v) => Padding(
@@ -255,7 +296,7 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
 
           // Confirm
           GestureDetector(
-            onTap: _confirmSchedule,
+            onTap: _isSubmitting ? null : _confirmSchedule,
             child: Container(
               height: 54,
               decoration: BoxDecoration(
@@ -263,7 +304,15 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 4))],
               ),
-              child: const Center(child: Text('Xác nhận đặt lịch', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white))),
+              child: Center(
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Xác nhận đặt lịch', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
             ),
           ),
           const SizedBox(height: 32),

@@ -552,7 +552,8 @@ class _DesignatedDriverScreenState extends State<DesignatedDriverScreen> {
       ),
     );
 
-    // Asynchronously create order in PostgreSQL via API Gateway
+    // Create order in PostgreSQL via API Gateway with designated_* columns
+    // (NĐ 10/2020 — chế độ solo/duo + thông tin xe gửi lại để tài xế biết).
     ApiService().createRide(
       serviceType: 'designated_driver',
       pickupAddress: _pickupCtrl.text.trim(),
@@ -563,8 +564,15 @@ class _DesignatedDriverScreenState extends State<DesignatedDriverScreen> {
       dropoffLng: 106.7218,
       vehicleType: _vehicleType == 'Ô tô' ? 'car' : 'bike',
       paymentMethod: _paymentMethod,
-      notes: 'Xe: ${_modelCtrl.text} ${_plateCtrl.text} • Gửi tại: ${_parkingCtrl.text}',
-    );
+      designatedMode: _mode.name, // solo | duo
+      designatedVehicleType: _vehicleType == 'Ô tô' ? 'car' : 'motorcycle',
+      designatedLicensePlate: _plateCtrl.text.trim(),
+      notes: 'Xe: ${_modelCtrl.text} • Màu: ${_colorCtrl.text} • Biển: ${_plateCtrl.text}\n'
+          'Gửi xe tại: ${_parkingCtrl.text}\n'
+          'Chế độ: ${_mode.title} • Tổng cước: ${_formatVND(_totalFare)}',
+    ).catchError((_) {
+      // Đơn vẫn vào màn tracking demo; lỗi tạo đơn hiện snackbar ở root
+    });
 
     Navigator.pushNamed(context, '/designated-tracking', arguments: order);
   }

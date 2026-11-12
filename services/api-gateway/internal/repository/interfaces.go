@@ -11,10 +11,15 @@ type OrderRepository interface {
 	ListPendingRides(ctx context.Context) ([]PendingRide, error)
 	AcceptRide(ctx context.Context, orderID, driverID string) error
 	UpdateRideStatus(ctx context.Context, orderID, driverID, status string) error
+	CancelRideByUser(ctx context.Context, orderID, customerID, reason string) error
+	ListRideMessages(ctx context.Context, orderID, userID string, limit int) ([]map[string]interface{}, error)
+	AddRideMessage(ctx context.Context, orderID, senderID, senderRole, message string) (map[string]interface{}, error)
+	ActivateDueScheduledRides(ctx context.Context) (int64, error)
 	GetCurrentTrip(ctx context.Context, driverID string) (*ActiveDriverTrip, error)
 	GetDriverEarnings(ctx context.Context, driverID string) (*DriverEarningsSummary, error)
 	GetDriverHistory(ctx context.Context, driverID string, limit int) ([]DriverHistoryItem, error)
 	GetDriverApprovalStatus(ctx context.Context, driverID string) (string, error)
+	GetDriversByIDs(ctx context.Context, ids []string) (map[string]map[string]interface{}, error)
 }
 
 // MerchantRepository (Repository Pattern) trừu tượng hóa các truy vấn danh bạ quán và thực đơn

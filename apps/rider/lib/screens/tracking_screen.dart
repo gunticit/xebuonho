@@ -7,7 +7,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../config/api_config.dart';
+import '../models/ride.dart';
 import '../providers/booking_provider.dart';
+import '../services/api_service.dart';
 import '../services/location_service.dart';
 import '../services/routing_service.dart';
 import 'package:intl/intl.dart';
@@ -22,6 +24,7 @@ class TrackingScreen extends StatefulWidget {
 class _TrackingScreenState extends State<TrackingScreen> {
   final MapController _mapController = MapController();
   Timer? _animTimer;
+  Timer? _pollTimer;
   StreamSubscription<Position>? _gpsSubscription;
 
   // Real vs Simulation Mode
@@ -40,23 +43,32 @@ class _TrackingScreenState extends State<TrackingScreen> {
   // Trip stats
   int _etaMin = 15;
   double _remainingKm = 0;
-  final String _driverName = 'Nguyễn Văn Hùng';
-  final String _driverPlate = '47A-123.45';
-  final double _driverRating = 4.95;
+
+  // Server truth (poll GET /rides/{id} mỗi 3s)
+  RideModel? _serverRide;
+  String? _driverName;
+  String? _driverPlate;
+  double? _driverRating;
+  String? _driverVehicleModel;
+  bool _isCancelling = false;
 
   final _statusSteps = [
+    {'key': 'finding', 'label': 'Đang tìm TX', 'icon': '🔍'},
     {'key': 'assigned', 'label': 'Đã nhận cuốc', 'icon': '✅'},
-    {'key': 'arriving', 'label': 'Tài xế đang đến', 'icon': '🚗'},
     {'key': 'arrived', 'label': 'Đã đến điểm đón', 'icon': '📍'},
     {'key': 'moving', 'label': 'Đang di chuyển', 'icon': '🏁'},
   ];
-  int _currentStep = 1;
+  int _currentStep = 0;
   bool _hasCompleted = false;
+
+  bool get _hasDriverAssigned =>
+      _serverRide?.driver != null && _serverRide!.driver!.id.isNotEmpty;
 
   void _completeTrip() {
     if (_hasCompleted) return;
     _hasCompleted = true;
     _animTimer?.cancel();
+    _pollTimer?.cancel();
     _gpsSubscription?.cancel();
     if (mounted) {
       context.read<BookingProvider>().completeRide();
@@ -72,7 +84,147 @@ class _TrackingScreenState extends State<TrackingScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initTracking();
+      _startStatusPolling();
     });
+  }
+
+  /// Poll GET /rides/{id} mỗi 3s: trạng thái + hồ sơ tài xế thật + vị trí GPS.
+  /// Đây là "source of truth" — animation chỉ để minh hoạ khi chưa có GPS thật.
+  void _startStatusPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _pollOnce());
+    _pollOnce();
+  }
+
+  Future<void> _pollOnce() async {
+    if (!mounted || _hasCompleted) return;
+    final booking = context.read<BookingProvider>();
+    final ride = booking.currentRide;
+    if (ride == null || ride.id.isEmpty) return;
+
+    try {
+      final data = await ApiService().getRide(ride.id);
+      final server = RideModel.fromJson(data);
+      if (!mounted) return;
+      setState(() {
+        _serverRide = server;
+        final driver = server.driver;
+        if (driver != null && driver.id.isNotEmpty) {
+          _driverName = driver.name;
+          _driverPlate = driver.licensePlate;
+          _driverVehicleModel = driver.vehicleModel;
+          _driverRating = driver.rating > 0 ? driver.rating : 4.9;
+          if (driver.lat != null && driver.lng != null) {
+            _vehicleLat = driver.lat!;
+            _vehicleLng = driver.lng!;
+          }
+        }
+        switch (server.status) {
+          case RideStatus.created:
+            _currentStep = 0; // Đang tìm tài xế
+            break;
+          case RideStatus.driverAssigned:
+          case RideStatus.arriving:
+            _currentStep = 1;
+            break;
+          case RideStatus.arrived:
+            _currentStep = 2;
+            break;
+          case RideStatus.pickedUp:
+          case RideStatus.inProgress:
+            _currentStep = 3;
+            break;
+          case RideStatus.completed:
+            _completeTrip();
+            break;
+          case RideStatus.cancelled:
+            _onRideCancelled();
+            break;
+        }
+      });
+    } catch (_) {
+      // Lỗi poll tạm thời (mạng/server) — giữ UI, thử lại chu kỳ sau
+    }
+  }
+
+  void _onRideCancelled() {
+    _hasCompleted = true;
+    _animTimer?.cancel();
+    _pollTimer?.cancel();
+    _gpsSubscription?.cancel();
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Chuyến đi đã bị huỷ', style: TextStyle(color: AppColors.text, fontSize: 16)),
+        content: const Text(
+          'Chuyến này đã bị huỷ trên hệ thống. Vui lòng đặt chuyến mới nếu cần.',
+          style: TextStyle(color: AppColors.text2, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.read<BookingProvider>().reset();
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.blue),
+            child: const Text('Về trang chủ', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Nút Huỷ chuyến — gọi server thật, chỉ khi chưa được đón.
+  Future<void> _cancelRide() async {
+    if (_isCancelling || _hasCompleted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Huỷ chuyến này?', style: TextStyle(color: AppColors.text, fontSize: 16)),
+        content: const Text(
+          'Chuyến đi sẽ bị huỷ trên hệ thống. Bạn chỉ có thể huỷ trước khi lên xe.',
+          style: TextStyle(color: AppColors.text2, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Để nguyên', style: TextStyle(color: AppColors.text3)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.red),
+            child: const Text('Huỷ chuyến', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _isCancelling = true);
+    final booking = context.read<BookingProvider>();
+    final error = await booking.cancelRideOnServer();
+    if (!mounted) return;
+    setState(() => _isCancelling = false);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: AppColors.card),
+      );
+      return;
+    }
+    _animTimer?.cancel();
+    _pollTimer?.cancel();
+    _gpsSubscription?.cancel();
+    if (mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+    }
   }
 
   void _initTracking() {
@@ -108,9 +260,27 @@ class _TrackingScreenState extends State<TrackingScreen> {
     _animTimer?.cancel();
     _isRealGpsMode = false;
 
-    // Advance vehicle along the road network waypoints smoothly
+    // Advance vehicle along the road network waypoints smoothly.
+    // Hoàn tất chuyến KHÔNG còn do animation quyết định — chỉ server status
+    // (poll 3s) mới gọi _completeTrip. Đây chỉ là minh hoạ khi chưa có GPS thật.
     _animTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
       if (!mounted || _fullRoute.isEmpty) return;
+
+      // Tài xế đã nhận + có GPS thật → marker theo vị trí thật
+      final driver = _serverRide?.driver;
+      if (driver != null && driver.lat != null && driver.lng != null) {
+        final booking = context.read<BookingProvider>();
+        final dlat = (booking.dropoffLat - driver.lat!).abs();
+        final dlng = (booking.dropoffLng - driver.lng!).abs();
+        setState(() {
+          _vehicleLat = driver.lat!;
+          _vehicleLng = driver.lng!;
+          _currentSpeedKmH = 0;
+          _remainingKm = max(0.1, (dlat + dlng) * 111);
+          _etaMin = max(1, (_remainingKm / 0.5).round());
+        });
+        return;
+      }
 
       setState(() {
         if (_currentRouteIndex < _fullRoute.length - 1) {
@@ -129,22 +299,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
               : 13.3;
           _remainingKm = max(0.1, totalKm * (1.0 - progress));
           _etaMin = max(1, (_remainingKm / 0.5).round());
-
-          if (progress > 0.1 && progress < 0.9) {
-            _currentStep = 3; // Moving
-          } else if (progress >= 0.95) {
-            _etaMin = 0;
-            _remainingKm = 0;
-            _currentSpeedKmH = 0;
-            if (progress >= 0.98 || _currentRouteIndex >= _fullRoute.length - 1) {
-              _completeTrip();
-            }
-          }
+          // Chạy hết route → đứng lại chờ server (không tự complete)
         } else {
           _etaMin = 0;
           _remainingKm = 0;
           _currentSpeedKmH = 0;
-          _completeTrip();
         }
       });
     });
@@ -186,6 +345,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
   @override
   void dispose() {
     _animTimer?.cancel();
+    _pollTimer?.cancel();
     _gpsSubscription?.cancel();
     super.dispose();
   }
@@ -602,36 +762,62 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Driver profile card
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.card,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 24,
-                          backgroundColor: AppColors.blueBg,
-                          child: const Text('👨🏻‍✈️', style: TextStyle(fontSize: 24)),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    _driverName,
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.text,
+                  // Driver profile card — hiện thật từ server khi đã có tài xế nhận
+                  if (!_hasDriverAssigned)
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.bg2,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.blue),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Đang tìm tài xế phù hợp gần bạn...',
+                              style: TextStyle(fontSize: 13, color: AppColors.text2),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 24,
+                            backgroundColor: AppColors.blueBg,
+                            child: const Text('👨🏻‍✈️', style: TextStyle(fontSize: 24)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      _driverName ?? 'Tài xế XeBuonho',
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.text,
+                                      ),
                                     ),
-                                  ),
                                   const SizedBox(width: 6),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -645,7 +831,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                                         const Text('⭐', style: TextStyle(fontSize: 10)),
                                         const SizedBox(width: 2),
                                         Text(
-                                          _driverRating.toString(),
+                                          _driverRating?.toString() ?? '4.9',
                                           style: const TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.bold,
@@ -659,7 +845,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Toyota Vios • Biển số: $_driverPlate',
+                                '${_driverVehicleModel ?? 'XeBuonho'} • Biển số: ${_driverPlate ?? '—'}',
                                 style: const TextStyle(fontSize: 12, color: AppColors.text3),
                               ),
                             ],
@@ -678,16 +864,28 @@ class _TrackingScreenState extends State<TrackingScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // Chat button
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: AppColors.blueBg,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Center(
-                            child: Text('💬', style: TextStyle(fontSize: 18)),
+                        // Chat button — mở chat thật theo ride id
+                        GestureDetector(
+                          onTap: () {
+                            final rideId = _serverRide?.id ??
+                                context.read<BookingProvider>().currentRide?.id;
+                            if (rideId != null && rideId.isNotEmpty) {
+                              Navigator.pushNamed(context, '/chat', arguments: {
+                                'rideId': rideId,
+                                'peerName': _driverName ?? 'Tài xế',
+                              });
+                            }
+                          },
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: AppColors.blueBg,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Center(
+                              child: Text('💬', style: TextStyle(fontSize: 18)),
+                            ),
                           ),
                         ),
                       ],
@@ -724,14 +922,20 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     width: double.infinity,
                     height: 44,
                     child: ElevatedButton(
-                      onPressed: _completeTrip,
+                      onPressed: _isCancelling ? null : _cancelRide,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.blue,
-                        foregroundColor: Colors.white,
+                        backgroundColor: AppColors.redBg,
+                        foregroundColor: AppColors.red,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
                       ),
-                      child: const Text('Hoàn thành chuyến', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                      child: _isCancelling
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.red),
+                            )
+                          : const Text('Huỷ chuyến', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],

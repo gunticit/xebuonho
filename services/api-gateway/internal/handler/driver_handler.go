@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xebuonho/services/api-gateway/internal/driverstate"
 	"github.com/xebuonho/services/api-gateway/internal/event"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
 	"github.com/xebuonho/services/api-gateway/internal/orderstate"
@@ -195,11 +196,26 @@ func (h *DriverHandler) AcceptRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Observer Pattern: Dispatch EventOrderAccepted
+		// Observer Pattern: dispatch EventOrderAccepted with the full snapshot so
+		// the WS hub can target the customer with who accepted their ride.
+		payload := map[string]interface{}{
+			"order_id":  body.RequestID,
+			"driver_id": driverID,
+		}
+		if ride, err := h.repo.GetRide(r.Context(), body.RequestID); err == nil && ride != nil {
+			payload["customer_id"] = ride.RiderID
+			payload["status"] = ride.Status
+			if ride.Driver != nil {
+				payload["driver_name"] = ride.Driver.Name
+				payload["driver_phone"] = ride.Driver.Phone
+				payload["license_plate"] = ride.Driver.Plate
+				payload["vehicle_model"] = ride.Driver.VehicleModel
+			}
+		}
 		event.GetDispatcher().Dispatch(r.Context(), event.Event{
 			ID:        body.RequestID,
 			Type:      event.EventOrderAccepted,
-			Payload:   map[string]string{"order_id": body.RequestID, "driver_id": driverID},
+			Payload:   payload,
 			Timestamp: time.Now(),
 		})
 	}
@@ -305,15 +321,21 @@ func (h *DriverHandler) UpdateTripStatus(w http.ResponseWriter, r *http.Request)
 				return
 			}
 
-			// Observer Pattern: Dispatch EventOrderStatusChanged
+			// Observer Pattern: dispatch status change with customer_id so the WS
+			// hub can notify the rider in realtime.
+			payload := map[string]interface{}{
+				"order_id":  targetID,
+				"driver_id": driverID,
+				"status":    mappedStatus,
+			}
+			if ride, err := h.repo.GetRide(r.Context(), targetID); err == nil && ride != nil {
+				payload["customer_id"] = ride.RiderID
+				payload["fare_final"] = ride.FareFinal
+			}
 			event.GetDispatcher().Dispatch(r.Context(), event.Event{
-				ID:   targetID,
-				Type: event.EventOrderStatusChanged,
-				Payload: map[string]string{
-					"order_id":  targetID,
-					"driver_id": driverID,
-					"status":    mappedStatus,
-				},
+				ID:        targetID,
+				Type:      event.EventOrderStatusChanged,
+				Payload:   payload,
 				Timestamp: time.Now(),
 			})
 		}
@@ -480,6 +502,18 @@ func (h *DriverHandler) UpdateLocation(w http.ResponseWriter, r *http.Request) {
 		h.locationHistory = h.locationHistory[len(h.locationHistory)-500:]
 	}
 
+	// Per-driver realtime store (rider tracking + nearby lists read from here)
+	if driverID := h.resolveDriverID(r); driverID != "" {
+		driverstate.Default.Set(driverID, driverstate.Point{
+			Lat:     body.Lat,
+			Lng:     body.Lng,
+			Speed:   body.Speed,
+			Heading: body.Heading,
+			Battery: body.Battery,
+			UpdatedAt: time.Now(),
+		})
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"received":   true,
 		"points":     len(h.locationHistory),
@@ -545,47 +579,50 @@ func (h *DriverHandler) TriggerSOS(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /api/v1/driver/location/nearby — Get nearby drivers (for admin tracking map)
+// GET /api/v1/driver/location/nearby — real per-driver positions from the
+// in-memory store, enriched with driver profiles from Postgres.
 func (h *DriverHandler) GetNearbyDrivers(w http.ResponseWriter, r *http.Request) {
-	baseLat := 10.7769
-	baseLng := 106.7009
-	if h.lat != 0 {
-		baseLat = h.lat
-		baseLng = h.lng
-	}
-
-	names := []string{"Nguyen Van Tai", "Tran Van Binh", "Le Minh Duc", "Pham Thanh Hai", "Vo Van Hung",
-		"Dang Thi Lan", "Bui Van Nam", "Hoang Van Duc", "Nguyen Thi Mai", "Le Van Phong"}
-	statuses := []string{"online", "on_trip", "online", "on_trip", "online",
-		"online", "on_trip", "online", "online", "on_trip"}
-	vehicles := []string{"car", "bike", "car", "bike", "car", "bike", "car", "premium", "bike", "car"}
-	plates := []string{"51F-123.45", "51B-987.65", "51D-456.78", "51E-321.09", "51A-654.32",
-		"51C-111.22", "51F-333.44", "51D-555.66", "51B-777.88", "51A-999.00"}
+	points := driverstate.Default.All()
 
 	var drivers []map[string]interface{}
-	for i := 0; i < 10; i++ {
-		dlat := baseLat + (rand.Float64()-0.5)*0.03
-		dlng := baseLng + (rand.Float64()-0.5)*0.03
-		drivers = append(drivers, map[string]interface{}{
-			"id":            i + 1,
-			"name":          names[i],
-			"status":        statuses[i],
-			"vehicle":       vehicles[i],
-			"license_plate": plates[i],
-			"lat":           dlat,
-			"lng":           dlng,
-			"speed":         randomFloat(0, 60),
-			"heading":       randomFloat(0, 360),
-			"rating":        randomFloat(4.3, 5.0),
-			"trips_today":   randomInt(2, 15),
-			"battery":       randomInt(15, 95),
-		})
+	profiles := map[string]map[string]interface{}{}
+	if h.repo != nil && len(points) > 0 {
+		ids := make([]string, 0, len(points))
+		for id := range points {
+			ids = append(ids, id)
+		}
+		if prows, err := h.repo.GetDriversByIDs(r.Context(), ids); err == nil {
+			profiles = prows
+		}
+	}
+
+	for id, p := range points {
+		// Consider drivers stale after 2 minutes without an update
+		if time.Since(p.UpdatedAt) > 2*time.Minute {
+			continue
+		}
+		d := map[string]interface{}{
+			"id":         id,
+			"lat":        p.Lat,
+			"lng":        p.Lng,
+			"speed":      p.Speed,
+			"heading":    p.Heading,
+			"status":     "online",
+			"updated_at": p.UpdatedAt.Format(time.RFC3339),
+		}
+		if prof, ok := profiles[id]; ok {
+			for k, v := range prof {
+				d[k] = v
+			}
+		}
+		drivers = append(drivers, d)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"drivers":    drivers,
 		"total":      len(drivers),
-		"center_lat": baseLat,
-		"center_lng": baseLng,
+		"center_lat": h.lat,
+		"center_lng": h.lng,
 	})
 }
 

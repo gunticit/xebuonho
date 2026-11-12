@@ -32,6 +32,10 @@ class _TripCompleteScreenState extends State<TripCompleteScreen>
       CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
     );
     _controller.forward();
+    // Lấy fare_final + hồ sơ tài xế mới nhất từ server để hiển thị thật
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<BookingProvider>().refreshCurrentRide();
+    });
   }
 
   @override

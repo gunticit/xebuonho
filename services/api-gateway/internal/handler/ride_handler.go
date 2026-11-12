@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xebuonho/pkg/maps"
+	"github.com/xebuonho/services/api-gateway/internal/driverstate"
 	"github.com/xebuonho/services/api-gateway/internal/event"
 	"github.com/xebuonho/services/api-gateway/internal/grpcclient"
 	"github.com/xebuonho/services/api-gateway/internal/middleware"
@@ -39,17 +41,21 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		ServiceType    string  `json:"service_type"`
-		PickupLat      float64 `json:"pickup_lat"`
-		PickupLng      float64 `json:"pickup_lng"`
-		PickupAddress  string  `json:"pickup_address"`
-		DropoffLat     float64 `json:"dropoff_lat"`
-		DropoffLng     float64 `json:"dropoff_lng"`
-		DropoffAddress string  `json:"dropoff_address"`
-		VehicleType    string  `json:"vehicle_type"`
-		PaymentMethod  string  `json:"payment_method"`
-		PromoCode      string  `json:"promo_code"`
-		DesignatedMode string  `json:"designated_mode"`
+		ServiceType            string  `json:"service_type"`
+		PickupLat              float64 `json:"pickup_lat"`
+		PickupLng              float64 `json:"pickup_lng"`
+		PickupAddress          string  `json:"pickup_address"`
+		DropoffLat             float64 `json:"dropoff_lat"`
+		DropoffLng             float64 `json:"dropoff_lng"`
+		DropoffAddress         string  `json:"dropoff_address"`
+		VehicleType            string  `json:"vehicle_type"`
+		PaymentMethod          string  `json:"payment_method"`
+		PromoCode              string  `json:"promo_code"`
+		Notes                  string  `json:"notes"`
+		DesignatedMode         string  `json:"designated_mode"`
+		DesignatedVehicleType  string  `json:"designated_vehicle_type"`
+		DesignatedLicensePlate string  `json:"designated_license_plate"`
+		ScheduledAt            string  `json:"scheduled_at"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -76,6 +82,23 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 
 	if req.ServiceType == "" {
 		req.ServiceType = "ride"
+	}
+
+	// Scheduled ride: parse future time → order starts as 'scheduled', a gateway
+	// worker flips it to 'created' (driver-visible) when due.
+	var scheduledAt *time.Time
+	if req.ScheduledAt != "" {
+		t, err := time.Parse(time.RFC3339, req.ScheduledAt)
+		if err != nil {
+			t, err = time.ParseInLocation("2006-01-02 15:04", req.ScheduledAt, time.Local)
+		}
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "scheduled_at must be RFC3339 or 'YYYY-MM-DD HH:MM'")
+			return
+		}
+		if t.After(time.Now().Add(time.Minute)) {
+			scheduledAt = &t
+		}
 	}
 
 	// Distance and duration calculation using Amazon Location Service (with fallback)
@@ -113,21 +136,26 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 
 	if h.repo != nil {
 		rideRes, err := h.repo.CreateRide(r.Context(), repository.CreateRideParams{
-			IdempotencyKey: idempotencyKey,
-			ServiceType:    req.ServiceType,
-			RiderID:        userID,
-			PickupLat:      req.PickupLat,
-			PickupLng:      req.PickupLng,
-			PickupAddress:  req.PickupAddress,
-			DropoffLat:     req.DropoffLat,
-			DropoffLng:     req.DropoffLng,
-			DropoffAddress: req.DropoffAddress,
-			VehicleType:    req.VehicleType,
-			PaymentMethod:  req.PaymentMethod,
-			PromoCode:      req.PromoCode,
-			FareEstimate:   fare,
-			DistanceKm:     distKm,
-			DurationMin:    durMin,
+			IdempotencyKey:         idempotencyKey,
+			ServiceType:            req.ServiceType,
+			RiderID:                userID,
+			PickupLat:              req.PickupLat,
+			PickupLng:              req.PickupLng,
+			PickupAddress:          req.PickupAddress,
+			DropoffLat:             req.DropoffLat,
+			DropoffLng:             req.DropoffLng,
+			DropoffAddress:         req.DropoffAddress,
+			VehicleType:            req.VehicleType,
+			PaymentMethod:          req.PaymentMethod,
+			PromoCode:              req.PromoCode,
+			FareEstimate:           fare,
+			DistanceKm:             distKm,
+			DurationMin:            durMin,
+			Notes:                  req.Notes,
+			DesignatedMode:         req.DesignatedMode,
+			DesignatedVehicleType:  req.DesignatedVehicleType,
+			DesignatedLicensePlate: req.DesignatedLicensePlate,
+			ScheduledAt:            scheduledAt,
 		})
 		if err == nil {
 			// Observer Pattern: dispatch EventOrderCreated to all subscribers
@@ -148,6 +176,9 @@ func (h *RideHandler) CreateRide(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		// Repo error must be visible — the gRPC fallback is a stub and would
+		// otherwise silently return placeholder data.
+		log.Printf("[CreateRide] repo insert failed, falling back to gRPC: %v", err)
 	}
 
 	ride, fareEstimate, err := h.client.CreateRide(r.Context(), grpcclient.CreateRideRequest{
@@ -185,6 +216,13 @@ func (h *RideHandler) GetRide(w http.ResponseWriter, r *http.Request) {
 	if h.repo != nil {
 		ride, err := h.repo.GetRide(r.Context(), rideID)
 		if err == nil && ride != nil {
+			// Attach the driver's realtime GPS position (in-memory store), if reported
+			if ride.Driver != nil {
+				if p, ok := driverstate.Default.Get(ride.Driver.ID); ok {
+					ride.Driver.Lat = &p.Lat
+					ride.Driver.Lng = &p.Lng
+				}
+			}
 			writeJSON(w, http.StatusOK, ride)
 			return
 		}
@@ -198,25 +236,99 @@ func (h *RideHandler) GetRide(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ride)
 }
 
-// PATCH /api/v1/rides/{id}/cancel
+// GET/POST /api/v1/rides/{id}/messages — rider<->driver chat per order
+func (h *RideHandler) RideMessages(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	path := strings.TrimSuffix(r.URL.Path, "/messages")
+	rideID := extractPathParam(path, "/api/v1/rides/")
+	if rideID == "" {
+		writeError(w, http.StatusBadRequest, "ride_id is required")
+		return
+	}
+	if h.repo == nil {
+		writeError(w, http.StatusServiceUnavailable, "repository unavailable")
+		return
+	}
+
+	switch r.Method {
+	case "GET":
+		messages, err := h.repo.ListRideMessages(r.Context(), rideID, userID, 100)
+		if err != nil {
+			writeError(w, http.StatusForbidden, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{"messages": messages})
+
+	case "POST":
+		var req struct {
+			Message string `json:"message"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Message) == "" {
+			writeError(w, http.StatusBadRequest, "message is required")
+			return
+		}
+		if len(req.Message) > 1000 {
+			writeError(w, http.StatusBadRequest, "message too long (max 1000 chars)")
+			return
+		}
+		role := "rider"
+		if middleware.GetUserRole(r) == "driver" {
+			role = "driver"
+		}
+		msg, err := h.repo.AddRideMessage(r.Context(), rideID, userID, role, strings.TrimSpace(req.Message))
+		if err != nil {
+			writeError(w, http.StatusForbidden, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, msg)
+
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+// PATCH /api/v1/rides/{id}/cancel — only the customer cancels via this route
+// (drivers use /api/v1/driver/trip/update with action=cancelled).
 func (h *RideHandler) CancelRide(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if middleware.GetUserRole(r) == "driver" {
+		writeError(w, http.StatusForbidden, "drivers cancel via /api/v1/driver/trip/update")
+		return
+	}
+
 	path := strings.TrimSuffix(r.URL.Path, "/cancel")
 	rideID := extractPathParam(path, "/api/v1/rides/")
-	userRole := middleware.GetUserRole(r)
+	if rideID == "" {
+		writeError(w, http.StatusBadRequest, "ride_id is required")
+		return
+	}
 
 	var req struct {
 		Reason string `json:"reason"`
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 
-	cancelledBy := "rider"
-	if userRole == "driver" {
-		cancelledBy = "driver"
+	if h.repo == nil {
+		writeError(w, http.StatusServiceUnavailable, "repository unavailable")
+		return
+	}
+	if err := h.repo.CancelRideByUser(r.Context(), rideID, userID, req.Reason); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
 	}
 
-	ride, err := h.client.CancelRide(r.Context(), rideID, cancelledBy, req.Reason)
+	ride, err := h.repo.GetRide(r.Context(), rideID)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeJSON(w, http.StatusOK, map[string]string{"id": rideID, "status": "cancelled"})
 		return
 	}
 	writeJSON(w, http.StatusOK, ride)

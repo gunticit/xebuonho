@@ -40,6 +40,9 @@ class ApiConfig {
   // Health
   static const String health = '/health';
 
+  // WebSocket realtime (gateway /ws — auth bằng query token)
+  static String get wsUrl => baseUrl.replaceFirst('http', 'ws') + '/ws';
+
   // Map & Location Services
   static const String reverseGeocode = '$apiVersion/maps/reverse-geocode';
   static const String route = '$apiVersion/maps/route';

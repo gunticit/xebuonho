@@ -3,6 +3,29 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
 
+/// Lỗi API có message rõ ràng (lấy từ response `error` của server nếu có).
+class ApiException implements Exception {
+  final String message;
+  final int? statusCode;
+  ApiException(this.message, {this.statusCode});
+
+  static ApiException fromDio(DioException e) {
+    final data = e.response?.data;
+    final msg = data is Map && data['error'] != null
+        ? data['error'].toString()
+        : (data is Map && data['message'] != null ? data['message'].toString() : null);
+    if (msg != null && msg.isNotEmpty) return ApiException(msg, statusCode: e.response?.statusCode);
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.connectionError:
+        return ApiException('Không kết nối được server. Kiểm tra backend đang chạy.');
+      default:
+        return ApiException('Lỗi kết nối: ${e.message ?? e.type.name}');
+    }
+  }
+}
+
 class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
@@ -168,35 +191,80 @@ class ApiService {
     required String vehicleType,
     required String paymentMethod,
     String? notes,
+    String? scheduledAt, // RFC3339 hoặc 'YYYY-MM-DD HH:MM'
+    String? designatedMode,
+    String? designatedVehicleType,
+    String? designatedLicensePlate,
   }) async {
     final idempotencyKey = 'ride-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(999999)}';
 
-    final res = await _dio.post(
-      ApiConfig.createRide,
-      options: Options(
-        headers: {
-          'X-Idempotency-Key': idempotencyKey,
+    try {
+      final res = await _dio.post(
+        ApiConfig.createRide,
+        options: Options(
+          headers: {
+            'X-Idempotency-Key': idempotencyKey,
+          },
+        ),
+        data: {
+          'service_type': serviceType,
+          'pickup_address': pickupAddress,
+          'pickup_lat': pickupLat,
+          'pickup_lng': pickupLng,
+          'dropoff_address': dropoffAddress,
+          'dropoff_lat': dropoffLat,
+          'dropoff_lng': dropoffLng,
+          'vehicle_type': vehicleType,
+          'payment_method': paymentMethod,
+          'notes': notes,
+          if (scheduledAt != null && scheduledAt.isNotEmpty) 'scheduled_at': scheduledAt,
+          if (designatedMode != null && designatedMode.isNotEmpty) 'designated_mode': designatedMode,
+          if (designatedVehicleType != null && designatedVehicleType.isNotEmpty)
+            'designated_vehicle_type': designatedVehicleType,
+          if (designatedLicensePlate != null && designatedLicensePlate.isNotEmpty)
+            'designated_license_plate': designatedLicensePlate,
         },
-      ),
-      data: {
-        'service_type': serviceType,
-        'pickup_address': pickupAddress,
-        'pickup_lat': pickupLat,
-        'pickup_lng': pickupLng,
-        'dropoff_address': dropoffAddress,
-        'dropoff_lat': dropoffLat,
-        'dropoff_lng': dropoffLng,
-        'vehicle_type': vehicleType,
-        'payment_method': paymentMethod,
-        'notes': notes,
-      },
-    );
-    return res.data;
+      );
+      return res.data;
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
   }
 
   Future<Map<String, dynamic>> getRide(String id) async {
     final res = await _dio.get(ApiConfig.rideDetail(id));
     return res.data;
+  }
+
+  /// Huỷ chuyến (chỉ chủ chuyến, khi status created/accepted).
+  Future<void> cancelRide(String id, {String reason = ''}) async {
+    try {
+      await _dio.patch(
+        '${ApiConfig.rideDetail(id)}/cancel',
+        data: {'reason': reason},
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  // ========== Chat Khách ↔ Tài xế (order_messages) ==========
+  Future<List<Map<String, dynamic>>> getRideMessages(String rideId) async {
+    final res = await _dio.get('${ApiConfig.rideDetail(rideId)}/messages');
+    final messages = res.data['messages'] as List? ?? [];
+    return messages.cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> sendRideMessage(String rideId, String message) async {
+    try {
+      final res = await _dio.post(
+        '${ApiConfig.rideDetail(rideId)}/messages',
+        data: {'message': message},
+      );
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
   }
 
   // ========== Nearby Drivers ==========
@@ -249,15 +317,17 @@ class ApiService {
     }
   }
 
-  Future<bool> acceptDriverRequest(String requestId) async {
+  /// Nhận cuốc — trả null nếu thành công, ngược lại message lỗi
+  /// (VD: 403 khi tài xế chưa được duyệt KYC, 409 khi cuốc đã có người nhận).
+  Future<String?> acceptDriverRequest(String requestId) async {
     try {
       final res = await _dio.post(
         '${ApiConfig.baseUrl}/api/v1/driver/accept',
         data: {'request_id': requestId},
       );
-      return res.data['accepted'] == true;
-    } catch (_) {
-      return true;
+      return res.data['accepted'] == true ? null : 'Không nhận được cuốc';
+    } on DioException catch (e) {
+      return ApiException.fromDio(e).message;
     }
   }
 
@@ -273,6 +343,62 @@ class ApiService {
       return res.statusCode == 200;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Gửi vị trí GPS tài xế lên server (rider tracking + nearby list đọc từ đây).
+  Future<void> updateDriverLocation({
+    required double lat,
+    required double lng,
+    double speed = 0,
+    double heading = 0,
+    int battery = 0,
+  }) async {
+    try {
+      await _dio.post('${ApiConfig.baseUrl}/api/v1/driver/location/update', data: {
+        'lat': lat,
+        'lng': lng,
+        'speed': speed,
+        'heading': heading,
+        'battery': battery,
+      });
+    } catch (_) {
+      // Location là best-effort — không chặn luồng tài xế
+    }
+  }
+
+  /// Cuốc đang thực hiện của tài xế (sync sau reload / mỗi transition).
+  Future<Map<String, dynamic>?> getCurrentDriverTrip() async {
+    try {
+      final res = await _dio.get('${ApiConfig.baseUrl}/api/v1/driver/trip/current');
+      final trip = res.data['trip'];
+      return trip is Map<String, dynamic> ? trip : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Tổng thu nhập thật từ orders completed (gateway /driver/earnings).
+  Future<Map<String, dynamic>?> getDriverEarnings() async {
+    try {
+      final res = await _dio.get('${ApiConfig.baseUrl}/api/v1/driver/earnings');
+      return res.data as Map<String, dynamic>?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Lịch sử chuyến thật của tài xế (gateway /driver/history).
+  Future<List<Map<String, dynamic>>> getDriverHistory({int limit = 20}) async {
+    try {
+      final res = await _dio.get(
+        '${ApiConfig.baseUrl}/api/v1/driver/history',
+        queryParameters: {'limit': limit},
+      );
+      final history = res.data['history'] as List? ?? [];
+      return history.cast<Map<String, dynamic>>();
+    } catch (_) {
+      return [];
     }
   }
 

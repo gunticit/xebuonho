@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/ride.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 import '../services/routing_service.dart';
 
 enum BookingState {
@@ -19,6 +22,27 @@ enum BookingState {
 
 class BookingProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
+  StreamSubscription? _wsSub;
+
+  BookingProvider() {
+    // Realtime WS: tài xế nhận/huỷ/advance → refresh ngay từ server.
+    // Polling 3s ở tracking screen vẫn chạy fallback khi WS rớt.
+    _wsSub = NotificationService().rideEvents.listen((event) {
+      final orderId = event['order_id']?.toString();
+      if (orderId != null &&
+          _currentRide != null &&
+          _currentRide!.id.isNotEmpty &&
+          orderId == _currentRide!.id) {
+        refreshCurrentRide();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _wsSub?.cancel();
+    super.dispose();
+  }
 
   BookingState _state = BookingState.idle;
   String _pickupAddress = '';
@@ -161,7 +185,8 @@ class BookingProvider extends ChangeNotifier {
     return (dlat + dlng) * 111; // rough km
   }
 
-  // Book ride
+  // Book ride — creates the order server-side; the ride id drives all
+  // subsequent tracking/rating calls, so failures surface honestly.
   Future<void> confirmBooking() => bookRide();
 
   Future<void> bookRide() async {
@@ -182,41 +207,63 @@ class BookingProvider extends ChangeNotifier {
         notes: _notes,
       );
       _currentRide = RideModel.fromJson(data);
-      _state = BookingState.driverFound;
+      if (_currentRide!.id.isEmpty) {
+        _error = 'Hệ thống chưa ghi nhận chuyến đi. Vui lòng thử lại.';
+        _state = BookingState.confirming;
+        notifyListeners();
+        return;
+      }
+      // Ride created server-side. "Driver found" is NOT simulated: the tracking
+      // screen polls the real order status (created → accepted → ...).
+      _state = BookingState.tracking;
     } catch (e) {
-      // Demo: simulate ride creation
-      _currentRide = RideModel(
-        id: 'RIDE-${DateTime.now().millisecondsSinceEpoch}',
-        serviceType: ServiceType.ride,
-        status: RideStatus.driverAssigned,
-        pickupAddress: _pickupAddress,
-        pickupLat: _pickupLat,
-        pickupLng: _pickupLng,
-        dropoffAddress: _dropoffAddress,
-        dropoffLat: _dropoffLat,
-        dropoffLng: _dropoffLng,
-        distanceKm: _distanceEstimate(),
-        durationMin: (_distanceEstimate() * 3).toInt(),
-        fareEstimate: _fareEstimates[_vehicleType] ?? 50000,
-        paymentMethod: _paymentMethod,
-        vehicleType: _vehicleType,
-        createdAt: DateTime.now(),
-      );
-      _state = BookingState.driverFound;
+      // Không fake ride nữa — báo lỗi thật cho người dùng.
+      _error = e is ApiException
+          ? e.message
+          : 'Không tạo được chuyến đi. Kiểm tra kết nối server và thử lại.';
+      _state = BookingState.confirming;
     }
 
     notifyListeners();
+  }
 
-    // Simulate driver found after 3s
-    await Future.delayed(const Duration(seconds: 3));
-    _state = BookingState.tracking;
-    notifyListeners();
+  /// Refresh the current ride from the server (used by tracking screen polling).
+  Future<RideModel?> refreshCurrentRide() async {
+    final ride = _currentRide;
+    if (ride == null || ride.id.isEmpty) return null;
+    try {
+      final data = await _api.getRide(ride.id);
+      _currentRide = RideModel.fromJson(data);
+      notifyListeners();
+      return _currentRide;
+    } catch (_) {
+      return null;
+    }
   }
 
   // Complete / Cancel
   void completeRide() {
     _state = BookingState.completed;
     notifyListeners();
+  }
+
+  /// Gọi server huỷ chuyến (chỉ khi created/accepted). Trả null nếu OK.
+  Future<String?> cancelRideOnServer({String reason = ''}) async {
+    final ride = _currentRide;
+    if (ride == null || ride.id.isEmpty) {
+      return 'Chuyến đi chưa được tạo trên hệ thống';
+    }
+    try {
+      await _api.cancelRide(ride.id, reason: reason);
+      _state = BookingState.cancelled;
+      notifyListeners();
+      Future.delayed(const Duration(seconds: 2), reset);
+      return null;
+    } catch (e) {
+      return e is ApiException
+          ? e.message
+          : 'Không huỷ được chuyến. Vui lòng thử lại.';
+    }
   }
 
   void cancelRide() {

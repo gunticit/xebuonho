@@ -52,6 +52,9 @@ type Hub struct {
 	unregister chan *Client
 	mu         sync.RWMutex
 	logger     *log.Logger
+	// TokenAuthenticator verifies the WS handshake token. Returns userID + role.
+	// Required: connections without a valid token are rejected (fail-closed).
+	TokenAuthenticator func(token string) (userID, role string, err error)
 	// Store recent notifications per user
 	recentNotifications map[string][]Notification
 	notifMu             sync.RWMutex
@@ -206,13 +209,31 @@ func (h *Hub) GetOnlineCount() int {
 // ==========================================
 
 func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("user_id")
-	role := r.URL.Query().Get("role")
-	if userID == "" {
-		userID = "anonymous-" + generateID()[:8]
-	}
-	if role == "" {
-		role = "rider"
+	// Identity must come from a verified JWT in the query token — the client
+	// identity decides who receives push notifications, so it cannot be spoofed.
+	userID := ""
+	role := ""
+	if h.TokenAuthenticator != nil {
+		token := r.URL.Query().Get("token")
+		if token == "" {
+			http.Error(w, `{"error":"token required"}`, http.StatusUnauthorized)
+			return
+		}
+		var err error
+		userID, role, err = h.TokenAuthenticator(token)
+		if err != nil || userID == "" {
+			http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
+			return
+		}
+	} else {
+		userID = r.URL.Query().Get("user_id")
+		role = r.URL.Query().Get("role")
+		if userID == "" {
+			userID = "anonymous-" + generateID()[:8]
+		}
+		if role == "" {
+			role = "rider"
+		}
 	}
 
 	// WebSocket handshake

@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/app_models.dart';
+import '../providers/auth_provider.dart';
+import '../services/api_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -13,11 +16,12 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
-  final _messages = <ChatMessage>[
-    ChatMessage(id: '1', text: 'Xin chào! Tôi đang trên đường đến.', isMe: false, time: DateTime.now().subtract(const Duration(minutes: 3))),
-    ChatMessage(id: '2', text: 'Tôi đang ở cổng chính nhé', isMe: true, time: DateTime.now().subtract(const Duration(minutes: 2))),
-    ChatMessage(id: '3', text: 'Vâng, tôi thấy rồi. Khoảng 2 phút nữa tôi đến.', isMe: false, time: DateTime.now().subtract(const Duration(minutes: 1))),
-  ];
+  final _messages = <ChatMessage>[];
+  Timer? _pollTimer;
+  String? _rideId;
+  String _peerName = 'Tài xế';
+  bool _isSending = false;
+  String? _error;
 
   final _quickActions = [
     'Tôi đang chờ ở đây',
@@ -27,34 +31,87 @@ class _ChatScreenState extends State<ChatScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map) {
+        _rideId = args['rideId']?.toString();
+        final peer = args['peerName']?.toString();
+        if (peer != null && peer.isNotEmpty) _peerName = peer;
+      }
+      if (_rideId != null && _rideId!.isNotEmpty) {
+        _loadMessages();
+        _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _loadMessages());
+      } else {
+        setState(() {
+          _error = 'Không tìm thấy chuyến đi để chat. Hãy bắt đầu chuyến đi trước.';
+        });
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
-  void _send(String text) {
-    if (text.isEmpty) return;
-    setState(() {
-      _messages.add(ChatMessage(id: 'u${_messages.length}', text: text, isMe: true, time: DateTime.now()));
-      _msgCtrl.clear();
-    });
-    _scrollToBottom();
+  bool get _isDriver => context.read<AuthProvider>().isDriver;
 
-    // Simulate driver reply
-    Timer(const Duration(seconds: 2), () {
+  Future<void> _loadMessages() async {
+    if (_rideId == null || _rideId!.isEmpty) return;
+    try {
+      final rows = await ApiService().getRideMessages(_rideId!);
       if (!mounted) return;
-      final replies = ['Vâng ạ 👍', 'OK, tôi biết rồi', 'Được ạ, không vấn đề gì', 'Tôi đang đến đây'];
       setState(() {
-        _messages.add(ChatMessage(
-          id: 'd${_messages.length}',
-          text: replies[DateTime.now().millisecond % replies.length],
-          isMe: false,
-          time: DateTime.now(),
-        ));
+        _error = null;
+        _messages
+          ..clear()
+          ..addAll(rows.map((m) {
+            final myRole = _isDriver ? 'driver' : 'rider';
+            return ChatMessage(
+              id: m['id']?.toString() ?? '',
+              text: m['message']?.toString() ?? '',
+              isMe: m['sender_role']?.toString() == myRole,
+              time: DateTime.tryParse(m['created_at']?.toString() ?? '') ?? DateTime.now(),
+            );
+          }));
       });
       _scrollToBottom();
-    });
+    } catch (e) {
+      if (!mounted) return;
+      // Chỉ báo lỗi khi chưa có gì hiển thị (đơn không thuộc về mình / chưa nhận)
+      if (_messages.isEmpty) {
+        setState(() {
+          _error = 'Không tải được tin nhắn. Chỉ khách và tài xế của chuyến này được chat.';
+        });
+      }
+    }
+  }
+
+  Future<void> _send(String text) async {
+    if (text.isEmpty || _rideId == null || _isSending) return;
+    setState(() => _isSending = true);
+    _msgCtrl.clear();
+    try {
+      await ApiService().sendRideMessage(_rideId!, text);
+      await _loadMessages();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.card),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không gửi được tin nhắn, thử lại.'), backgroundColor: AppColors.card),
+      );
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
   }
 
   void _scrollToBottom() {
@@ -118,7 +175,7 @@ class _ChatScreenState extends State<ChatScreen> {
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.bg2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Chặn Nguyễn Văn B?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text)),
+        title: Text('Chặn $_peerName?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text)),
         content: Text('Người này sẽ không thể nhắn tin cho bạn.', style: TextStyle(fontSize: 14, color: AppColors.text3)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: Text('Hủy', style: TextStyle(color: AppColors.text3))),
@@ -127,7 +184,7 @@ class _ChatScreenState extends State<ChatScreen> {
               Navigator.pop(context);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: const Text('🚫 Đã chặn Nguyễn Văn B'), backgroundColor: AppColors.red),
+                SnackBar(content: Text('🚫 Đã chặn $_peerName'), backgroundColor: AppColors.red),
               );
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
@@ -152,11 +209,11 @@ class _ChatScreenState extends State<ChatScreen> {
               child: const Center(child: Text('🧑', style: TextStyle(fontSize: 18))),
             ),
             const SizedBox(width: 10),
-            const Column(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Nguyễn Văn B', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                Text('Đang hoạt động', style: TextStyle(fontSize: 11, color: AppColors.green)),
+                Text(_peerName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.text)),
+                const Text('Đang hoạt động', style: TextStyle(fontSize: 11, color: AppColors.green)),
               ],
             ),
           ],
@@ -191,14 +248,28 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // Messages
+          // Messages / empty / error
           Expanded(
-            child: ListView.builder(
-              controller: _scrollCtrl,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (_, i) => _buildMessage(_messages[i]),
-            ),
+            child: _error != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(_error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13, color: AppColors.text3, height: 1.5)),
+                    ),
+                  )
+                : _messages.isEmpty
+                    ? const Center(
+                        child: Text('Chưa có tin nhắn nào. Hãy chào tài xế!',
+                            style: TextStyle(fontSize: 13, color: AppColors.text3)),
+                      )
+                    : ListView.builder(
+                        controller: _scrollCtrl,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _messages.length,
+                        itemBuilder: (_, i) => _buildMessage(_messages[i]),
+                      ),
           ),
 
           // Quick actions

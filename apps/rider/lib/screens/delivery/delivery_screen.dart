@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../providers/active_order_provider.dart';
+import '../../services/api_service.dart';
 
 class DeliveryScreen extends StatefulWidget {
   const DeliveryScreen({super.key});
@@ -26,6 +28,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   String _serviceSpeed = 'speedy'; // 'speedy' | 'standard'
   bool _handToHand = true;
   bool _needCod = false;
+  bool _isSubmitting = false;
   final _codAmountCtrl = TextEditingController(text: '250000');
   String _paymentMethod = 'Ví Xebuonho';
 
@@ -509,58 +512,111 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     );
   }
 
-  void _submitDeliveryOrder() {
-    final orderId = 'EXPRESS-${DateTime.now().millisecondsSinceEpoch % 100000}';
-    final entry = ActiveOrderEntry(
-      id: orderId,
-      type: ActiveOrderType.delivery,
-      title: 'Giao hàng: $_packageType',
-      subtitle: 'Tới: ${_receiverAddrCtrl.text}',
-      statusText: 'Đang điều phối shipper đến lấy hàng',
-      emoji: '📦',
-      routePath: '/activities',
-      etaMinutes: _serviceSpeed == 'speedy' ? 35 : 120,
-      progress: 0.25,
-    );
-
-    context.read<ActiveOrderProvider>().addOrder(entry);
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.bg2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('🎉', style: TextStyle(fontSize: 50)),
-              const SizedBox(height: 12),
-              const Text('Đặt giao hàng thành công!', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.text)),
-              const SizedBox(height: 6),
-              Text(
-                'Mã đơn hàng #$orderId.\nShipper đang đến địa chỉ người gửi để nhận bưu kiện.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 13, color: AppColors.text2),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context); // close dialog
-                  Navigator.pop(context); // back to home
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.blue,
-                  minimumSize: const Size(double.infinity, 44),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Xem trên Trang chủ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
+  /// Tạo đơn giao hàng thật qua /api/v1/rides (service_type=express_delivery).
+  /// Shipper (tài xế) thấy đơn này ở bảng nhận cuốc; đơn hiển thị trong Hoạt động.
+  Future<void> _submitDeliveryOrder() async {
+    setState(() => _isSubmitting = true);
+    try {
+      // Điểm lấy hàng: vị trí hiện tại nếu có GPS, fallback địa chỉ mặc định
+      double pickupLat = 10.7547;
+      double pickupLng = 106.7040;
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.medium,
         );
-      },
-    );
+        pickupLat = pos.latitude;
+        pickupLng = pos.longitude;
+      } catch (_) {}
+
+      final data = await ApiService().createRide(
+        serviceType: 'express_delivery',
+        pickupAddress: _senderAddrCtrl.text,
+        pickupLat: pickupLat,
+        pickupLng: pickupLng,
+        dropoffAddress: _receiverAddrCtrl.text,
+        dropoffLat: 10.8027,
+        dropoffLng: 106.7427,
+        vehicleType: 'car',
+        paymentMethod: _codAmountCtrl.text.isNotEmpty && _codAmountCtrl.text != '0'
+            ? 'cod'
+            : 'cash',
+        notes: '[GIAO HÀNG] Gói: $_packageType • Dịch vụ: $_serviceSpeed\n'
+            'Người gửi: ${_senderNameCtrl.text} (${_senderPhoneCtrl.text}) — ${_senderNoteCtrl.text}\n'
+            'Người nhận: ${_receiverNameCtrl.text} (${_receiverPhoneCtrl.text}) — ${_receiverNoteCtrl.text}\n'
+            'COD: ${_codAmountCtrl.text}đ',
+      );
+
+      final ride = data['ride'] as Map<String, dynamic>? ?? {};
+      final orderId = ride['id']?.toString() ??
+          'EXPRESS-${DateTime.now().millisecondsSinceEpoch % 100000}';
+
+      if (!mounted) return;
+      final entry = ActiveOrderEntry(
+        id: orderId,
+        type: ActiveOrderType.delivery,
+        title: 'Giao hàng: $_packageType',
+        subtitle: 'Tới: ${_receiverAddrCtrl.text}',
+        statusText: 'Đang điều phối shipper đến lấy hàng',
+        emoji: '📦',
+        routePath: '/activities',
+        etaMinutes: _serviceSpeed == 'speedy' ? 35 : 120,
+        progress: 0.25,
+      );
+      context.read<ActiveOrderProvider>().addOrder(entry);
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            backgroundColor: AppColors.bg2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('🎉', style: TextStyle(fontSize: 50)),
+                const SizedBox(height: 12),
+                const Text('Đặt giao hàng thành công!', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.text)),
+                const SizedBox(height: 6),
+                Text(
+                  'Mã đơn #${orderId.substring(0, orderId.length > 8 ? 8 : orderId.length)}.\nShipper đang đến địa chỉ người gửi để nhận bưu kiện.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13, color: AppColors.text2),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // close dialog
+                    Navigator.pop(context); // back to home
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.blue,
+                    minimumSize: const Size(double.infinity, 44),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Xem trên Trang chủ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.card),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tạo được đơn. Kiểm tra server và thử lại.'),
+          backgroundColor: AppColors.card,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   Widget _buildTextField(String label, TextEditingController controller, {String? hint, bool isPhone = false}) {

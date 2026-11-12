@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -154,9 +155,37 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	// WebSocket Realtime Notifications
 	// ==========================================
 	notifHub := ws.NewHub()
+	// WS handshake identity must come from a signed JWT (query token)
+	notifHub.TokenAuthenticator = func(token string) (string, string, error) {
+		claims, err := middleware.ParseToken(token, jwtSecret)
+		if err != nil || claims == nil {
+			return "", "", fmt.Errorf("invalid token")
+		}
+		return claims.UserID, claims.Role, nil
+	}
 	go notifHub.Run()
 
-	// Observer Pattern: wire Event Dispatcher to WebSocket NotifHub
+	// Scheduled rides worker: flip 'scheduled' → 'created' when due so the
+	// booking appears in the driver pending list at the booked time.
+	if repo != nil {
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				n, err := repo.ActivateDueScheduledRides(ctx)
+				cancel()
+				if err != nil {
+					log.Printf("[scheduled-worker] error: %v", err)
+				} else if n > 0 {
+					log.Printf("[scheduled-worker] activated %d scheduled ride(s)", n)
+				}
+			}
+		}()
+	}
+
+	// Observer Pattern: wire Event Dispatcher to WebSocket NotifHub.
+	// Rider-targeted events use SendToUser(customer_id) — no more global broadcast.
 	event.GetDispatcher().Subscribe(event.EventOrderCreated, func(ctx context.Context, e event.Event) error {
 		notifHub.SendToRole("driver", ws.Notification{
 			Type:    "new_ride_request",
@@ -166,18 +195,40 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 		return nil
 	})
 	event.GetDispatcher().Subscribe(event.EventOrderAccepted, func(ctx context.Context, e event.Event) error {
-		notifHub.Broadcast(ws.Notification{
+		m, _ := e.Payload.(map[string]interface{})
+		customerID, _ := m["customer_id"].(string)
+		if customerID == "" {
+			return nil
+		}
+		driverName, _ := m["driver_name"].(string)
+		plate, _ := m["license_plate"].(string)
+		notifHub.SendToUser(customerID, ws.Notification{
 			Type:    "ride_accepted",
 			Title:   "Tài xế đã nhận cuốc",
-			Message: "Tài xế đang trên đường đến điểm đón bạn.",
+			Message: fmt.Sprintf("%s (%s) đang trên đường đến điểm đón bạn.", driverName, plate),
+			Data:    m,
 		})
 		return nil
 	})
 	event.GetDispatcher().Subscribe(event.EventOrderStatusChanged, func(ctx context.Context, e event.Event) error {
-		notifHub.Broadcast(ws.Notification{
+		m, _ := e.Payload.(map[string]interface{})
+		customerID, _ := m["customer_id"].(string)
+		if customerID == "" {
+			return nil
+		}
+		status, _ := m["status"].(string)
+		messages := map[string]string{
+			"accepted":    "Tài xế đang trên đường đến điểm đón.",
+			"arrived":     "Tài xế đã đến điểm đón. Vui lòng ra xe!",
+			"in_progress": "Đang di chuyển đến điểm đến.",
+			"completed":   "Chuyến đi hoàn tất. Cảm ơn bạn đã sử dụng XeBuonHo!",
+			"cancelled":   "Chuyến đi đã bị hủy.",
+		}
+		notifHub.SendToUser(customerID, ws.Notification{
 			Type:    "ride_status_updated",
 			Title:   "Cập nhật hành trình",
-			Message: "Trạng thái cuốc xe đã thay đổi.",
+			Message: messages[status],
+			Data:    m,
 		})
 		return nil
 	})
@@ -295,7 +346,9 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 
 		switch {
 		case strings.HasPrefix(path, "/api/v1/rides/"):
-			if strings.HasSuffix(path, "/cancel") && r.Method == "PATCH" {
+			if strings.HasSuffix(path, "/messages") {
+				rideH.RideMessages(w, r)
+			} else if strings.HasSuffix(path, "/cancel") && r.Method == "PATCH" {
 				rideH.CancelRide(w, r)
 			} else if r.Method == "GET" {
 				rideH.GetRide(w, r)

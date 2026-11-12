@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -35,20 +36,55 @@ type CreateRideParams struct {
 	FareEstimate   float64
 	DistanceKm     float64
 	DurationMin    int
+	Notes          string
+	// Designated driver (lái xe hộ) — columns from migration 000003
+	DesignatedMode         string
+	DesignatedVehicleType  string
+	DesignatedLicensePlate string
+	// Scheduled ride: future time → order starts in status 'scheduled' and a
+	// gateway worker flips it to 'created' when due.
+	ScheduledAt *time.Time
+}
+
+type DriverInfo struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Phone        string   `json:"phone,omitempty"`
+	VehicleModel string   `json:"vehicle_model,omitempty"`
+	Plate        string   `json:"license_plate,omitempty"`
+	Rating       *float64 `json:"rating,omitempty"`
+	// Realtime position from the in-memory per-driver location store (may be nil)
+	Lat *float64 `json:"lat,omitempty"`
+	Lng *float64 `json:"lng,omitempty"`
 }
 
 type RideResult struct {
 	ID             string    `json:"id"`
 	ServiceType    string    `json:"service_type"`
 	RiderID        string    `json:"rider_id"`
+	PickupLat      float64   `json:"pickup_lat,omitempty"`
+	PickupLng      float64   `json:"pickup_lng,omitempty"`
 	PickupAddress  string    `json:"pickup_address"`
+	DropoffLat     float64   `json:"dropoff_lat,omitempty"`
+	DropoffLng     float64   `json:"dropoff_lng,omitempty"`
 	DropoffAddress string    `json:"dropoff_address"`
 	VehicleType    string    `json:"vehicle_type"`
 	Status         string    `json:"status"`
 	FareEstimate   float64   `json:"fare_estimate"`
+	FareFinal      *float64  `json:"fare_final,omitempty"`
+	PaymentMethod  string    `json:"payment_method,omitempty"`
+	Notes          string    `json:"notes,omitempty"`
 	DistanceKm     float64   `json:"distance_km"`
 	DurationMin    int       `json:"duration_minutes"`
-	CreatedAt      time.Time `json:"created_at"`
+	ScheduledAt    *time.Time `json:"scheduled_at,omitempty"`
+	AcceptedAt     *time.Time `json:"accepted_at,omitempty"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty"`
+	CancelledAt    *time.Time `json:"cancelled_at,omitempty"`
+	CancelledBy    string     `json:"cancelled_by,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	CustomerName   string     `json:"customer_name,omitempty"`
+	CustomerPhone  string     `json:"customer_phone,omitempty"`
+	Driver         *DriverInfo `json:"driver,omitempty"`
 }
 
 func (r *PostgresRepo) CreateRide(ctx context.Context, p CreateRideParams) (*RideResult, error) {
@@ -56,35 +92,59 @@ func (r *PostgresRepo) CreateRide(ctx context.Context, p CreateRideParams) (*Rid
 	if serviceType == "" {
 		serviceType = "ride"
 	}
+	status := "created"
+	var scheduledAt *time.Time
+	if p.ScheduledAt != nil && p.ScheduledAt.After(time.Now()) {
+		status = "scheduled"
+		scheduledAt = p.ScheduledAt
+	}
 
 	query := `
 		INSERT INTO orders (
 			idempotency_key, service_type, customer_id,
 			pickup_location, pickup_address, dropoff_location, dropoff_address,
 			vehicle_type, status, fare_estimate, payment_method, promo_code,
-			distance_km, duration_minutes
+			distance_km, duration_minutes, metadata,
+			designated_mode, designated_vehicle_type, designated_license_plate,
+			scheduled_at
 		) VALUES (
 			$1, $2, $3,
 			ST_SetSRID(ST_MakePoint($4, $5), 4326)::geography, $6,
 			ST_SetSRID(ST_MakePoint($7, $8), 4326)::geography, $9,
-			$10, 'created', $11, $12, $13, $14, $15
+			$10, $11, $12, $13, $14, $15, $16, $17::jsonb,
+			NULLIF($18, ''), NULLIF($19, ''), NULLIF($20, ''),
+			$21
 		)
 		ON CONFLICT (idempotency_key) DO UPDATE SET updated_at = NOW()
-		RETURNING id, service_type, customer_id, pickup_address, dropoff_address, vehicle_type, status,
-		          fare_estimate, COALESCE(distance_km, 0), COALESCE(duration_minutes, 0), created_at
+		RETURNING id, service_type, customer_id,
+		          ST_X(pickup_location::geometry), ST_Y(pickup_location::geometry),
+		          ST_X(dropoff_location::geometry), ST_Y(dropoff_location::geometry),
+		          pickup_address, dropoff_address, vehicle_type, status,
+		          fare_estimate, COALESCE(distance_km, 0), COALESCE(duration_minutes, 0),
+		          scheduled_at, created_at
 	`
 
 	res := &RideResult{}
+	metadataJSON := "{}"
+	if p.Notes != "" {
+		if b, err := json.Marshal(map[string]string{"notes": p.Notes}); err == nil {
+			metadataJSON = string(b)
+		}
+	}
 	err := r.db.QueryRow(ctx, query,
 		p.IdempotencyKey, serviceType, p.RiderID,
 		p.PickupLng, p.PickupLat, p.PickupAddress,
 		p.DropoffLng, p.DropoffLat, p.DropoffAddress,
-		p.VehicleType, p.FareEstimate, p.PaymentMethod, p.PromoCode,
-		p.DistanceKm, p.DurationMin,
+		p.VehicleType, status, p.FareEstimate, p.PaymentMethod, p.PromoCode,
+		p.DistanceKm, p.DurationMin, metadataJSON,
+		p.DesignatedMode, p.DesignatedVehicleType, p.DesignatedLicensePlate,
+		scheduledAt,
 	).Scan(
-		&res.ID, &res.ServiceType, &res.RiderID, &res.PickupAddress, &res.DropoffAddress,
-		&res.VehicleType, &res.Status, &res.FareEstimate,
-		&res.DistanceKm, &res.DurationMin, &res.CreatedAt,
+		&res.ID, &res.ServiceType, &res.RiderID,
+		&res.PickupLat, &res.PickupLng, &res.DropoffLat, &res.DropoffLng,
+		&res.PickupAddress, &res.DropoffAddress, &res.VehicleType, &res.Status,
+		&res.FareEstimate, &res.DistanceKm, &res.DurationMin,
+		&res.ScheduledAt, &res.CreatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert ride order: %w", err)
@@ -92,21 +152,199 @@ func (r *PostgresRepo) CreateRide(ctx context.Context, p CreateRideParams) (*Rid
 	return res, nil
 }
 
+// CancelRideByUser cancels an order by its customer. Only the owner may cancel,
+// and only while the order is still created or accepted (FSM guard).
+func (r *PostgresRepo) CancelRideByUser(ctx context.Context, orderID, customerID, reason string) error {
+	query := `
+		UPDATE orders
+		SET status = 'cancelled', cancelled_by = 'customer',
+		    cancelled_at = NOW(), cancel_reason = NULLIF($3, ''), updated_at = NOW()
+		WHERE id = $1 AND customer_id = $2 AND status IN ('created', 'accepted')
+	`
+	tag, err := r.db.Exec(ctx, query, orderID, customerID, reason)
+	if err != nil {
+		return fmt.Errorf("cancel ride: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("ride not found, already picked up/completed, or not yours to cancel")
+	}
+	return nil
+}
+
+// ListRideMessages returns the chat history of an order (participants only).
+func (r *PostgresRepo) ListRideMessages(ctx context.Context, orderID, userID string, limit int) ([]map[string]interface{}, error) {
+	// Participant guard: only rider or assigned driver of this order may read.
+	var ok bool
+	err := r.db.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM orders WHERE id = $1 AND (customer_id = $2 OR driver_id = $2))`,
+		orderID, userID).Scan(&ok)
+	if err != nil {
+		return nil, fmt.Errorf("check participant: %w", err)
+	}
+	if !ok {
+		return nil, fmt.Errorf("not a participant of this ride")
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT m.id, m.sender_id, m.sender_role, m.message, m.created_at, COALESCE(u.full_name, '')
+		FROM order_messages m
+		LEFT JOIN users u ON u.id = m.sender_id
+		WHERE m.order_id = $1
+		ORDER BY m.created_at ASC
+		LIMIT $2
+	`, orderID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list messages: %w", err)
+	}
+	defer rows.Close()
+
+	list := []map[string]interface{}{}
+	for rows.Next() {
+		var id, senderID, senderRole, message, senderName string
+		var createdAt time.Time
+		if err := rows.Scan(&id, &senderID, &senderRole, &message, &createdAt, &senderName); err != nil {
+			return nil, fmt.Errorf("scan message: %w", err)
+		}
+		list = append(list, map[string]interface{}{
+			"id": id, "sender_id": senderID, "sender_role": senderRole,
+			"message": message, "sender_name": senderName,
+			"created_at": createdAt.Format(time.RFC3339),
+		})
+	}
+	return list, rows.Err()
+}
+
+// AddRideMessage appends a chat message to an order (participants only).
+func (r *PostgresRepo) AddRideMessage(ctx context.Context, orderID, senderID, senderRole, message string) (map[string]interface{}, error) {
+	// Participant guard
+	var ok bool
+	err := r.db.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM orders WHERE id = $1 AND (customer_id = $2 OR driver_id = $2))`,
+		orderID, senderID).Scan(&ok)
+	if err != nil {
+		return nil, fmt.Errorf("check participant: %w", err)
+	}
+	if !ok {
+		return nil, fmt.Errorf("not a participant of this ride")
+	}
+
+	var id string
+	var createdAt time.Time
+	err = r.db.QueryRow(ctx, `
+		INSERT INTO order_messages (order_id, sender_id, sender_role, message)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, created_at
+	`, orderID, senderID, senderRole, message).Scan(&id, &createdAt)
+	if err != nil {
+		return nil, fmt.Errorf("add message: %w", err)
+	}
+	return map[string]interface{}{
+		"id": id, "order_id": orderID, "sender_id": senderID,
+		"sender_role": senderRole, "message": message,
+		"created_at": createdAt.Format(time.RFC3339),
+	}, nil
+}
+
+// GetDriversByIDs returns lightweight driver profiles keyed by user id,
+// used to enrich the realtime nearby-driver list.
+func (r *PostgresRepo) GetDriversByIDs(ctx context.Context, ids []string) (map[string]map[string]interface{}, error) {
+	out := map[string]map[string]interface{}{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT id, full_name, phone::text, COALESCE(vehicle_type, ''),
+		       COALESCE(vehicle_model, ''), COALESCE(license_plate, '')
+		FROM users WHERE id = ANY($1::uuid[]) AND role = 'driver'
+	`, ids)
+	if err != nil {
+		return nil, fmt.Errorf("get drivers by ids: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, name, phone, vtype, vmodel, plate string
+		if err := rows.Scan(&id, &name, &phone, &vtype, &vmodel, &plate); err != nil {
+			return nil, err
+		}
+		out[id] = map[string]interface{}{
+			"name": name, "phone": phone, "vehicle_type": vtype,
+			"vehicle_model": vmodel, "license_plate": plate,
+		}
+	}
+	return out, rows.Err()
+}
+
+// ActivateDueScheduledRides flips scheduled orders to 'created' once their time
+// arrives, so they surface in the driver pending list. Returns rows affected.
+func (r *PostgresRepo) ActivateDueScheduledRides(ctx context.Context) (int64, error) {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE orders SET status = 'created', updated_at = NOW()
+		WHERE status = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= NOW()
+	`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// GetRide returns the full order state plus assigned driver/customer profiles.
+// Driver rating is the AVG of trip_ratings rated by riders (null → client default).
 func (r *PostgresRepo) GetRide(ctx context.Context, rideID string) (*RideResult, error) {
 	query := `
-		SELECT id, customer_id, pickup_address, dropoff_address, vehicle_type, status,
-		       fare_estimate, COALESCE(distance_km, 0), COALESCE(duration_minutes, 0), created_at
-		FROM orders
-		WHERE id = $1
+		SELECT o.id, o.service_type, o.customer_id,
+			ST_Y(o.pickup_location::geometry), ST_X(o.pickup_location::geometry),
+			ST_Y(o.dropoff_location::geometry), ST_X(o.dropoff_location::geometry),
+			o.pickup_address, o.dropoff_address, o.vehicle_type, o.status,
+			o.fare_estimate, o.fare_final, COALESCE(o.payment_method, ''), COALESCE(o.metadata->>'notes', ''),
+			COALESCE(o.distance_km, 0), COALESCE(o.duration_minutes, 0),
+			o.scheduled_at, o.accepted_at, o.completed_at, o.cancelled_at, COALESCE(o.cancelled_by, ''),
+			o.created_at,
+			COALESCE(cu.full_name, ''), COALESCE(cu.phone::text, ''),
+			d.id, COALESCE(d.full_name, ''), COALESCE(d.phone::text, ''),
+			COALESCE(d.vehicle_model, ''), COALESCE(d.license_plate, ''),
+			(SELECT ROUND(AVG(rating)::numeric, 2)::float8 FROM trip_ratings tr
+			  WHERE tr.driver_id = d.id AND tr.rated_role = 'driver')
+		FROM orders o
+		LEFT JOIN users cu ON cu.id = o.customer_id
+		LEFT JOIN users d ON d.id = o.driver_id
+		WHERE o.id = $1
 	`
 	res := &RideResult{}
+	var (
+		fareFinal   *float64
+		driverID    *string
+		driverName  string
+		driverPhone string
+		drvModel    string
+		drvPlate    string
+		driverRate  *float64
+	)
 	err := r.db.QueryRow(ctx, query, rideID).Scan(
-		&res.ID, &res.RiderID, &res.PickupAddress, &res.DropoffAddress,
-		&res.VehicleType, &res.Status, &res.FareEstimate,
-		&res.DistanceKm, &res.DurationMin, &res.CreatedAt,
+		&res.ID, &res.ServiceType, &res.RiderID,
+		&res.PickupLat, &res.PickupLng, &res.DropoffLat, &res.DropoffLng,
+		&res.PickupAddress, &res.DropoffAddress, &res.VehicleType, &res.Status,
+		&res.FareEstimate, &fareFinal, &res.PaymentMethod, &res.Notes,
+		&res.DistanceKm, &res.DurationMin,
+		&res.ScheduledAt, &res.AcceptedAt, &res.CompletedAt, &res.CancelledAt, &res.CancelledBy,
+		&res.CreatedAt,
+		&res.CustomerName, &res.CustomerPhone,
+		&driverID, &driverName, &driverPhone, &drvModel, &drvPlate, &driverRate,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get ride: %w", err)
+	}
+	res.FareFinal = fareFinal
+	if driverID != nil && *driverID != "" {
+		res.Driver = &DriverInfo{
+			ID:           *driverID,
+			Name:         driverName,
+			Phone:        driverPhone,
+			VehicleModel: drvModel,
+			Plate:        drvPlate,
+			Rating:       driverRate,
+		}
 	}
 	return res, nil
 }

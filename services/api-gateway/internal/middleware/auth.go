@@ -91,6 +91,13 @@ func validateJWT(tokenStr, secret string) (*Claims, error) {
 	return &claims, nil
 }
 
+// ParseToken validates a raw JWT string and returns its claims. Exported for
+// non-header transports like WebSocket (query token — browsers/Flutter web
+// cannot set custom headers on a WS handshake).
+func ParseToken(tokenStr, secret string) (*Claims, error) {
+	return validateJWT(tokenStr, secret)
+}
+
 // GetUserID extracts user ID from context
 func GetUserID(r *http.Request) string {
 	v, _ := r.Context().Value(UserIDKey).(string)

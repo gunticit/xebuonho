@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   String? _token;
@@ -270,6 +271,7 @@ class AuthProvider extends ChangeNotifier {
     _isLoggedIn = false;
     _needsOtp = false;
     _error = null;
+    NotificationService().disconnect();
     notifyListeners();
   }
 
@@ -368,6 +370,8 @@ class AuthProvider extends ChangeNotifier {
 
     if (_token != null && _token!.isNotEmpty) {
       ApiService().setAuthToken(_token!);
+      // Realtime push: nhận ride_accepted / ride_status_updated tức thời
+      NotificationService().connect(_token!);
     }
 
     final user = data['user'];
