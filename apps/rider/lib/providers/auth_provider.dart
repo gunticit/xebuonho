@@ -292,7 +292,7 @@ class AuthProvider extends ChangeNotifier {
           }),
         );
         if (response.statusCode != 200) {
-          _error = response.data?['error'] ?? 'Xóa tài khoản không thành công';
+          _error = _mapVietnameseError(response.data?['error']) ?? 'Xóa tài khoản không thành công';
           _isLoading = false;
           notifyListeners();
           return false;
@@ -310,14 +310,36 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         return true;
       }
-      _error = e.response?.data?['error'] ?? 'Lỗi khi gửi yêu cầu xóa tài khoản';
+      _error = _mapVietnameseError(e.response?.data?['error']) ?? 'Lỗi kết nối khi gửi yêu cầu xóa tài khoản';
     } catch (e) {
-      _error = 'Lỗi không xác định: $e';
+      _error = 'Lỗi hệ thống: $e';
     }
 
     _isLoading = false;
     notifyListeners();
     return false;
+  }
+
+  String? _mapVietnameseError(dynamic error) {
+    if (error == null) return null;
+    final errStr = error.toString();
+    final lower = errStr.toLowerCase();
+    if (lower.contains('not found')) {
+      return 'Dịch vụ xác thực chưa hỗ trợ đường dẫn này hoặc server chưa được khởi động lại.';
+    }
+    if (lower.contains('unauthorized')) {
+      return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    }
+    if (lower.contains('active_order') || lower.contains('đơn hàng') || lower.contains('chuyến đi')) {
+      return 'Bạn đang có chuyến đi hoặc đơn hàng đang thực hiện. Vui lòng hoàn thành chuyến đi trước khi xóa tài khoản.';
+    }
+    if (lower.contains('forbidden')) {
+      return 'Bạn không có quyền thực hiện thao tác này.';
+    }
+    if (lower.contains('connection') || lower.contains('timeout')) {
+      return 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.';
+    }
+    return errStr;
   }
 
   Future<void> demoLogin({String role = 'rider'}) async {

@@ -75,7 +75,7 @@ func (h *AuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "/admin/drivers/") && r.Method == "GET":
 		h.AdminDriverDetail(w, r)
 	default:
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "Không tìm thấy đường dẫn yêu cầu"})
 	}
 }
 
@@ -83,7 +83,7 @@ func (h *AuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req model.RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Dữ liệu yêu cầu không hợp lệ"})
 		return
 	}
 
@@ -145,23 +145,23 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	userID := h.extractUserID(r)
 	if userID == "" {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Phiên đăng nhập đã hết hạn hoặc không hợp lệ"})
 		return
 	}
 
 	if err := h.authService.Logout(r.Context(), userID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "logout failed"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Đăng xuất thất bại"})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
+	writeJSON(w, http.StatusOK, map[string]string{"message": "Đã đăng xuất thành công"})
 }
 
 // GetProfile handles profile retrieval
 func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	userID := h.extractUserID(r)
 	if userID == "" {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Phiên đăng nhập đã hết hạn hoặc không hợp lệ"})
 		return
 	}
 
@@ -178,7 +178,7 @@ func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) SubmitDriverKYC(w http.ResponseWriter, r *http.Request) {
 	userID := h.extractUserID(r)
 	if userID == "" {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Phiên đăng nhập đã hết hạn hoặc không hợp lệ"})
 		return
 	}
 
@@ -276,7 +276,7 @@ func (h *AuthHandler) AdminListDrivers(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetMyKYC(w http.ResponseWriter, r *http.Request) {
 	userID := h.extractUserID(r)
 	if userID == "" {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Phiên đăng nhập đã hết hạn hoặc không hợp lệ"})
 		return
 	}
 
@@ -316,11 +316,11 @@ func (h *AuthHandler) AdminDriverDetail(w http.ResponseWriter, r *http.Request) 
 func (h *AuthHandler) requireAdmin(w http.ResponseWriter, r *http.Request) (string, bool) {
 	userID, role := h.extractAuth(r)
 	if userID == "" {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Phiên đăng nhập đã hết hạn hoặc không hợp lệ"})
 		return "", false
 	}
 	if role != "admin" {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin access required"})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "Yêu cầu quyền quản trị viên"})
 		return "", false
 	}
 	return userID, true
@@ -330,13 +330,13 @@ func (h *AuthHandler) requireAdmin(w http.ResponseWriter, r *http.Request) (stri
 func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	userID := h.extractUserID(r)
 	if userID == "" {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Phiên đăng nhập đã hết hạn hoặc không hợp lệ"})
 		return
 	}
 
 	var req model.UpdateProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Dữ liệu yêu cầu không hợp lệ"})
 		return
 	}
 
@@ -353,7 +353,7 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	userID := h.extractUserID(r)
 	if userID == "" {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."})
 		return
 	}
 
