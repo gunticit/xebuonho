@@ -548,15 +548,11 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          TextFormField(
+          _buildDateField(
             controller: _licenseExpiryController,
-            style: const TextStyle(color: AppColors.text),
-            decoration: const InputDecoration(
-              labelText: 'Ngày hết hạn GPLX (YYYY-MM-DD)',
-              hintText: '2030-12-31 hoặc bỏ trống nếu vô thời hạn',
-              prefixIcon: Icon(Icons.calendar_today_outlined, color: AppColors.text3),
-            ),
-            validator: (v) => _validateDate(v, 'Ngày hết hạn GPLX'),
+            label: 'Ngày hết hạn GPLX',
+            errorLabel: 'Ngày hết hạn GPLX',
+            hint: '2030-12-31 hoặc bỏ trống nếu vô thời hạn',
           ),
           const SizedBox(height: 12),
           _buildDocRow('gplx_front', 'Ảnh GPLX mặt trước', 'gplx_back', 'Ảnh GPLX mặt sau'),
@@ -591,14 +587,11 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
           const SizedBox(height: 12),
           _buildDocRow('vehicle_registration', 'Đăng ký xe (Cà vẹt)', 'vehicle_insurance', 'Bảo hiểm TNDS xe'),
           const SizedBox(height: 12),
-          TextFormField(
+          _buildDateField(
             controller: _insuranceExpiryController,
-            style: const TextStyle(color: AppColors.text),
-            decoration: const InputDecoration(
-              labelText: 'Ngày hết hạn bảo hiểm TNDS (YYYY-MM-DD)',
-              prefixIcon: Icon(Icons.calendar_month_outlined, color: AppColors.text3),
-            ),
-            validator: (v) => _validateDate(v, 'Ngày hết hạn bảo hiểm'),
+            label: 'Ngày hết hạn bảo hiểm TNDS',
+            errorLabel: 'Ngày hết hạn bảo hiểm',
+            icon: Icons.calendar_month_outlined,
           ),
           const SizedBox(height: 24),
 
@@ -661,6 +654,54 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
       return '$label theo định dạng YYYY-MM-DD';
     }
     return null;
+  }
+
+  // Chọn ngày từ lịch thay vì gõ tay; luôn ghi ra controller theo YYYY-MM-DD.
+  Future<void> _pickDate(TextEditingController controller) async {
+    DateTime? initial = DateTime.tryParse(controller.text.trim());
+    initial ??= DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1950),
+      lastDate: DateTime(2100),
+      helpText: 'Chọn ngày hết hạn',
+    );
+    if (picked != null) {
+      setState(() {
+        controller.text =
+            '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      });
+    }
+  }
+
+  // Field ngày chỉ đọc: chạm để mở lịch, nút clear để bỏ trống (vô thời hạn).
+  Widget _buildDateField({
+    required TextEditingController controller,
+    required String label,
+    required String errorLabel,
+    String? hint,
+    IconData icon = Icons.calendar_today_outlined,
+  }) {
+    return TextFormField(
+      controller: controller,
+      readOnly: true,
+      style: const TextStyle(color: AppColors.text),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: Icon(icon, color: AppColors.text3),
+        suffixIcon: controller.text.isEmpty
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.clear, size: 18, color: AppColors.text3),
+                tooltip: 'Xoá ngày (vô thời hạn)',
+                onPressed: () => setState(() => controller.clear()),
+              ),
+      ),
+      onTap: () => _pickDate(controller),
+      validator: (v) => _validateDate(v, errorLabel),
+    );
   }
 
   Widget _buildComplianceBanner() {
@@ -825,13 +866,10 @@ class _DriverKYCScreenState extends State<DriverKYCScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: TextFormField(
+              child: _buildDateField(
                 controller: _transportLicenseExpiryController,
-                style: const TextStyle(color: AppColors.text),
-                decoration: const InputDecoration(
-                  labelText: 'Hạn GPLVT (YYYY-MM-DD)',
-                ),
-                validator: (v) => _validateDate(v, 'Hạn GPLVT'),
+                label: 'Hạn GPLVT',
+                errorLabel: 'Hạn GPLVT',
               ),
             ),
           ],

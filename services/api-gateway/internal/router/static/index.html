@@ -455,6 +455,13 @@
         .doc-item img:hover { transform: scale(1.02); }
         .doc-label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-top: 8px; }
 
+        .doc-empty {
+            width: 100%; height: 160px; border-radius: 8px;
+            border: 1px dashed var(--border); background: rgba(30, 41, 59, 0.5);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; color: var(--text-secondary);
+        }
+
         /* Image Lightbox */
         .lightbox-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -740,25 +747,8 @@
             <div id="m-warnings" style="display:none;padding:12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:10px;margin-bottom:16px;font-size:0.82rem;color:var(--accent-red);"></div>
 
             <!-- MinIO Document Photos -->
-            <div style="font-size:0.9rem;font-weight:700;margin-bottom:8px">📄 Tài liệu xác minh (MinIO Object Storage)</div>
-            <div class="docs-grid">
-                <div class="doc-item">
-                    <img id="m-doc-id-front" src="" alt="CCCD Mặt trước" onclick="openLightbox(this.src)">
-                    <div class="doc-label">CCCD Mặt trước</div>
-                </div>
-                <div class="doc-item">
-                    <img id="m-doc-id-back" src="" alt="CCCD Mặt sau" onclick="openLightbox(this.src)">
-                    <div class="doc-label">CCCD Mặt sau</div>
-                </div>
-                <div class="doc-item">
-                    <img id="m-doc-license" src="" alt="Giấy phép lái xe" onclick="openLightbox(this.src)">
-                    <div class="doc-label">Giấy phép lái xe (GPLX)</div>
-                </div>
-                <div class="doc-item">
-                    <img id="m-doc-vehicle" src="" alt="Đăng ký xe & Bảo hiểm" onclick="openLightbox(this.src)">
-                    <div class="doc-label">Đăng ký xe / Cà vẹt & Bảo hiểm</div>
-                </div>
-            </div>
+            <div style="font-size:0.9rem;font-weight:700;margin-bottom:8px">📄 Tài liệu xác minh (Object Storage)</div>
+            <div class="docs-grid" id="m-docs-grid"><!-- rendered by openKycModal() --></div>
 
             <!-- Rejection / Notes field -->
             <div style="margin:16px 0;">
@@ -1092,6 +1082,36 @@
             }).join('');
         }
 
+        // Doc slots phải khớp doc_types backend chấp nhận (user-service auth_service.go allowedDocTypes)
+        const KYC_DOC_SLOTS = [
+            { key: 'cccd_front', label: 'CCCD Mặt trước' },
+            { key: 'cccd_back', label: 'CCCD Mặt sau' },
+            { key: 'gplx_front', label: 'GPLX Mặt trước' },
+            { key: 'gplx_back', label: 'GPLX Mặt sau' },
+            { key: 'vehicle_registration', label: 'Đăng ký xe / Cà vẹt' },
+            { key: 'vehicle_insurance', label: 'Bảo hiểm xe' },
+            { key: 'business_license', label: 'Giấy phép kinh doanh', businessOnly: true },
+            { key: 'transport_license', label: 'Giấy phép vận tải', businessOnly: true },
+            { key: 'employment_contract', label: 'Hợp đồng lao động', businessOnly: true },
+        ];
+
+        function renderDocGrid(urls, driverKind) {
+            const grid = document.getElementById('m-docs-grid');
+            grid.innerHTML = '';
+            const isBusiness = driverKind === 'business';
+            for (const slot of KYC_DOC_SLOTS) {
+                if (slot.businessOnly && !isBusiness) continue;
+                const url = urls[slot.key] || '';
+                const item = document.createElement('div');
+                item.className = 'doc-item';
+                item.innerHTML = (url
+                    ? `<img src="${url}" alt="${slot.label}" onclick="openLightbox(this.src)">`
+                    : `<div class="doc-empty">Chưa nộp</div>`)
+                    + `<div class="doc-label">${slot.label}</div>`;
+                grid.appendChild(item);
+            }
+        }
+
         async function openKycModal(driverId) {
             activeKycDriverId = driverId;
             const modal = document.getElementById('kyc-modal');
@@ -1109,9 +1129,9 @@
                     detail = {
                         user: fallback,
                         doc_urls: {
-                            id_card_front: 'https://images.unsplash.com/photo-1578328819058-b69f3a3b0f6b?auto=format&fit=crop&w=600&q=80',
-                            id_card_back: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=600&q=80',
-                            driver_license: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=600&q=80',
+                            cccd_front: 'https://images.unsplash.com/photo-1578328819058-b69f3a3b0f6b?auto=format&fit=crop&w=600&q=80',
+                            cccd_back: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=600&q=80',
+                            gplx_front: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=600&q=80',
                             vehicle_registration: 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&w=600&q=80',
                         },
                         warnings: []
@@ -1125,11 +1145,7 @@
                 document.getElementById('m-license-num').textContent = u.driver_license_number || 'Chưa cung cấp';
                 document.getElementById('m-plate').textContent = (u.license_plate || '--') + ' (' + (u.vehicle_model || u.vehicle_type || '2 bánh') + ')';
 
-                const urls = detail.doc_urls || {};
-                document.getElementById('m-doc-id-front').src = urls.id_card_front || 'https://via.placeholder.com/300x160?text=CCCD+Mat+Truoc';
-                document.getElementById('m-doc-id-back').src = urls.id_card_back || 'https://via.placeholder.com/300x160?text=CCCD+Mat+Sau';
-                document.getElementById('m-doc-license').src = urls.driver_license || 'https://via.placeholder.com/300x160?text=GPLX';
-                document.getElementById('m-doc-vehicle').src = urls.vehicle_registration || 'https://via.placeholder.com/300x160?text=Dang+Ky+Xe';
+                renderDocGrid(detail.doc_urls || {}, u.driver_kind);
 
                 const wBox = document.getElementById('m-warnings');
                 if (detail.warnings && detail.warnings.length > 0) {

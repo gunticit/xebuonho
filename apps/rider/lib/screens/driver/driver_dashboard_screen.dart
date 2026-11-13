@@ -35,18 +35,24 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               child: const Text('🚕', style: TextStyle(fontSize: 18)),
             ),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  auth.userName,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text),
-                ),
-                Text(
-                  '${auth.vehicleModel} • ${auth.licensePlate}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.text3),
-                ),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    auth.userName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text),
+                  ),
+                  Text(
+                    '${auth.vehicleModel} • ${auth.licensePlate}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: AppColors.text3),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
