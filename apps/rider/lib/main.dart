@@ -17,7 +17,8 @@ import 'screens/driver/driver_dashboard_screen.dart';
 import 'screens/driver/driver_history_screen.dart';
 import 'screens/driver/driver_kyc_screen.dart';
 
-// Admin screens (KYC moderation)
+// Admin screens (KYC moderation & unified dashboard)
+import 'screens/admin/admin_dashboard_screen.dart';
 import 'screens/admin/admin_driver_list_screen.dart';
 import 'screens/admin/admin_driver_detail_screen.dart';
 
@@ -117,8 +118,9 @@ class XebuonhoApp extends StatelessWidget {
           '/driver/history': (_) => const DriverHistoryScreen(),
           '/driver/kyc': (_) => const DriverKYCScreen(),
 
-          // Admin (KYC moderation, role=admin)
-          '/admin': (_) => const AdminDriverListScreen(),
+          // Admin (KYC moderation, analytics, fleet map)
+          '/admin': (_) => const AdminDashboardScreen(),
+          '/admin/drivers': (_) => const AdminDriverListScreen(),
           '/admin/driver': (_) => const AdminDriverDetailScreen(),
 
           // Ride flow

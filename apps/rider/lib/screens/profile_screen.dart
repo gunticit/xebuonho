@@ -128,6 +128,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 16),
 
             // Quick actions
+            if (auth.userRole == 'admin' || auth.userRole == 'superadmin')
+              _buildAction(Icons.admin_panel_settings_outlined, 'Bảng điều khiển Admin', 'Quản trị hệ thống', AppColors.blue, () => Navigator.pushNamed(context, '/admin')),
             _buildAction(Icons.verified_user, 'Xác minh tài khoản', 'Đã xác minh', AppColors.green),
             _buildAction(Icons.security, 'Đổi mật khẩu', '', AppColors.blue),
             _buildAction(Icons.delete_outline, 'Xóa tài khoản', '', AppColors.red, () => _confirmDeleteAccount(context)),

@@ -50,6 +50,7 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	mux.HandleFunc("/api/v1/admin/orders/recent", adminH.GetRecentOrders)
 	mux.HandleFunc("/api/v1/admin/revenue", adminH.GetRevenueChart)
 	mux.HandleFunc("/api/v1/admin/drivers", adminH.GetDriverStats)
+	mux.HandleFunc("/api/v1/admin/fleet", adminH.GetFleetMap)
 
 	// ==========================================
 	// Auth API (proxy to user-service, no JWT required)

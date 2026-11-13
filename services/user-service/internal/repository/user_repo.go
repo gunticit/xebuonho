@@ -197,7 +197,10 @@ func (r *UserRepository) UpdateDriverApprovalStatus(ctx context.Context, driverI
 			approval_status = $2::varchar,
 			rejection_reason = NULLIF($3, ''),
 			approved_at = CASE WHEN $2::varchar = 'approved' THEN NOW() ELSE approved_at END,
-			approved_by = CASE WHEN $2::varchar = 'approved' THEN NULLIF($4::text, '')::uuid ELSE approved_by END,
+			approved_by = CASE
+				WHEN $2::varchar = 'approved' AND $4 != '' THEN $4::uuid
+				ELSE approved_by
+			END,
 			updated_at = NOW()
 		WHERE id = $1 AND role = 'driver'
 	`

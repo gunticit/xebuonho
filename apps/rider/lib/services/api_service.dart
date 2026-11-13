@@ -152,6 +152,45 @@ class ApiService {
     );
   }
 
+  // ========== Admin Analytics & Operations ==========
+  Future<Map<String, dynamic>> adminGetStats() async {
+    try {
+      final res = await _dio.get('${ApiConfig.baseUrl}${ApiConfig.apiVersion}/admin/stats');
+      return res.data as Map<String, dynamic>;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> adminGetRevenue() async {
+    try {
+      final res = await _dio.get('${ApiConfig.baseUrl}${ApiConfig.apiVersion}/admin/revenue');
+      return res.data as Map<String, dynamic>;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> adminGetRecentOrders() async {
+    try {
+      final res = await _dio.get('${ApiConfig.baseUrl}${ApiConfig.apiVersion}/admin/orders/recent');
+      final orders = res.data['orders'] as List? ?? [];
+      return orders.cast<Map<String, dynamic>>();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> adminGetNearbyDrivers() async {
+    try {
+      final res = await _dio.get('${ApiConfig.baseUrl}${ApiConfig.driverLocation}');
+      final drivers = res.data['drivers'] as List? ?? [];
+      return drivers.cast<Map<String, dynamic>>();
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ========== Health ==========
   Future<bool> healthCheck() async {
     try {

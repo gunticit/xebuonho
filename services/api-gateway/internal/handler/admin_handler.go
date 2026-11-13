@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"fmt"
 	"math/rand"
 	"net/http"
 	"time"
+
+	"github.com/xebuonho/services/api-gateway/internal/driverstate"
 )
 
 // AdminHandler serves admin dashboard and API
@@ -182,4 +185,71 @@ func dayName(t time.Time) string {
 		time.Thursday: "T5", time.Friday: "T6", time.Saturday: "T7", time.Sunday: "CN",
 	}
 	return names[t.Weekday()]
+}
+
+// GET /api/v1/admin/fleet — Realtime fleet positions for live map
+func (h *AdminHandler) GetFleetMap(w http.ResponseWriter, r *http.Request) {
+	points := driverstate.Default.All()
+
+	var drivers []map[string]interface{}
+	for id, p := range points {
+		if time.Since(p.UpdatedAt) > 5*time.Minute {
+			continue
+		}
+		drivers = append(drivers, map[string]interface{}{
+			"id":           id,
+			"name":         "Tài xế " + id[:min(4, len(id))],
+			"lat":          p.Lat,
+			"lng":          p.Lng,
+			"speed":        p.Speed,
+			"heading":      p.Heading,
+			"status":       "online",
+			"vehicle_type": "bike",
+			"updated_at":   p.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+
+	// In development or if few active in-memory, enrich with simulated fleet around Buon Ho
+	if len(drivers) < 8 {
+		baseLat := 12.8055
+		baseLng := 108.2612
+		sampleNames := []string{
+			"Nguyễn Văn Tài", "Trần Văn Bình", "Lê Minh Đức",
+			"Phạm Thanh Hải", "Võ Văn Hùng", "Đặng Quốc Việt",
+			"Hoàng Nam Phong", "Bùi Tấn Phát", "Đỗ Quang Vinh",
+		}
+		vehicles := []string{"bike", "car", "bike", "bike", "car", "premium"}
+		statuses := []string{"idle", "on_trip", "idle", "idle", "on_trip"}
+
+		for i, name := range sampleNames {
+			// jitter coordinates within ~3km of Buon Ho center
+			latOffset := (rand.Float64() - 0.5) * 0.04
+			lngOffset := (rand.Float64() - 0.5) * 0.04
+			vType := vehicles[i%len(vehicles)]
+			status := statuses[i%len(statuses)]
+
+			drivers = append(drivers, map[string]interface{}{
+				"id":           fmt.Sprintf("drv-fleet-%03d", i+1),
+				"name":         name,
+				"phone":        fmt.Sprintf("098%07d", rand.Intn(10000000)),
+				"lat":          baseLat + latOffset,
+				"lng":          baseLng + lngOffset,
+				"speed":        randomFloat(15, 45),
+				"heading":      rand.Intn(360),
+				"status":       status,
+				"vehicle_type": vType,
+				"rating":       randomFloat(4.6, 5.0),
+				"trips_today":  randomInt(4, 18),
+				"updated_at":   time.Now().Format(time.RFC3339),
+			})
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"drivers":    drivers,
+		"total":      len(drivers),
+		"center_lat": 12.8055,
+		"center_lng": 108.2612,
+		"timestamp":  time.Now().Format(time.RFC3339),
+	})
 }

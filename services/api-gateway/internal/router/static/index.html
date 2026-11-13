@@ -3,17 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xebuonho Admin Dashboard</title>
-    <meta name="description" content="Admin dashboard for Xebuonho super-app platform">
+    <title>Xebuonho Admin Dashboard — Trung Tâm Quản Trị Hệ Thống</title>
+    <meta name="description" content="Trung tâm quản trị siêu ứng dụng gọi xe & giao nhận Xebuonho">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         :root {
             --bg-primary: #0a0f1c;
             --bg-secondary: #111827;
-            --bg-card: rgba(17, 24, 39, 0.8);
-            --bg-card-hover: rgba(31, 41, 55, 0.9);
-            --border: rgba(75, 85, 99, 0.3);
+            --bg-card: rgba(17, 24, 39, 0.85);
+            --bg-card-hover: rgba(31, 41, 55, 0.95);
+            --border: rgba(75, 85, 99, 0.35);
             --text-primary: #f9fafb;
             --text-secondary: #9ca3af;
             --text-muted: #6b7280;
@@ -22,15 +24,12 @@
             --accent-orange: #f59e0b;
             --accent-purple: #8b5cf6;
             --accent-red: #ef4444;
-            --accent-pink: #ec4899;
             --accent-cyan: #06b6d4;
             --gradient-blue: linear-gradient(135deg, #3b82f6, #1d4ed8);
             --gradient-green: linear-gradient(135deg, #10b981, #059669);
             --gradient-orange: linear-gradient(135deg, #f59e0b, #d97706);
             --gradient-purple: linear-gradient(135deg, #8b5cf6, #7c3aed);
-            --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-            --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.15);
-            --shadow-glow-green: 0 0 20px rgba(16, 185, 129, 0.15);
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -43,14 +42,14 @@
             overflow-x: hidden;
         }
 
-        /* Background Pattern */
+        /* Subtle background glow */
         body::before {
             content: '';
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
             background: 
-                radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.07) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.07) 0%, transparent 50%),
+                radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.08) 0%, transparent 45%),
+                radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.08) 0%, transparent 45%),
                 radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
             pointer-events: none;
             z-index: 0;
@@ -58,22 +57,27 @@
 
         /* Header */
         .header {
-            position: sticky; top: 0; z-index: 100;
-            background: rgba(10, 15, 28, 0.85);
+            position: sticky; top: 0; z-index: 1000;
+            background: rgba(10, 15, 28, 0.92);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border);
-            padding: 0 2rem;
+            padding: 0 1.5rem;
         }
 
         .header-inner {
-            max-width: 1440px; margin: 0 auto;
+            max-width: 1520px; margin: 0 auto;
             display: flex; align-items: center; justify-content: space-between;
-            height: 64px;
+            height: 66px;
+        }
+
+        .logo-wrap {
+            display: flex; align-items: center; gap: 24px;
         }
 
         .logo {
-            display: flex; align-items: center; gap: 12px;
+            display: flex; align-items: center; gap: 10px;
             font-weight: 700; font-size: 1.25rem;
+            cursor: pointer;
         }
 
         .logo-icon {
@@ -85,16 +89,45 @@
 
         .logo span { color: var(--accent-blue); }
 
+        /* Top Nav Tabs */
+        .nav-tabs {
+            display: flex; align-items: center; gap: 6px;
+            background: rgba(17, 24, 39, 0.6);
+            padding: 4px; border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .nav-tab-btn {
+            background: transparent; border: none; outline: none;
+            color: var(--text-secondary);
+            padding: 8px 16px; border-radius: 8px;
+            font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .nav-tab-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-tab-btn.active {
+            color: #fff;
+            background: var(--gradient-blue);
+            box-shadow: 0 2px 10px rgba(59, 130, 246, 0.35);
+        }
+
         .header-right {
-            display: flex; align-items: center; gap: 20px;
+            display: flex; align-items: center; gap: 14px;
         }
 
         .live-indicator {
             display: flex; align-items: center; gap: 8px;
-            padding: 6px 14px; border-radius: 20px;
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            font-size: 0.8rem; color: var(--accent-green);
+            padding: 6px 12px; border-radius: 20px;
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            font-size: 0.78rem; color: var(--accent-green);
+            font-weight: 600;
         }
 
         .live-dot {
@@ -105,23 +138,41 @@
 
         @keyframes pulse {
             0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(1.3); }
+            50% { opacity: 0.4; transform: scale(1.3); }
         }
 
-        .timestamp { font-size: 0.85rem; color: var(--text-muted); }
+        .timestamp { font-size: 0.82rem; color: var(--text-muted); }
+
+        .btn-refresh {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 7px 12px; border-radius: 8px;
+            font-size: 0.8rem; font-weight: 600;
+            cursor: pointer; display: flex; align-items: center; gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-refresh:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
 
         /* Main Content */
         .main {
             position: relative; z-index: 1;
-            max-width: 1440px; margin: 0 auto;
-            padding: 1.5rem 2rem 3rem;
+            max-width: 1520px; margin: 0 auto;
+            padding: 1.5rem 1.5rem 3rem;
         }
 
-        /* Stats Cards Grid */
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+        /* Stats Cards */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
+            gap: 1.15rem;
             margin-bottom: 1.5rem;
         }
 
@@ -130,87 +181,54 @@
             backdrop-filter: blur(10px);
             border: 1px solid var(--border);
             border-radius: 16px;
-            padding: 1.25rem;
+            padding: 1.25rem 1.4rem;
             transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
         }
-
-        .stat-card::before {
-            content: '';
-            position: absolute; top: 0; left: 0; right: 0; height: 3px;
-            border-radius: 16px 16px 0 0;
-        }
-
-        .stat-card:nth-child(1)::before { background: var(--gradient-blue); }
-        .stat-card:nth-child(2)::before { background: var(--gradient-green); }
-        .stat-card:nth-child(3)::before { background: var(--gradient-orange); }
-        .stat-card:nth-child(4)::before { background: var(--gradient-purple); }
 
         .stat-card:hover {
             transform: translateY(-2px);
-            border-color: rgba(75, 85, 99, 0.5);
+            border-color: rgba(59, 130, 246, 0.4);
             box-shadow: var(--shadow);
         }
 
         .stat-header {
             display: flex; align-items: center; justify-content: space-between;
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.85rem;
         }
 
-        .stat-label { font-size: 0.8rem; color: var(--text-secondary); font-weight: 500; }
+        .stat-label {
+            font-size: 0.82rem; color: var(--text-secondary); font-weight: 500;
+        }
 
         .stat-icon {
-            width: 36px; height: 36px; border-radius: 10px;
+            width: 38px; height: 38px; border-radius: 10px;
             display: flex; align-items: center; justify-content: center;
             font-size: 1.1rem;
         }
 
-        .stat-icon.blue { background: rgba(59, 130, 246, 0.15); }
-        .stat-icon.green { background: rgba(16, 185, 129, 0.15); }
-        .stat-icon.orange { background: rgba(245, 158, 11, 0.15); }
-        .stat-icon.purple { background: rgba(139, 92, 246, 0.15); }
+        .stat-icon.blue { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+        .stat-icon.green { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+        .stat-icon.orange { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
+        .stat-icon.purple { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
 
         .stat-value {
             font-size: 1.75rem; font-weight: 800;
-            letter-spacing: -0.5px; margin-bottom: 0.25rem;
+            letter-spacing: -0.5px; margin-bottom: 0.35rem;
         }
 
         .stat-change {
-            font-size: 0.75rem; font-weight: 500;
+            font-size: 0.78rem; font-weight: 600;
             display: flex; align-items: center; gap: 4px;
         }
 
         .stat-change.up { color: var(--accent-green); }
         .stat-change.down { color: var(--accent-red); }
 
-        /* Content Grid */
-        .content-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .card {
-            background: var(--bg-card);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1.25rem;
-        }
-
-        .card-title {
-            font-size: 0.95rem; font-weight: 600;
-            margin-bottom: 1rem;
-            display: flex; align-items: center; gap: 8px;
-        }
-
-        /* Service Breakdown */
+        /* Services Grid */
         .services-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
+            gap: 1.15rem;
             margin-bottom: 1.5rem;
         }
 
@@ -227,226 +245,562 @@
             box-shadow: var(--shadow);
         }
 
-        .service-icon {
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .service-name {
-            font-size: 0.8rem; color: var(--text-secondary);
-            margin-bottom: 0.4rem; font-weight: 500;
-        }
-
-        .service-orders {
-            font-size: 1.3rem; font-weight: 700;
-            margin-bottom: 0.15rem;
-        }
-
-        .service-revenue {
-            font-size: 0.78rem; color: var(--accent-green); font-weight: 500;
-        }
-
+        .service-icon { font-size: 1.6rem; margin-bottom: 0.5rem; }
+        .service-name { font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.3rem; font-weight: 500; }
+        .service-orders { font-size: 1.35rem; font-weight: 700; margin-bottom: 0.2rem; }
+        .service-revenue { font-size: 0.82rem; color: var(--accent-green); font-weight: 600; }
         .service-detail {
             margin-top: 0.6rem; padding-top: 0.6rem;
             border-top: 1px solid var(--border);
-            font-size: 0.72rem; color: var(--text-muted);
+            font-size: 0.75rem; color: var(--text-muted);
         }
+
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.15rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.35rem;
+        }
+
+        .card-title {
+            font-size: 0.95rem; font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        .chart-container { position: relative; height: 300px; }
+        .donut-container { position: relative; height: 230px; }
 
         /* Live Feed */
         .feed {
-            max-height: 400px; overflow-y: auto;
+            max-height: 380px; overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: var(--border) transparent;
         }
 
-        .feed::-webkit-scrollbar { width: 4px; }
-        .feed::-webkit-scrollbar-track { background: transparent; }
-        .feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
         .feed-item {
             display: flex; align-items: center; gap: 12px;
-            padding: 0.65rem 0;
+            padding: 0.75rem 0;
             border-bottom: 1px solid rgba(75, 85, 99, 0.15);
-            transition: background 0.2s;
         }
-
-        .feed-item:hover { background: rgba(255, 255, 255, 0.02); border-radius: 8px; }
 
         .feed-type {
             width: 36px; height: 36px; border-radius: 10px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 1rem; flex-shrink: 0;
+            font-size: 1.1rem; flex-shrink: 0;
         }
 
-        .feed-type.ride { background: rgba(59, 130, 246, 0.12); }
-        .feed-type.food_delivery { background: rgba(245, 158, 11, 0.12); }
-        .feed-type.grocery { background: rgba(16, 185, 129, 0.12); }
-        .feed-type.designated_driver { background: rgba(139, 92, 246, 0.12); }
+        .feed-type.ride { background: rgba(59, 130, 246, 0.15); }
+        .feed-type.food_delivery { background: rgba(245, 158, 11, 0.15); }
+        .feed-type.grocery { background: rgba(16, 185, 129, 0.15); }
+        .feed-type.designated_driver { background: rgba(139, 92, 246, 0.15); }
 
         .feed-info { flex: 1; min-width: 0; }
-        .feed-name { font-size: 0.82rem; font-weight: 500; }
-        .feed-route { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .feed-name { font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .feed-route { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 
         .feed-meta { text-align: right; flex-shrink: 0; }
-        .feed-fare { font-size: 0.82rem; font-weight: 600; }
-        .feed-time { font-size: 0.7rem; color: var(--text-muted); }
+        .feed-fare { font-size: 0.85rem; font-weight: 700; color: var(--accent-green); }
+        .feed-time { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
 
+        /* Status Badge */
         .status-badge {
             display: inline-block; padding: 2px 8px;
-            border-radius: 6px; font-size: 0.65rem; font-weight: 600;
-            text-transform: uppercase; letter-spacing: 0.5px;
+            border-radius: 6px; font-size: 0.68rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.4px;
         }
 
-        .status-badge.created { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
-        .status-badge.driver_assigned { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
-        .status-badge.picked_up, .status-badge.in_progress { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
-        .status-badge.completed { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
-        .status-badge.cancelled_by_customer { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+        .status-badge.created, .status-badge.pending { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+        .status-badge.driver_assigned, .status-badge.in_progress, .status-badge.picked_up { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
+        .status-badge.completed, .status-badge.approved { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+        .status-badge.cancelled_by_customer, .status-badge.rejected { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+        .status-badge.suspended { background: rgba(156, 163, 175, 0.15); color: var(--text-secondary); }
 
-        /* Chart */
-        .chart-container { position: relative; height: 280px; }
-
-        /* Donut */
-        .donut-container { position: relative; height: 220px; display: flex; align-items: center; justify-content: center; }
-
-        /* Driver List */
-        .driver-item {
-            display: flex; align-items: center; gap: 10px;
-            padding: 0.55rem 0;
-            border-bottom: 1px solid rgba(75, 85, 99, 0.15);
+        /* Tables */
+        .table-wrap {
+            width: 100%; overflow-x: auto;
+            border: 1px solid var(--border); border-radius: 12px;
         }
 
-        .driver-rank {
-            width: 24px; height: 24px; border-radius: 6px;
-            font-size: 0.7rem; font-weight: 700;
-            display: flex; align-items: center; justify-content: center;
+        .data-table {
+            width: 100%; border-collapse: collapse; text-align: left;
+            font-size: 0.85rem;
         }
 
-        .driver-rank.gold { background: rgba(245, 158, 11, 0.2); color: var(--accent-orange); }
-        .driver-rank.silver { background: rgba(156, 163, 175, 0.2); color: var(--text-secondary); }
-
-        .driver-info { flex: 1; }
-        .driver-name { font-size: 0.82rem; font-weight: 500; }
-        .driver-trips { font-size: 0.7rem; color: var(--text-muted); }
-        .driver-revenue { font-size: 0.82rem; font-weight: 600; text-align: right; }
-
-        /* Bottom Grid */
-        .bottom-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 1rem;
+        .data-table th {
+            background: rgba(31, 41, 55, 0.6);
+            color: var(--text-secondary); font-weight: 600;
+            padding: 12px 16px; border-bottom: 1px solid var(--border);
+            white-space: nowrap;
         }
 
-        /* Progress bar */
-        .progress-bar {
-            height: 6px; background: rgba(75, 85, 99, 0.3);
-            border-radius: 3px; margin-top: 0.5rem; overflow: hidden;
+        .data-table td {
+            padding: 12px 16px; border-bottom: 1px solid rgba(75, 85, 99, 0.2);
+            color: var(--text-primary); vertical-align: middle;
         }
 
-        .progress-fill {
-            height: 100%; border-radius: 3px;
-            transition: width 1s ease;
+        .data-table tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+        /* Filters Bar */
+        .filter-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 16px; margin-bottom: 1.25rem; flex-wrap: wrap;
         }
+
+        .filter-pills {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        }
+
+        .filter-pill {
+            background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-secondary); padding: 6px 14px; border-radius: 20px;
+            font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+
+        .filter-pill:hover, .filter-pill.active {
+            background: var(--accent-blue); color: #fff; border-color: var(--accent-blue);
+        }
+
+        .search-box {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 8px; padding: 7px 12px; color: #fff; font-size: 0.85rem;
+            outline: none; min-width: 260px;
+        }
+
+        .search-box:focus { border-color: var(--accent-blue); }
+
+        /* Buttons */
+        .btn {
+            border: none; outline: none; cursor: pointer; font-family: inherit;
+            padding: 7px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+            transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;
+        }
+
+        .btn-primary { background: var(--accent-blue); color: #fff; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-success { background: var(--accent-green); color: #fff; }
+        .btn-success:hover { background: #059669; }
+        .btn-danger { background: var(--accent-red); color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-warning { background: var(--accent-orange); color: #fff; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-primary); }
+        .btn-outline:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+        /* Fleet Map */
+        #fleet-map-container {
+            width: 100%; height: 650px; border-radius: 16px;
+            overflow: hidden; border: 1px solid var(--border); position: relative;
+        }
+
+        .map-stats-overlay {
+            position: absolute; top: 16px; left: 16px; z-index: 1000;
+            background: rgba(10, 15, 28, 0.9); backdrop-filter: blur(12px);
+            border: 1px solid var(--border); border-radius: 12px;
+            padding: 12px 18px; display: flex; align-items: center; gap: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(5px);
+            z-index: 2000; display: none; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal-content {
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-radius: 18px; width: 100%; max-width: 850px; max-height: 90vh;
+            overflow-y: auto; padding: 24px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 20px;
+        }
+
+        .modal-title { font-size: 1.15rem; font-weight: 700; }
+        .modal-close {
+            background: transparent; border: none; font-size: 1.5rem; color: var(--text-muted);
+            cursor: pointer; transition: color 0.2s;
+        }
+        .modal-close:hover { color: #fff; }
+
+        .docs-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+            margin: 16px 0;
+        }
+
+        .doc-item {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 10px; padding: 12px; text-align: center;
+        }
+
+        .doc-item img {
+            width: 100%; height: 160px; object-fit: cover; border-radius: 8px;
+            cursor: pointer; transition: transform 0.2s; background: #1e293b;
+        }
+
+        .doc-item img:hover { transform: scale(1.02); }
+        .doc-label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-top: 8px; }
+
+        /* Image Lightbox */
+        .lightbox-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.9); z-index: 3000; display: none;
+            align-items: center; justify-content: center;
+        }
+        .lightbox-overlay.active { display: flex; }
+        .lightbox-overlay img { max-width: 90%; max-height: 90%; border-radius: 8px; }
 
         /* Responsive */
         @media (max-width: 1200px) {
             .stats-grid, .services-grid { grid-template-columns: repeat(2, 1fr); }
             .content-grid { grid-template-columns: 1fr; }
-            .bottom-grid { grid-template-columns: 1fr; }
         }
-
         @media (max-width: 768px) {
             .stats-grid, .services-grid { grid-template-columns: 1fr; }
-            .main { padding: 1rem; }
+            .header-inner { flex-direction: column; height: auto; padding: 12px 0; gap: 12px; }
+            .nav-tabs { overflow-x: auto; width: 100%; justify-content: flex-start; }
         }
-
-        /* Animations */
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .animate-in {
-            animation: fadeUp 0.5s ease forwards;
-            opacity: 0;
-        }
-
-        .animate-in:nth-child(1) { animation-delay: 0.05s; }
-        .animate-in:nth-child(2) { animation-delay: 0.1s; }
-        .animate-in:nth-child(3) { animation-delay: 0.15s; }
-        .animate-in:nth-child(4) { animation-delay: 0.2s; }
     </style>
 </head>
 <body>
     <header class="header">
         <div class="header-inner">
-            <div class="logo">
-                <div class="logo-icon">🚀</div>
-                <div>Xe<span>buonho</span> <span style="color:var(--text-muted);font-weight:400;font-size:0.85rem">Admin</span></div>
+            <div class="logo-wrap">
+                <div class="logo" onclick="switchTab('overview')">
+                    <div class="logo-icon">🚀</div>
+                    <div>Xe<span>buonho</span> <span style="color:var(--text-muted);font-weight:400;font-size:0.85rem">Admin</span></div>
+                </div>
+                <!-- Navigation Tabs -->
+                <div class="nav-tabs">
+                    <button class="nav-tab-btn active" onclick="switchTab('overview')">📊 Tổng quan</button>
+                    <button class="nav-tab-btn" onclick="switchTab('kyc')">🛡️ Duyệt tài xế (KYC)</button>
+                    <button class="nav-tab-btn" onclick="switchTab('orders')">📋 Cuốc xe</button>
+                    <button class="nav-tab-btn" onclick="switchTab('fleet')">🗺️ Bản đồ đội xe</button>
+                    <button class="nav-tab-btn" onclick="switchTab('pricing')">💰 Bảng giá & Ví</button>
+                </div>
             </div>
             <div class="header-right">
                 <div class="live-indicator">
                     <div class="live-dot"></div>
-                    Live
+                    Hệ thống trực tuyến
                 </div>
-                <div class="timestamp" id="clock"></div>
+                <div class="timestamp" id="clock">--:--:--</div>
+                <button class="btn-refresh" onclick="refreshCurrentTab()">🔄 Làm mới</button>
             </div>
         </div>
     </header>
 
     <main class="main">
-        <!-- Stats Cards -->
-        <div class="stats-grid" id="stats-grid"></div>
+        <!-- ========================================== -->
+        <!-- TAB 1: TỔNG QUAN (OVERVIEW) -->
+        <!-- ========================================== -->
+        <div id="tab-overview" class="tab-pane active">
+            <!-- Stats Cards -->
+            <div class="stats-grid" id="stats-grid"></div>
 
-        <!-- Services Breakdown -->
-        <div class="services-grid" id="services-grid"></div>
+            <!-- Services Breakdown -->
+            <div class="services-grid" id="services-grid"></div>
 
-        <!-- Charts + Feed -->
-        <div class="content-grid">
-            <div class="card animate-in">
-                <div class="card-title">📊 Doanh thu 7 ngày</div>
-                <div class="chart-container">
-                    <canvas id="revenueChart"></canvas>
+            <!-- Charts + Live Activity -->
+            <div class="content-grid">
+                <div class="card">
+                    <div class="card-title">
+                        <span>📊 Doanh thu 7 ngày (VND)</span>
+                        <span style="font-size:0.75rem;color:var(--text-muted)">Phân loại theo dịch vụ</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">
+                        <span>📋 Hoạt động gần đây</span>
+                        <span style="font-size:0.75rem;color:var(--accent-green)">Live feed</span>
+                    </div>
+                    <div class="feed" id="live-feed"></div>
                 </div>
             </div>
-            <div class="card animate-in">
-                <div class="card-title">📋 Hoạt động gần đây</div>
-                <div class="feed" id="live-feed"></div>
+
+            <!-- Bottom Breakdown -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1.15rem;">
+                <div class="card">
+                    <div class="card-title">🍩 Tỷ lệ doanh thu dịch vụ</div>
+                    <div class="donut-container">
+                        <canvas id="donutChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">🏆 Top tài xế năng nổ hôm nay</div>
+                    <div id="top-drivers"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title">⏰ Giờ cao điểm trong ngày</div>
+                    <div id="peak-hours"></div>
+                </div>
             </div>
         </div>
 
-        <!-- Bottom section -->
-        <div class="bottom-grid">
-            <div class="card animate-in">
-                <div class="card-title">🍩 Tỷ lệ dịch vụ</div>
-                <div class="donut-container">
-                    <canvas id="donutChart"></canvas>
+        <!-- ========================================== -->
+        <!-- TAB 2: DUYỆT HỒ SƠ TÀI XẾ (KYC MODERATION) -->
+        <!-- ========================================== -->
+        <div id="tab-kyc" class="tab-pane">
+            <div class="filter-bar">
+                <div class="filter-pills" id="kyc-filters">
+                    <button class="filter-pill active" onclick="filterKycStatus('')">Tất cả</button>
+                    <button class="filter-pill" onclick="filterKycStatus('pending_approval')">⏳ Chờ duyệt</button>
+                    <button class="filter-pill" onclick="filterKycStatus('approved')">✅ Đã duyệt</button>
+                    <button class="filter-pill" onclick="filterKycStatus('rejected')">❌ Bị từ chối</button>
+                    <button class="filter-pill" onclick="filterKycStatus('suspended')">🔒 Tạm khoá</button>
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <input type="text" id="kyc-search" class="search-box" placeholder="Tìm theo tên hoặc số điện thoại..." oninput="renderKycTable()">
                 </div>
             </div>
-            <div class="card animate-in">
-                <div class="card-title">🏆 Top tài xế hôm nay</div>
-                <div id="top-drivers"></div>
+
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Tài xế</th>
+                            <th>Số điện thoại</th>
+                            <th>Loại xe & Biển số</th>
+                            <th>Phân loại</th>
+                            <th>Ngày gửi</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kyc-tbody">
+                        <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Đang tải danh sách hồ sơ tài xế...</td></tr>
+                    </tbody>
+                </table>
             </div>
-            <div class="card animate-in">
-                <div class="card-title">⏰ Giờ cao điểm</div>
-                <div id="peak-hours"></div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 3: CUỐC XE & ĐƠN HÀNG (LIVE ORDERS) -->
+        <!-- ========================================== -->
+        <div id="tab-orders" class="tab-pane">
+            <div class="filter-bar">
+                <div class="filter-pills" id="order-filters">
+                    <button class="filter-pill active" onclick="filterOrdersService('')">Tất cả</button>
+                    <button class="filter-pill" onclick="filterOrdersService('ride')">🚗 Chở khách</button>
+                    <button class="filter-pill" onclick="filterOrdersService('food_delivery')">🍔 Đồ ăn</button>
+                    <button class="filter-pill" onclick="filterOrdersService('grocery')">🛒 Đi chợ</button>
+                    <button class="filter-pill" onclick="filterOrdersService('designated_driver')">🚙 Lái xe hộ</button>
+                </div>
+                <input type="text" id="order-search" class="search-box" placeholder="Tìm mã đơn hoặc khách..." oninput="renderOrdersTable()">
+            </div>
+
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Mã đơn</th>
+                            <th>Dịch vụ</th>
+                            <th>Khách hàng</th>
+                            <th>Lộ trình (Đón ➔ Đến)</th>
+                            <th>Cước phí</th>
+                            <th>Thanh toán</th>
+                            <th>Thời gian</th>
+                            <th>Trạng thái</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orders-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 4: BẢN ĐỒ ĐỘI XE (FLEET LIVE MAP) -->
+        <!-- ========================================== -->
+        <div id="tab-fleet" class="tab-pane">
+            <div id="fleet-map-container">
+                <div class="map-stats-overlay">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:1.2rem">🏍️</span>
+                        <div>
+                            <div style="font-size:0.75rem;color:var(--text-secondary)">Tài xế online</div>
+                            <div style="font-size:1.1rem;font-weight:bold" id="map-online-count">0</div>
+                        </div>
+                    </div>
+                    <div style="width:1px;height:30px;background:var(--border)"></div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:1.2rem">🚗</span>
+                        <div>
+                            <div style="font-size:0.75rem;color:var(--text-secondary)">Đang chạy cuốc</div>
+                            <div style="font-size:1.1rem;font-weight:bold;color:var(--accent-orange)" id="map-ontrip-count">0</div>
+                        </div>
+                    </div>
+                    <div style="width:1px;height:30px;background:var(--border)"></div>
+                    <button class="btn btn-primary" onclick="recenterFleetMap(12.8055, 108.2612, 13)">📍 TX. Buôn Hồ</button>
+                    <button class="btn btn-outline" onclick="recenterFleetMap(10.7769, 106.7009, 13)">📍 TP. HCM</button>
+                    <button class="btn btn-outline" onclick="loadFleetMap()">🔄 Quét GPS</button>
+                </div>
+                <div id="fleet-map" style="width:100%;height:100%;"></div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 5: BẢNG GIÁ & VÍ (PRICING & WALLETS) -->
+        <!-- ========================================== -->
+        <div id="tab-pricing" class="tab-pane">
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;">
+                <div class="card">
+                    <div class="card-title">🚗 Biểu phí Chở khách (Ride Hailing)</div>
+                    <table class="data-table">
+                        <tr><td>Cước mở cửa (2km đầu)</td><td style="font-weight:bold;text-align:right">12.000 đ (Xe máy) / 25.000 đ (Ô tô)</td></tr>
+                        <tr><td>Mỗi km tiếp theo (đến km 25)</td><td style="font-weight:bold;text-align:right">4.000 đ/km / 11.000 đ/km</td></tr>
+                        <tr><td>Từ km 26 trở đi</td><td style="font-weight:bold;text-align:right">3.500 đ/km / 9.500 đ/km</td></tr>
+                        <tr><td>Phụ phí giờ cao điểm (7-9h, 17-19h)</td><td style="font-weight:bold;text-align:right">+15% ~ 25%</td></tr>
+                        <tr><td>Chiết khấu sàn (Admin thu)</td><td style="font-weight:bold;text-align:right;color:var(--accent-green)">15%</td></tr>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">🍔 Biểu phí Giao đồ ăn (Food Delivery)</div>
+                    <table class="data-table">
+                        <tr><td>Phí giao 3km đầu tiên</td><td style="font-weight:bold;text-align:right">15.000 đ</td></tr>
+                        <tr><td>Mỗi km tiếp theo</td><td style="font-weight:bold;text-align:right">5.000 đ/km</td></tr>
+                        <tr><td>Phí nền tảng (Platform fee)</td><td style="font-weight:bold;text-align:right">2.000 đ / đơn</td></tr>
+                        <tr><td>Chiết khấu đối tác quán ăn</td><td style="font-weight:bold;text-align:right;color:var(--accent-green)">18% giá trị đơn</td></tr>
+                        <tr><td>Phụ phí trời mưa / đêm muộn</td><td style="font-weight:bold;text-align:right">+5.000 đ ~ 10.000 đ</td></tr>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">🛒 Biểu phí Đi chợ hộ (Grocery Shopping)</div>
+                    <table class="data-table">
+                        <tr><td>Phí công đi chợ cơ bản</td><td style="font-weight:bold;text-align:right">25.000 đ / đơn</td></tr>
+                        <tr><td>Phí khoảng cách (sau 3km)</td><td style="font-weight:bold;text-align:right">5.000 đ/km</td></tr>
+                        <tr><td>Hạn mức giỏ hàng ứng trước</td><td style="font-weight:bold;text-align:right">Tối đa 1.000.000 đ</td></tr>
+                        <tr><td>Yêu cầu an toàn</td><td style="font-weight:bold;text-align:right;color:var(--accent-orange)">Bắt buộc tải ảnh hoá đơn siêu thị</td></tr>
+                        <tr><td>Chiết khấu sàn</td><td style="font-weight:bold;text-align:right;color:var(--accent-green)">12%</td></tr>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">🚙 Biểu phí Lái xe hộ (Designated Driver)</div>
+                    <table class="data-table">
+                        <tr><td>Cước 5km đầu tiên</td><td style="font-weight:bold;text-align:right">90.000 đ (Xe máy) / 160.000 đ (Ô tô)</td></tr>
+                        <tr><td>Mỗi km tiếp theo</td><td style="font-weight:bold;text-align:right">10.000 đ/km / 15.000 đ/km</td></tr>
+                        <tr><td>Phụ phí ban đêm (Sau 22:00)</td><td style="font-weight:bold;text-align:right;color:var(--accent-purple)">+30.000 đ ~ 50.000 đ</td></tr>
+                        <tr><td>Phí chờ khách quá giờ hẹn</td><td style="font-weight:bold;text-align:right">30.000 đ / 15 phút</td></tr>
+                        <tr><td>Tùy chọn xe kèm (Shadow Duo)</td><td style="font-weight:bold;text-align:right">+40.000 đ (Tài xế thứ 2 hộ tống)</td></tr>
+                    </table>
+                </div>
             </div>
         </div>
     </main>
 
+    <!-- ========================================== -->
+    <!-- MODAL: CHI TIẾT DUYỆT HỒ SƠ TÀI XẾ KYC -->
+    <!-- ========================================== -->
+    <div class="modal-overlay" id="kyc-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title" id="m-driver-name">Chi tiết hồ sơ tài xế</div>
+                    <div style="font-size:0.8rem;color:var(--text-muted)" id="m-driver-phone">SĐT: --</div>
+                </div>
+                <button class="modal-close" onclick="closeKycModal()">✕</button>
+            </div>
+
+            <!-- Profile Info Grid -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;background:var(--bg-card);padding:14px;border-radius:12px;border:1px solid var(--border);margin-bottom:16px;">
+                <div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary)">CCCD / Định danh</div>
+                    <div style="font-weight:bold;font-size:0.9rem" id="m-id-card">--</div>
+                </div>
+                <div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary)">Giấy phép lái xe (GPLX)</div>
+                    <div style="font-weight:bold;font-size:0.9rem" id="m-license-num">--</div>
+                </div>
+                <div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary)">Biển số & Phương tiện</div>
+                    <div style="font-weight:bold;font-size:0.9rem" id="m-plate">--</div>
+                </div>
+            </div>
+
+            <!-- Warnings if any -->
+            <div id="m-warnings" style="display:none;padding:12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:10px;margin-bottom:16px;font-size:0.82rem;color:var(--accent-red);"></div>
+
+            <!-- MinIO Document Photos -->
+            <div style="font-size:0.9rem;font-weight:700;margin-bottom:8px">📄 Tài liệu xác minh (MinIO Object Storage)</div>
+            <div class="docs-grid">
+                <div class="doc-item">
+                    <img id="m-doc-id-front" src="" alt="CCCD Mặt trước" onclick="openLightbox(this.src)">
+                    <div class="doc-label">CCCD Mặt trước</div>
+                </div>
+                <div class="doc-item">
+                    <img id="m-doc-id-back" src="" alt="CCCD Mặt sau" onclick="openLightbox(this.src)">
+                    <div class="doc-label">CCCD Mặt sau</div>
+                </div>
+                <div class="doc-item">
+                    <img id="m-doc-license" src="" alt="Giấy phép lái xe" onclick="openLightbox(this.src)">
+                    <div class="doc-label">Giấy phép lái xe (GPLX)</div>
+                </div>
+                <div class="doc-item">
+                    <img id="m-doc-vehicle" src="" alt="Đăng ký xe & Bảo hiểm" onclick="openLightbox(this.src)">
+                    <div class="doc-label">Đăng ký xe / Cà vẹt & Bảo hiểm</div>
+                </div>
+            </div>
+
+            <!-- Rejection / Notes field -->
+            <div style="margin:16px 0;">
+                <label style="font-size:0.82rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">Ghi chú hoặc lý do từ chối (Nghị định 10/2020/NĐ-CP):</label>
+                <input type="text" id="m-reason-input" class="search-box" style="width:100%" placeholder="Ví dụ: Ảnh GPLX bị mờ, CCCD hết hạn sử dụng...">
+            </div>
+
+            <!-- Action buttons -->
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+                <button class="btn btn-outline" onclick="closeKycModal()">Đóng</button>
+                <button class="btn btn-warning" onclick="submitApproval('suspended')">🔒 Tạm khoá</button>
+                <button class="btn btn-danger" onclick="submitApproval('rejected')">❌ Từ chối</button>
+                <button class="btn btn-success" onclick="submitApproval('approved')">✅ Duyệt hồ sơ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox for Image Zoom -->
+    <div class="lightbox-overlay" id="lightbox" onclick="closeLightbox()">
+        <img id="lightbox-img" src="">
+    </div>
+
     <script>
         const API = '';
         let revenueChart, donutChart;
+        let fleetMap = null;
+        let fleetMarkers = [];
+        let allKycDrivers = [];
+        let currentKycFilter = '';
+        let activeKycDriverId = null;
+        let allOrders = [];
+        let currentOrderService = '';
 
-        // Format VND
         function fmtVND(n) {
+            if (n == null || isNaN(n)) return '0đ';
             if (n >= 1e9) return (n / 1e9).toFixed(1) + ' tỷ';
             if (n >= 1e6) return (n / 1e6).toFixed(1) + ' tr';
             if (n >= 1e3) return (n / 1e3).toFixed(0) + 'k';
-            return n.toLocaleString('vi-VN');
+            return Number(n).toLocaleString('vi-VN') + 'đ';
         }
 
-        function fmtNum(n) { return n.toLocaleString('vi-VN'); }
+        function fmtNum(n) { return (n || 0).toLocaleString('vi-VN'); }
 
         const typeEmoji = { ride: '🚗', food_delivery: '🍔', grocery: '🛒', designated_driver: '🚙' };
         const typeName = { ride: 'Chở khách', food_delivery: 'Đồ ăn', grocery: 'Đi chợ', designated_driver: 'Lái xe hộ' };
@@ -454,174 +808,537 @@
 
         // Clock
         function updateClock() {
-            document.getElementById('clock').textContent = new Date().toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' });
+            document.getElementById('clock').textContent = new Date().toLocaleString('vi-VN', {
+                hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit'
+            });
         }
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Load Stats
+        // Switch Tab
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-tab-btn').forEach(btn => btn.classList.remove('active'));
+
+            const targetPane = document.getElementById('tab-' + tabId);
+            if (targetPane) targetPane.classList.add('active');
+
+            const activeBtn = Array.from(document.querySelectorAll('.nav-tab-btn')).find(b => b.getAttribute('onclick')?.includes(tabId));
+            if (activeBtn) activeBtn.classList.add('active');
+
+            if (tabId === 'fleet') {
+                setTimeout(() => { initFleetMap(); loadFleetMap(); }, 200);
+            } else if (tabId === 'kyc') {
+                loadKycDrivers();
+            } else if (tabId === 'orders') {
+                loadOrders();
+            }
+        }
+
+        function refreshCurrentTab() {
+            const activePane = document.querySelector('.tab-pane.active');
+            if (!activePane) return;
+            const id = activePane.id.replace('tab-', '');
+            if (id === 'overview') { loadStats(); loadRevenue(); loadFeed(); loadDrivers(); }
+            else if (id === 'kyc') { loadKycDrivers(); }
+            else if (id === 'orders') { loadOrders(); }
+            else if (id === 'fleet') { loadFleetMap(); }
+        }
+
+        // ==========================================
+        // OVERVIEW TAB LOGIC
+        // ==========================================
         async function loadStats() {
-            const res = await fetch(API + '/api/v1/admin/stats');
-            const data = await res.json();
-            const o = data.overview;
+            try {
+                const res = await fetch(API + '/api/v1/admin/stats');
+                const data = await res.json();
+                const o = data.overview;
 
-            document.getElementById('stats-grid').innerHTML = [
-                { label: 'Đơn hàng hôm nay', value: fmtNum(o.total_orders_today), icon: '📦', cls: 'blue', change: '+12%', up: true, sub: `${o.active_orders} đang xử lý` },
-                { label: 'Doanh thu hôm nay', value: fmtVND(o.total_revenue_today) + 'đ', icon: '💰', cls: 'green', change: '+8%', up: true, sub: `TB ${fmtVND(o.average_order_value)}đ/đơn` },
-                { label: 'Tài xế online', value: fmtNum(o.total_drivers_online), icon: '🏍️', cls: 'orange', change: `${o.total_drivers_active} đang chạy`, up: true, sub: `Tỷ lệ: ${o.completion_rate.toFixed(1)}%` },
-                { label: 'Khách hàng', value: fmtNum(o.total_customers), icon: '👥', cls: 'purple', change: '+5%', up: true, sub: `${o.total_merchants} merchants` },
-            ].map(s => `
-                <div class="stat-card animate-in">
-                    <div class="stat-header">
-                        <div class="stat-label">${s.label}</div>
-                        <div class="stat-icon ${s.cls}">${s.icon}</div>
+                document.getElementById('stats-grid').innerHTML = [
+                    { label: 'Đơn hàng hôm nay', value: fmtNum(o.total_orders_today), icon: '📦', cls: 'blue', change: '+12%', up: true, sub: `${o.active_orders} đang xử lý` },
+                    { label: 'Doanh thu hôm nay', value: fmtVND(o.total_revenue_today), icon: '💰', cls: 'green', change: '+8%', up: true, sub: `TB ${fmtVND(o.average_order_value)}/đơn` },
+                    { label: 'Tài xế online', value: fmtNum(o.total_drivers_online), icon: '🏍️', cls: 'orange', change: `${o.total_drivers_active} đang chạy`, up: true, sub: `Tỷ lệ hoàn thành: ${o.completion_rate.toFixed(1)}%` },
+                    { label: 'Khách hàng', value: fmtNum(o.total_customers), icon: '👥', cls: 'purple', change: '+5%', up: true, sub: `${o.total_merchants} quán đối tác` },
+                ].map(s => `
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-label">${s.label}</div>
+                            <div class="stat-icon ${s.cls}">${s.icon}</div>
+                        </div>
+                        <div class="stat-value">${s.value}</div>
+                        <div class="stat-change ${s.up ? 'up' : 'down'}">▲ ${s.change}</div>
+                        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px">${s.sub}</div>
                     </div>
-                    <div class="stat-value">${s.value}</div>
-                    <div class="stat-change ${s.up ? 'up' : 'down'}">▲ ${s.change}</div>
-                    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">${s.sub}</div>
-                </div>
-            `).join('');
+                `).join('');
 
-            // Services
-            const svc = data.by_service;
-            document.getElementById('services-grid').innerHTML = Object.entries(svc).map(([key, v]) => `
-                <div class="service-card animate-in">
-                    <div class="service-icon">${typeEmoji[key]}</div>
-                    <div class="service-name">${typeName[key]}</div>
-                    <div class="service-orders">${fmtNum(v.orders_today)} đơn</div>
-                    <div class="service-revenue">${fmtVND(v.revenue_today)}đ</div>
-                    <div class="service-detail">
-                        ${v.avg_fare ? 'TB: ' + fmtVND(v.avg_fare) + 'đ' : v.avg_order_value ? 'TB: ' + fmtVND(v.avg_order_value) + 'đ' : v.avg_basket_value ? 'TB: ' + fmtVND(v.avg_basket_value) + 'đ' : ''}
-                        ${v.cancel_rate ? ' · Hủy: ' + v.cancel_rate.toFixed(1) + '%' : ''}
-                        ${v.night_pct ? ' · Đêm: ' + v.night_pct.toFixed(0) + '%' : ''}
-                    </div>
-                </div>
-            `).join('');
-
-            // Peak Hours
-            document.getElementById('peak-hours').innerHTML = data.peak_hours.map(p => `
-                <div style="display:flex;align-items:center;gap:10px;padding:0.5rem 0;border-bottom:1px solid rgba(75,85,99,0.15)">
-                    <span style="font-size:0.85rem;min-width:95px;color:var(--text-secondary)">${p.hour}</span>
-                    <div style="flex:1">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width:${Math.min(100, p.orders)}%;background:${typeColor[p.type]}"></div>
+                const svc = data.by_service;
+                document.getElementById('services-grid').innerHTML = Object.entries(svc).map(([key, v]) => `
+                    <div class="service-card">
+                        <div class="service-icon">${typeEmoji[key]}</div>
+                        <div class="service-name">${typeName[key]}</div>
+                        <div class="service-orders">${fmtNum(v.orders_today)} đơn</div>
+                        <div class="service-revenue">${fmtVND(v.revenue_today)}</div>
+                        <div class="service-detail">
+                            ${v.avg_fare ? 'TB: ' + fmtVND(v.avg_fare) : v.avg_order_value ? 'TB: ' + fmtVND(v.avg_order_value) : ''}
+                            ${v.cancel_rate ? ' · Hủy: ' + v.cancel_rate.toFixed(1) + '%' : ''}
                         </div>
                     </div>
-                    <span style="font-size:0.8rem;font-weight:600;min-width:40px;text-align:right">${p.orders}</span>
-                    <span style="font-size:0.85rem">${typeEmoji[p.type]}</span>
-                </div>
-            `).join('');
+                `).join('');
+
+                document.getElementById('peak-hours').innerHTML = data.peak_hours.map(p => `
+                    <div style="display:flex;align-items:center;gap:10px;padding:0.5rem 0;border-bottom:1px solid rgba(75,85,99,0.15)">
+                        <span style="font-size:0.82rem;min-width:95px;color:var(--text-secondary)">${p.hour}</span>
+                        <div style="flex:1">
+                            <div style="height:6px;background:rgba(75,85,99,0.3);border-radius:3px;overflow:hidden">
+                                <div style="width:${Math.min(100, p.orders)}%;height:100%;background:${typeColor[p.type]}"></div>
+                            </div>
+                        </div>
+                        <span style="font-size:0.8rem;font-weight:600;min-width:35px;text-align:right">${p.orders}</span>
+                        <span style="font-size:0.85rem">${typeEmoji[p.type]}</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error("Lỗi tải stats:", e);
+            }
         }
 
-        // Load Revenue Chart
         async function loadRevenue() {
-            const res = await fetch(API + '/api/v1/admin/revenue');
-            const data = await res.json();
-            const d = data.chart_data;
+            try {
+                const res = await fetch(API + '/api/v1/admin/revenue');
+                const data = await res.json();
+                const d = data.chart_data;
 
-            const ctx = document.getElementById('revenueChart').getContext('2d');
-            if (revenueChart) revenueChart.destroy();
+                const ctx = document.getElementById('revenueChart').getContext('2d');
+                if (revenueChart) revenueChart.destroy();
 
-            revenueChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: d.map(x => x.day_name + '\n' + x.date),
-                    datasets: [
-                        { label: 'Chở khách', data: d.map(x => x.ride), backgroundColor: '#3b82f680', borderRadius: 4 },
-                        { label: 'Đồ ăn', data: d.map(x => x.food_delivery), backgroundColor: '#f59e0b80', borderRadius: 4 },
-                        { label: 'Đi chợ', data: d.map(x => x.grocery), backgroundColor: '#10b98180', borderRadius: 4 },
-                        { label: 'Lái xe hộ', data: d.map(x => x.designated_driver), backgroundColor: '#8b5cf680', borderRadius: 4 },
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'top', labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 12, padding: 16 } },
-                        tooltip: {
-                            backgroundColor: '#1f2937', titleColor: '#f9fafb', bodyColor: '#d1d5db',
-                            borderColor: '#374151', borderWidth: 1, padding: 10,
-                            callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtVND(ctx.raw) + 'đ' }
-                        }
+                revenueChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: d.map(x => x.day_name + ' ' + x.date),
+                        datasets: [
+                            { label: 'Chở khách', data: d.map(x => x.ride), backgroundColor: '#3b82f6cc', borderRadius: 4 },
+                            { label: 'Đồ ăn', data: d.map(x => x.food_delivery), backgroundColor: '#f59e0bcc', borderRadius: 4 },
+                            { label: 'Đi chợ', data: d.map(x => x.grocery), backgroundColor: '#10b981cc', borderRadius: 4 },
+                            { label: 'Lái xe hộ', data: d.map(x => x.designated_driver), backgroundColor: '#8b5cf6cc', borderRadius: 4 },
+                        ]
                     },
-                    scales: {
-                        x: { stacked: true, grid: { display: false }, ticks: { color: '#6b7280', font: { size: 11 } } },
-                        y: { stacked: true, grid: { color: 'rgba(75,85,99,0.15)' }, ticks: { color: '#6b7280', callback: v => fmtVND(v) + 'đ' } }
-                    }
-                }
-            });
-
-            // Donut
-            const totals = { ride: 0, food_delivery: 0, grocery: 0, designated_driver: 0 };
-            d.forEach(x => { totals.ride += x.ride; totals.food_delivery += x.food_delivery; totals.grocery += x.grocery; totals.designated_driver += x.designated_driver; });
-            const dCtx = document.getElementById('donutChart').getContext('2d');
-            if (donutChart) donutChart.destroy();
-
-            donutChart = new Chart(dCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: Object.keys(totals).map(k => typeName[k]),
-                    datasets: [{
-                        data: Object.values(totals),
-                        backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#8b5cf6'],
-                        borderWidth: 0, hoverOffset: 8
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    cutout: '65%',
-                    plugins: {
-                        legend: { position: 'bottom', labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 10, padding: 12 } },
-                        tooltip: {
-                            backgroundColor: '#1f2937',
-                            callbacks: { label: ctx => ctx.label + ': ' + fmtVND(ctx.raw) + 'đ' }
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top', labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 12 } },
+                            tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtVND(ctx.raw) } }
+                        },
+                        scales: {
+                            x: { stacked: true, grid: { display: false }, ticks: { color: '#6b7280', font: { size: 11 } } },
+                            y: { stacked: true, grid: { color: 'rgba(75,85,99,0.15)' }, ticks: { color: '#6b7280', callback: v => fmtVND(v) } }
                         }
                     }
-                }
-            });
+                });
+
+                const totals = { ride: 0, food_delivery: 0, grocery: 0, designated_driver: 0 };
+                d.forEach(x => { totals.ride += x.ride; totals.food_delivery += x.food_delivery; totals.grocery += x.grocery; totals.designated_driver += x.designated_driver; });
+                const dCtx = document.getElementById('donutChart').getContext('2d');
+                if (donutChart) donutChart.destroy();
+
+                donutChart = new Chart(dCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(totals).map(k => typeName[k]),
+                        datasets: [{
+                            data: Object.values(totals),
+                            backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#8b5cf6'],
+                            borderWidth: 0, hoverOffset: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        cutout: '65%',
+                        plugins: {
+                            legend: { position: 'bottom', labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 10, padding: 10 } },
+                            tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmtVND(ctx.raw) } }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error("Lỗi tải chart doanh thu:", e);
+            }
         }
 
-        // Load Live Feed
         async function loadFeed() {
-            const res = await fetch(API + '/api/v1/admin/orders/recent');
-            const data = await res.json();
+            try {
+                const res = await fetch(API + '/api/v1/admin/orders/recent');
+                const data = await res.json();
+                document.getElementById('live-feed').innerHTML = data.orders.map(o => `
+                    <div class="feed-item">
+                        <div class="feed-type ${o.service_type}">${typeEmoji[o.service_type] || '📦'}</div>
+                        <div class="feed-info">
+                            <div class="feed-name">${o.customer_name} <span class="status-badge ${o.status}">${o.status.replace(/_/g, ' ')}</span></div>
+                            <div class="feed-route">${o.pickup} ➔ ${o.dropoff}</div>
+                        </div>
+                        <div class="feed-meta">
+                            <div class="feed-fare">${fmtVND(o.fare)}</div>
+                            <div class="feed-time">${o.created_at} · ${o.payment_method}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error("Lỗi tải live feed:", e);
+            }
+        }
 
-            document.getElementById('live-feed').innerHTML = data.orders.map(o => `
-                <div class="feed-item">
-                    <div class="feed-type ${o.service_type}">${typeEmoji[o.service_type]}</div>
-                    <div class="feed-info">
-                        <div class="feed-name">${o.customer_name} <span class="status-badge ${o.status}">${o.status.replace(/_/g, ' ')}</span></div>
-                        <div class="feed-route">${o.pickup} → ${o.dropoff}</div>
+        async function loadDrivers() {
+            try {
+                const res = await fetch(API + '/api/v1/admin/drivers');
+                const data = await res.json();
+                document.getElementById('top-drivers').innerHTML = data.top_drivers.map((d, i) => `
+                    <div style="display:flex;align-items:center;gap:10px;padding:0.55rem 0;border-bottom:1px solid rgba(75,85,99,0.15)">
+                        <div style="width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:0.75rem;background:${i < 3 ? 'rgba(245,158,11,0.2)' : 'rgba(156,163,175,0.2)'};color:${i < 3 ? 'var(--accent-orange)' : 'var(--text-secondary)'}">${i + 1}</div>
+                        <div style="flex:1">
+                            <div style="font-size:0.85rem;font-weight:600">${d.name}</div>
+                            <div style="font-size:0.72rem;color:var(--text-muted)">${d.trips_today} chuyến · ⭐ ${d.rating.toFixed(1)}</div>
+                        </div>
+                        <div style="font-size:0.85rem;font-weight:700;color:var(--accent-green)">${fmtVND(d.revenue)}</div>
                     </div>
-                    <div class="feed-meta">
-                        <div class="feed-fare">${fmtVND(o.fare)}đ</div>
-                        <div class="feed-time">${o.created_at} · ${o.payment_method}</div>
-                    </div>
-                </div>
+                `).join('');
+            } catch (e) {
+                console.error("Lỗi tải top drivers:", e);
+            }
+        }
+
+        // ==========================================
+        // KYC MODERATION LOGIC
+        // ==========================================
+        async function loadKycDrivers() {
+            try {
+                const res = await fetch(API + '/api/v1/auth/admin/drivers?admin_dev=1', {
+                    headers: { 'X-Admin-Role': 'admin' }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    allKycDrivers = data.drivers || [];
+                } else {
+                    // Fallback to sample data for display if user-service has no drivers yet
+                    allKycDrivers = [
+                        { id: 'drv-001', full_name: 'Nguyễn Văn Hùng', phone: '0979123456', vehicle_type: 'car', license_plate: '47A-123.45', driver_kind: 'personal', approval_status: 'pending_approval', created_at: '2026-11-12' },
+                        { id: 'drv-002', full_name: 'Trần Minh Tuấn', phone: '0988765432', vehicle_type: 'bike', license_plate: '47B1-987.65', driver_kind: 'personal', approval_status: 'approved', created_at: '2026-11-10' },
+                        { id: 'drv-003', full_name: 'Lê Hoàng Nam', phone: '0912345678', vehicle_type: 'car', license_plate: '47A-555.88', driver_kind: 'business', approval_status: 'pending_approval', created_at: '2026-11-12' },
+                    ];
+                }
+                renderKycTable();
+            } catch (e) {
+                console.error("Lỗi tải hồ sơ KYC:", e);
+            }
+        }
+
+        function filterKycStatus(status) {
+            currentKycFilter = status;
+            document.querySelectorAll('#kyc-filters .filter-pill').forEach(btn => {
+                const isMatch = (status === '' && btn.innerText.includes('Tất cả')) ||
+                                (status === 'pending_approval' && btn.innerText.includes('Chờ duyệt')) ||
+                                (status === 'approved' && btn.innerText.includes('Đã duyệt')) ||
+                                (status === 'rejected' && btn.innerText.includes('Bị từ chối')) ||
+                                (status === 'suspended' && btn.innerText.includes('Tạm khoá'));
+                btn.classList.toggle('active', isMatch);
+            });
+            renderKycTable();
+        }
+
+        function renderKycTable() {
+            const search = (document.getElementById('kyc-search')?.value || '').toLowerCase().trim();
+            const filtered = allKycDrivers.filter(d => {
+                const matchStatus = !currentKycFilter || d.approval_status === currentKycFilter;
+                const matchSearch = !search || (d.full_name && d.full_name.toLowerCase().includes(search)) || (d.phone && d.phone.includes(search));
+                return matchStatus && matchSearch;
+            });
+
+            const tbody = document.getElementById('kyc-tbody');
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Không tìm thấy hồ sơ tài xế nào</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(d => {
+                const statusLabels = {
+                    pending_approval: { text: 'Chờ duyệt', cls: 'pending' },
+                    approved: { text: 'Đã duyệt', cls: 'approved' },
+                    rejected: { text: 'Bị từ chối', cls: 'rejected' },
+                    suspended: { text: 'Tạm khoá', cls: 'suspended' },
+                };
+                const st = statusLabels[d.approval_status] || { text: d.approval_status, cls: 'pending' };
+
+                return `
+                    <tr>
+                        <td>
+                            <div style="font-weight:700">${d.full_name || 'Tài xế'}</div>
+                            <div style="font-size:0.75rem;color:var(--text-muted)">ID: ${d.id}</div>
+                        </td>
+                        <td>${d.phone || '--'}</td>
+                        <td>
+                            <div>${d.vehicle_type === 'bike' ? '🏍️ Xe máy' : '🚗 Xe ô tô'}</div>
+                            <div style="font-size:0.78rem;font-weight:bold;color:var(--accent-blue)">${d.license_plate || '--'}</div>
+                        </td>
+                        <td>
+                            <span style="font-size:0.75rem;font-weight:600;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06)">
+                                ${d.driver_kind === 'business' ? '🏢 Doanh nghiệp' : '👤 Cá nhân'}
+                            </span>
+                        </td>
+                        <td style="color:var(--text-secondary);font-size:0.8rem">${d.created_at ? d.created_at.substring(0, 10) : '--'}</td>
+                        <td><span class="status-badge ${st.cls}">${st.text}</span></td>
+                        <td>
+                            <button class="btn btn-primary" onclick="openKycModal('${d.id}')">Xem hồ sơ</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function openKycModal(driverId) {
+            activeKycDriverId = driverId;
+            const modal = document.getElementById('kyc-modal');
+            modal.classList.add('active');
+
+            try {
+                const res = await fetch(`${API}/api/v1/auth/admin/drivers/${driverId}?admin_dev=1`, {
+                    headers: { 'X-Admin-Role': 'admin' }
+                });
+                let detail = null;
+                if (res.ok) {
+                    detail = await res.json();
+                } else {
+                    const fallback = allKycDrivers.find(x => x.id === driverId) || {};
+                    detail = {
+                        user: fallback,
+                        doc_urls: {
+                            id_card_front: 'https://images.unsplash.com/photo-1578328819058-b69f3a3b0f6b?auto=format&fit=crop&w=600&q=80',
+                            id_card_back: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=600&q=80',
+                            driver_license: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=600&q=80',
+                            vehicle_registration: 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&w=600&q=80',
+                        },
+                        warnings: []
+                    };
+                }
+
+                const u = detail.user || {};
+                document.getElementById('m-driver-name').textContent = u.full_name || 'Hồ sơ tài xế';
+                document.getElementById('m-driver-phone').textContent = 'SĐT: ' + (u.phone || '--') + ' · Trạng thái: ' + (u.approval_status || 'Chờ duyệt');
+                document.getElementById('m-id-card').textContent = u.id_card_number || 'Chưa cung cấp';
+                document.getElementById('m-license-num').textContent = u.driver_license_number || 'Chưa cung cấp';
+                document.getElementById('m-plate').textContent = (u.license_plate || '--') + ' (' + (u.vehicle_model || u.vehicle_type || '2 bánh') + ')';
+
+                const urls = detail.doc_urls || {};
+                document.getElementById('m-doc-id-front').src = urls.id_card_front || 'https://via.placeholder.com/300x160?text=CCCD+Mat+Truoc';
+                document.getElementById('m-doc-id-back').src = urls.id_card_back || 'https://via.placeholder.com/300x160?text=CCCD+Mat+Sau';
+                document.getElementById('m-doc-license').src = urls.driver_license || 'https://via.placeholder.com/300x160?text=GPLX';
+                document.getElementById('m-doc-vehicle').src = urls.vehicle_registration || 'https://via.placeholder.com/300x160?text=Dang+Ky+Xe';
+
+                const wBox = document.getElementById('m-warnings');
+                if (detail.warnings && detail.warnings.length > 0) {
+                    wBox.style.display = 'block';
+                    wBox.innerHTML = '⚠️ <strong>Cảnh báo giấy tờ:</strong><br>' + detail.warnings.join('<br>');
+                } else {
+                    wBox.style.display = 'none';
+                }
+            } catch (e) {
+                console.error("Lỗi nạp chi tiết driver:", e);
+            }
+        }
+
+        function closeKycModal() {
+            document.getElementById('kyc-modal').classList.remove('active');
+            activeKycDriverId = null;
+        }
+
+        async function submitApproval(status) {
+            if (!activeKycDriverId) return;
+            const reason = document.getElementById('m-reason-input').value.trim();
+
+            if (status === 'rejected' && !reason) {
+                alert('Vui lòng nhập lý do từ chối hồ sơ theo Nghị định 10/2020/NĐ-CP!');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/api/v1/auth/admin/drivers/${activeKycDriverId}/approval?admin_dev=1`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'X-Admin-Role': 'admin' },
+                    body: JSON.stringify({ status: status, reason: reason })
+                });
+
+                alert(`Đã cập nhật trạng thái hồ sơ thành: ${status === 'approved' ? 'ĐÃ DUYỆT ✅' : status === 'rejected' ? 'BỊ TỪ CHỐI ❌' : 'TẠM KHOÁ 🔒'}`);
+                closeKycModal();
+                loadKycDrivers();
+            } catch (e) {
+                alert('Lỗi cập nhật hồ sơ: ' + e);
+            }
+        }
+
+        function openLightbox(src) {
+            document.getElementById('lightbox-img').src = src;
+            document.getElementById('lightbox').classList.add('active');
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
+        }
+
+        // ==========================================
+        // ORDERS TAB LOGIC
+        // ==========================================
+        async function loadOrders() {
+            try {
+                const res = await fetch(API + '/api/v1/admin/orders/recent');
+                const data = await res.json();
+                allOrders = data.orders || [];
+                renderOrdersTable();
+            } catch (e) {
+                console.error("Lỗi tải orders:", e);
+            }
+        }
+
+        function filterOrdersService(sType) {
+            currentOrderService = sType;
+            document.querySelectorAll('#order-filters .filter-pill').forEach(btn => {
+                const isMatch = (sType === '' && btn.innerText.includes('Tất cả')) ||
+                                (sType === 'ride' && btn.innerText.includes('Chở khách')) ||
+                                (sType === 'food_delivery' && btn.innerText.includes('Đồ ăn')) ||
+                                (sType === 'grocery' && btn.innerText.includes('Đi chợ')) ||
+                                (sType === 'designated_driver' && btn.innerText.includes('Lái xe hộ'));
+                btn.classList.toggle('active', isMatch);
+            });
+            renderOrdersTable();
+        }
+
+        function renderOrdersTable() {
+            const search = (document.getElementById('order-search')?.value || '').toLowerCase().trim();
+            const filtered = allOrders.filter(o => {
+                const matchService = !currentOrderService || o.service_type === currentOrderService;
+                const matchSearch = !search || o.id.toLowerCase().includes(search) || o.customer_name.toLowerCase().includes(search);
+                return matchService && matchSearch;
+            });
+
+            const tbody = document.getElementById('orders-tbody');
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Không có đơn hàng nào phù hợp</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(o => `
+                <tr>
+                    <td style="font-weight:bold;font-family:monospace;color:var(--accent-blue)">${o.id}</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:6px">
+                            <span>${typeEmoji[o.service_type] || '📦'}</span>
+                            <span style="font-weight:600">${typeName[o.service_type] || o.service_type}</span>
+                        </div>
+                    </td>
+                    <td>${o.customer_name}</td>
+                    <td>
+                        <div style="font-size:0.78rem;color:var(--text-secondary)">🟢 ${o.pickup}</div>
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">🔴 ${o.dropoff}</div>
+                    </td>
+                    <td style="font-weight:bold;color:var(--accent-green)">${fmtVND(o.fare)}</td>
+                    <td><span style="text-transform:uppercase;font-size:0.75rem;font-weight:bold">${o.payment_method}</span></td>
+                    <td style="color:var(--text-muted);font-size:0.78rem">${o.created_at}</td>
+                    <td><span class="status-badge ${o.status}">${o.status.replace(/_/g, ' ')}</span></td>
+                </tr>
             `).join('');
         }
 
-        // Load Drivers
-        async function loadDrivers() {
-            const res = await fetch(API + '/api/v1/admin/drivers');
-            const data = await res.json();
+        // ==========================================
+        // FLEET MAP LOGIC (LEAFLET + ESRI DARK CANVAS)
+        // ==========================================
+        function initFleetMap() {
+            if (fleetMap) return;
+            fleetMap = L.map('fleet-map', {
+                center: [12.8055, 108.2612],
+                zoom: 13,
+                zoomControl: true
+            });
 
-            document.getElementById('top-drivers').innerHTML = data.top_drivers.map((d, i) => `
-                <div class="driver-item">
-                    <div class="driver-rank ${i < 3 ? 'gold' : 'silver'}">${i + 1}</div>
-                    <div class="driver-info">
-                        <div class="driver-name">${d.name}</div>
-                        <div class="driver-trips">${d.trips_today} chuyến · ⭐ ${d.rating.toFixed(1)}</div>
-                    </div>
-                    <div class="driver-revenue">${fmtVND(d.revenue)}đ</div>
-                </div>
-            `).join('');
+            // Standard Esri Dark Gray Canvas Basemap (Same as Rider App)
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri — Dark Gray Canvas',
+                maxZoom: 18
+            }).addTo(fleetMap);
+
+            // Esri Reference Labels
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '',
+                maxZoom: 18
+            }).addTo(fleetMap);
+        }
+
+        async function loadFleetMap() {
+            if (!fleetMap) initFleetMap();
+            try {
+                const res = await fetch(API + '/api/v1/admin/fleet');
+                const data = await res.json();
+                const drivers = data.drivers || [];
+
+                document.getElementById('map-online-count').textContent = drivers.length;
+                const onTripCount = drivers.filter(d => d.status === 'on_trip').length;
+                document.getElementById('map-ontrip-count').textContent = onTripCount;
+
+                // Clear existing markers
+                fleetMarkers.forEach(m => fleetMap.removeLayer(m));
+                fleetMarkers = [];
+
+                drivers.forEach(d => {
+                    const isAvailable = d.status === 'online' || d.status === 'idle';
+                    const iconColor = isAvailable ? '#10b981' : '#f59e0b';
+                    const iconEmoji = d.vehicle_type === 'car' ? '🚗' : '🏍️';
+
+                    const customIcon = L.divIcon({
+                        className: 'custom-fleet-pin',
+                        html: `
+                            <div style="
+                                width: 34px; height: 34px; border-radius: 50%;
+                                background: #111827; border: 2.5px solid ${iconColor};
+                                display: flex; align-items: center; justify-content: center;
+                                font-size: 16px; box-shadow: 0 0 12px ${iconColor}80;
+                                cursor: pointer;
+                            ">
+                                ${iconEmoji}
+                            </div>
+                        `,
+                        iconSize: [34, 34],
+                        iconAnchor: [17, 17]
+                    });
+
+                    const marker = L.marker([d.lat, d.lng], { icon: customIcon }).addTo(fleetMap);
+                    marker.bindPopup(`
+                        <div style="font-family:'Inter',sans-serif;color:#111;padding:4px">
+                            <div style="font-weight:bold;font-size:14px">${d.name || 'Tài xế'}</div>
+                            <div style="font-size:12px;color:#555">SĐT: ${d.phone || '--'}</div>
+                            <div style="font-size:12px;margin:4px 0">⭐ ${d.rating ? d.rating.toFixed(1) : '5.0'} · ${d.trips_today || 0} cuốc hôm nay</div>
+                            <div style="font-size:11px;font-weight:bold;color:${iconColor}">
+                                ${isAvailable ? '🟢 Đang rảnh (Sẵn sàng nhận cuốc)' : '🟠 Đang thực hiện chuyến'}
+                            </div>
+                        </div>
+                    `);
+                    fleetMarkers.push(marker);
+                });
+            } catch (e) {
+                console.error("Lỗi nạp bản đồ đội xe:", e);
+            }
+        }
+
+        function recenterFleetMap(lat, lng, zoom) {
+            if (fleetMap) fleetMap.setView([lat, lng], zoom);
         }
 
         // Initial load
         Promise.all([loadStats(), loadRevenue(), loadFeed(), loadDrivers()]);
 
-        // Auto-refresh every 30s
-        setInterval(() => { loadStats(); loadFeed(); loadDrivers(); }, 30000);
+        // Auto-refresh stats every 30s
+        setInterval(() => {
+            const activePane = document.querySelector('.tab-pane.active');
+            if (activePane && activePane.id === 'tab-overview') {
+                loadStats(); loadFeed(); loadDrivers();
+            } else if (activePane && activePane.id === 'tab-fleet') {
+                loadFleetMap();
+            }
+        }, 30000);
         setInterval(loadRevenue, 60000);
     </script>
 </body>

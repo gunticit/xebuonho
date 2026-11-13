@@ -36,7 +36,7 @@ class ApiConfig {
       '$apiVersion/drivers/$driverId/rating-summary';
 
   // Driver tracking
-  static const String driverLocation = '$apiVersion/driver/location/nearby';
+  static const String driverLocation = '$apiVersion/admin/fleet';
 
   // Health
   static const String health = '/health';
