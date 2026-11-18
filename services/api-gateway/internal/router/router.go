@@ -44,13 +44,16 @@ func NewRouter(jwtSecret string, rideClient *grpcclient.RideClient, orderClient 
 	mux.Handle("/", http.FileServer(http.FS(staticFS)))
 
 	// ==========================================
-	// Admin API (no auth for dashboard access)
+	// Admin API (JWT required, role must be "admin")
 	// ==========================================
-	mux.HandleFunc("/api/v1/admin/stats", adminH.GetStats)
-	mux.HandleFunc("/api/v1/admin/orders/recent", adminH.GetRecentOrders)
-	mux.HandleFunc("/api/v1/admin/revenue", adminH.GetRevenueChart)
-	mux.HandleFunc("/api/v1/admin/drivers", adminH.GetDriverStats)
-	mux.HandleFunc("/api/v1/admin/fleet", adminH.GetFleetMap)
+	adminAuth := func(h http.HandlerFunc) http.Handler {
+		return middleware.AuthMiddleware(jwtSecret)(middleware.RequireRole("admin")(h))
+	}
+	mux.Handle("/api/v1/admin/stats", adminAuth(adminH.GetStats))
+	mux.Handle("/api/v1/admin/orders/recent", adminAuth(adminH.GetRecentOrders))
+	mux.Handle("/api/v1/admin/revenue", adminAuth(adminH.GetRevenueChart))
+	mux.Handle("/api/v1/admin/drivers", adminAuth(adminH.GetDriverStats))
+	mux.Handle("/api/v1/admin/fleet", adminAuth(adminH.GetFleetMap))
 
 	// ==========================================
 	// Auth API (proxy to user-service, no JWT required)

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../config/app_icons.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/gradient_avatar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -41,12 +43,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: AppColors.bg2,
-        title: const Text('Thông tin cá nhân', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+        title: Text('Thông tin cá nhân', style: AppTextStyles.heading3),
         actions: [
           TextButton(
             onPressed: () => setState(() => _editing = !_editing),
-            child: Text(_editing ? 'Hủy' : 'Sửa',
-              style: const TextStyle(color: AppColors.blue, fontWeight: FontWeight.w600)),
+            child: Text(
+              _editing ? 'Hủy' : 'Sửa',
+              style: AppTextStyles.body1.copyWith(
+                color: AppColors.blue,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -54,102 +61,123 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Avatar
+            // Modern Avatar with gradient ring
             Center(
               child: Stack(
                 children: [
-                  Container(
-                    width: 90, height: 90,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.blue, AppColors.purple],
-                        begin: Alignment.topLeft, end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 20)],
-                    ),
-                    child: Center(
-                      child: Text(
-                        auth.userName.isNotEmpty ? auth.userName[0].toUpperCase() : '?',
-                        style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white),
-                      ),
-                    ),
+                  GradientAvatar(
+                    name: auth.userName,
+                    size: AvatarSize.large,
+                    showOnline: true,
                   ),
                   if (_editing)
                     Positioned(
-                      bottom: 0, right: 0,
+                      bottom: 0,
+                      right: 0,
                       child: Container(
-                        width: 30, height: 30,
+                        width: 32,
+                        height: 32,
                         decoration: BoxDecoration(
-                          color: AppColors.green, shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.bg, width: 2),
+                          color: AppColors.green,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.bg, width: 2.5),
+                          boxShadow: AppShadows.subtle,
                         ),
-                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                        child: const Icon(AppIcons.camera, color: Colors.white, size: 16),
                       ),
                     ),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.greenBg, borderRadius: BorderRadius.circular(8),
+                color: AppColors.greenBg,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
               ),
-              child: Text('⭐ ${auth.userRole == 'rider' ? 'Khách hàng' : auth.userRole}',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.green)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(AppIcons.verified, size: 14, color: AppColors.green),
+                  const SizedBox(width: 6),
+                  Text(
+                    auth.userRole == 'rider' ? 'Khách hàng' : (auth.userRole == 'driver' ? 'Đối tác Tài xế' : auth.userRole),
+                    style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: AppColors.green),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
 
-            // Fields
-            _buildField('Họ và tên', _nameCtrl, Icons.person_outline, _editing),
-            _buildField('Số điện thoại', _phoneCtrl, Icons.phone_outlined, false), // phone not editable
-            _buildField('Email', _emailCtrl, Icons.email_outlined, _editing),
+            // Form Fields
+            _buildField('Họ và tên', _nameCtrl, AppIcons.profile, _editing),
+            _buildField('Số điện thoại', _phoneCtrl, AppIcons.call, false),
+            _buildField('Email', _emailCtrl, Icons.email_rounded, _editing),
             const SizedBox(height: 16),
 
-            // Stats
+            // Modern Stats Card
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.bg2, borderRadius: BorderRadius.circular(16),
+                gradient: AppGradients.card,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
                 border: Border.all(color: AppColors.border),
+                boxShadow: AppShadows.subtle,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildStat('27', 'Chuyến đi'),
-                  Container(width: 1, height: 36, color: AppColors.border),
-                  _buildStat('4.8', 'Đánh giá'),
-                  Container(width: 1, height: 36, color: AppColors.border),
-                  _buildStat('2', 'Năm'),
+                  _buildStat('27', 'Chuyến đi', AppColors.blue, AppIcons.trips),
+                  Container(width: 1, height: 40, color: AppColors.border),
+                  _buildStat('4.9', 'Đánh giá', AppColors.orange, AppIcons.star),
+                  Container(width: 1, height: 40, color: AppColors.border),
+                  _buildStat('2', 'Năm gắn bó', AppColors.green, AppIcons.shield),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Quick actions
-            if (auth.userRole == 'admin' || auth.userRole == 'superadmin')
-              _buildAction(Icons.admin_panel_settings_outlined, 'Bảng điều khiển Admin', 'Quản trị hệ thống', AppColors.blue, () => Navigator.pushNamed(context, '/admin')),
-            _buildAction(Icons.verified_user, 'Xác minh tài khoản', 'Đã xác minh', AppColors.green),
-            _buildAction(Icons.security, 'Đổi mật khẩu', '', AppColors.blue),
-            _buildAction(Icons.delete_outline, 'Xóa tài khoản', '', AppColors.red, () => _confirmDeleteAccount(context)),
+            if (auth.isAdmin)
+              _buildAction(
+                Icons.admin_panel_settings_rounded,
+                'Bảng điều khiển Admin',
+                'Quản trị hệ thống',
+                AppColors.blue,
+                () => Navigator.pushNamed(context, '/admin'),
+              ),
+            _buildAction(AppIcons.verified, 'Xác minh tài khoản', 'Đã xác minh', AppColors.green),
+            _buildAction(AppIcons.shield, 'Đổi mật khẩu', '', AppColors.blue),
+            _buildAction(AppIcons.delete, 'Xóa tài khoản', '', AppColors.red, () => _confirmDeleteAccount(context)),
 
             if (_editing) ...[
               const SizedBox(height: 24),
               SizedBox(
-                width: double.infinity, height: 50,
+                width: double.infinity,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: () {
                     setState(() => _editing = false);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('✅ Đã cập nhật'), backgroundColor: AppColors.green),
+                      const SnackBar(
+                        content: Row(
+                          children: [
+                            Icon(AppIcons.verified, color: Colors.white, size: 18),
+                            SizedBox(width: 8),
+                            Text('Đã cập nhật thông tin thành công'),
+                          ],
+                        ),
+                        backgroundColor: AppColors.green,
+                      ),
                     );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.green,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
                   ),
-                  child: const Text('Lưu thay đổi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                  child: Text('Lưu thay đổi', style: AppTextStyles.button),
                 ),
               ),
             ],
@@ -165,12 +193,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.text3)),
+          Text(label, style: AppTextStyles.label),
           const SizedBox(height: 6),
           TextField(
             controller: ctrl,
             enabled: editable,
-            style: const TextStyle(color: AppColors.text, fontSize: 15),
+            style: AppTextStyles.body1.copyWith(color: AppColors.text),
             decoration: InputDecoration(
               prefixIcon: Icon(icon, color: AppColors.text3, size: 20),
               filled: true,
@@ -182,12 +210,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStat(String value, String label) {
+  Widget _buildStat(String value, String label, Color color, IconData icon) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.text)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(value, style: AppTextStyles.heading3.copyWith(color: AppColors.text)),
+          ],
+        ),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+        Text(label, style: AppTextStyles.caption),
       ],
     );
   }
@@ -196,21 +231,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
+        margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.bg2, borderRadius: BorderRadius.circular(12),
+          color: AppColors.bg2,
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
-            Icon(icon, color: color, size: 20),
+            IconContainer(
+              icon: icon,
+              color: color,
+              size: 36,
+              iconSize: 18,
+              borderRadius: AppRadius.sm,
+            ),
             const SizedBox(width: 12),
-            Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.text))),
+            Expanded(child: Text(title, style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.w600))),
             if (subtitle.isNotEmpty)
-              Text(subtitle, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+              Text(subtitle, style: AppTextStyles.caption.copyWith(color: color, fontWeight: FontWeight.w600)),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, color: AppColors.text3, size: 18),
+            const Icon(AppIcons.forward, color: AppColors.text3, size: 18),
           ],
         ),
       ),
@@ -224,42 +266,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bg2,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
           side: const BorderSide(color: AppColors.border),
         ),
         title: Row(
-          children: const [
-            Text('⚠️', style: TextStyle(fontSize: 22)),
-            SizedBox(width: 8),
-            Text('Xác nhận xóa tài khoản', style: TextStyle(color: AppColors.text, fontSize: 16, fontWeight: FontWeight.bold)),
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: AppColors.orange, size: 24),
+            const SizedBox(width: 8),
+            Text('Xác nhận xóa tài khoản', style: AppTextStyles.heading3.copyWith(fontSize: 16)),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
+          children: [
             Text(
               'Bạn có chắc chắn muốn xóa tài khoản này không? Hành động này sẽ:',
-              style: TextStyle(color: AppColors.text, fontSize: 13, height: 1.4),
+              style: AppTextStyles.body2.copyWith(color: AppColors.text, height: 1.4),
             ),
-            SizedBox(height: 10),
-            Text('• Hủy toàn bộ phiên đăng nhập trên mọi thiết bị.', style: TextStyle(color: AppColors.text2, fontSize: 12)),
-            Text('• Ẩn toàn bộ thông tin cá nhân (PII) theo Nghị định 13/2023/NĐ-CP.', style: TextStyle(color: AppColors.text2, fontSize: 12)),
-            Text('• Giải phóng số điện thoại để có thể đăng ký tài khoản mới khi cần.', style: TextStyle(color: AppColors.text2, fontSize: 12)),
-            SizedBox(height: 6),
-            Text('• Bạn sẽ không thể hoàn tác sau khi đã xóa.', style: TextStyle(color: AppColors.red, fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            Text('• Hủy toàn bộ phiên đăng nhập trên mọi thiết bị.', style: AppTextStyles.caption),
+            Text('• Ẩn toàn bộ thông tin cá nhân (PII) theo Nghị định 13/2023/NĐ-CP.', style: AppTextStyles.caption),
+            Text('• Giải phóng số điện thoại để có thể đăng ký tài khoản mới khi cần.', style: AppTextStyles.caption),
+            const SizedBox(height: 6),
+            Text('• Bạn sẽ không thể hoàn tác sau khi đã xóa.', style: AppTextStyles.caption.copyWith(color: AppColors.red, fontWeight: FontWeight.w600)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy bỏ', style: TextStyle(color: AppColors.text3, fontWeight: FontWeight.w600)),
+            child: Text('Hủy bỏ', style: AppTextStyles.body2.copyWith(color: AppColors.text3, fontWeight: FontWeight.w600)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
             ),
             child: const Text('Xác nhận xóa', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
           ),
@@ -278,11 +320,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final success = await auth.deleteAccount();
 
       if (context.mounted) {
-        Navigator.pop(context); // Đóng loading dialog
+        Navigator.pop(context);
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('✅ Đã xóa tài khoản thành công. Hẹn gặp lại bạn!'),
+              content: Text('Đã xóa tài khoản thành công. Hẹn gặp lại bạn!'),
               backgroundColor: AppColors.green,
             ),
           );

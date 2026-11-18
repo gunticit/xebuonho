@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../config/app_icons.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/gradient_avatar.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -23,59 +25,59 @@ class AppDrawer extends StatelessWidget {
               },
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
                 decoration: const BoxDecoration(
                   border: Border(bottom: BorderSide(color: AppColors.border)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Avatar
-                    Container(
-                      width: 56, height: 56,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.blue, AppColors.purple],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Center(
-                        child: Text(
-                          auth.userName.isNotEmpty ? auth.userName[0].toUpperCase() : '?',
-                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     Row(
                       children: [
+                        GradientAvatar(
+                          name: auth.userName,
+                          size: AvatarSize.medium,
+                          showOnline: true,
+                        ),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(auth.userName,
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.text)),
+                              Text(
+                                auth.userName.isNotEmpty ? auth.userName : 'Khách hàng',
+                                style: AppTextStyles.heading3.copyWith(fontSize: 16),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                               const SizedBox(height: 2),
-                              Text(auth.userPhone,
-                                style: const TextStyle(fontSize: 13, color: AppColors.text3)),
+                              Text(
+                                auth.userPhone.isNotEmpty ? auth.userPhone : 'Chưa cập nhật',
+                                style: AppTextStyles.caption,
+                              ),
                             ],
                           ),
                         ),
-                        const Icon(Icons.chevron_right, color: AppColors.text3, size: 20),
+                        const Icon(AppIcons.forward, color: AppColors.text3, size: 20),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppColors.greenBg,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                        border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
                       ),
-                      child: Text(
-                        '⭐ ${auth.userRole == 'rider' ? 'Khách hàng' : auth.userRole}',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.green),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(AppIcons.star, size: 12, color: AppColors.green),
+                          const SizedBox(width: 4),
+                          Text(
+                            auth.userRole == 'rider' ? 'Khách hàng' : (auth.userRole == 'driver' ? 'Đối tác Tài xế' : auth.userRole),
+                            style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w600, color: AppColors.green),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -89,7 +91,7 @@ class AppDrawer extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: auth.isDriver ? AppColors.blueBg : AppColors.orangeBg,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 border: Border.all(
                   color: auth.isDriver
                       ? AppColors.blue.withValues(alpha: 0.4)
@@ -98,14 +100,20 @@ class AppDrawer extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Text(auth.isDriver ? '🙋‍♂️' : '🚕', style: const TextStyle(fontSize: 22)),
+                  IconContainer(
+                    icon: auth.isDriver ? AppIcons.profile : AppIcons.car,
+                    color: auth.isDriver ? AppColors.blue : AppColors.orange,
+                    size: 38,
+                    iconSize: 20,
+                    borderRadius: AppRadius.sm,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          auth.isDriver ? 'Đang ở Chế độ Tài xế' : 'Chạy xe kiếm thêm thu nhập?',
+                          auth.isDriver ? 'Chế độ Tài xế' : 'Chạy xe kiếm thu nhập?',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -114,7 +122,7 @@ class AppDrawer extends StatelessWidget {
                         ),
                         Text(
                           auth.isDriver ? 'Bấm để về giao diện Khách' : 'Chuyển sang Chế độ Tài xế',
-                          style: const TextStyle(fontSize: 11, color: AppColors.text3),
+                          style: AppTextStyles.caption,
                         ),
                       ],
                     ),
@@ -134,7 +142,7 @@ class AppDrawer extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       backgroundColor: auth.isDriver ? AppColors.blue : AppColors.orange,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
                     ),
                     child: const Text('Đổi vai', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
                   ),
@@ -147,37 +155,37 @@ class AppDrawer extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
-                  _buildMenuItem(context, Icons.home_outlined, 'Trang chủ', '/home', isActive: true),
-                  _buildMenuItem(context, Icons.drive_eta, 'Bàn làm việc Tài xế', '/driver', emoji: '🚕'),
-                  _buildMenuItem(context, Icons.receipt_long, 'Hoạt động & Đơn hàng', '/activities'),
-                  _buildMenuItem(context, Icons.schedule, 'Đặt lịch chuyến', '/schedule', emoji: '📅'),
-                  _buildMenuItem(context, Icons.notifications_outlined, 'Thông báo', '/notifications', badge: '3'),
+                  _buildMenuItem(context, AppIcons.home, 'Trang chủ', '/home', isActive: true),
+                  _buildMenuItem(context, AppIcons.car, 'Bàn làm việc Tài xế', '/driver'),
+                  _buildMenuItem(context, AppIcons.activities, 'Hoạt động & Đơn hàng', '/activities'),
+                  _buildMenuItem(context, AppIcons.schedule, 'Đặt lịch chuyến', '/schedule'),
+                  _buildMenuItem(context, AppIcons.notifications, 'Thông báo', '/notifications', badge: '3'),
                   if (auth.isAdmin) ...[
                     _buildDivider(),
                     _buildSectionTitle('QUẢN TRỊ'),
-                    _buildMenuItem(context, Icons.shield_outlined, 'Duyệt hồ sơ tài xế (KYC)', '/admin', emoji: '🛡️'),
+                    _buildMenuItem(context, AppIcons.shield, 'Duyệt hồ sơ tài xế (KYC)', '/admin'),
                   ],
                   _buildDivider(),
                   _buildSectionTitle('DỊCH VỤ'),
-                  _buildMenuItem(context, Icons.two_wheeler, 'Xe máy', '/search', emoji: '🏍️'),
-                  _buildMenuItem(context, Icons.directions_car, 'Ô tô', '/search', emoji: '🚗'),
-                  _buildMenuItem(context, Icons.fastfood, 'Đồ ăn', '/food', emoji: '🍔'),
-                  _buildMenuItem(context, Icons.shopping_basket, 'Đi chợ hộ', '/grocery', emoji: '🛒'),
-                  _buildMenuItem(context, Icons.shield, 'Lái xe hộ', '/designated-driver', emoji: '🚙'),
-                  _buildMenuItem(context, Icons.local_shipping, 'Giao hàng Express', '/delivery', emoji: '📦'),
+                  _buildMenuItem(context, AppIcons.bike, 'Xe máy', '/search'),
+                  _buildMenuItem(context, AppIcons.car, 'Ô tô', '/search'),
+                  _buildMenuItem(context, AppIcons.food, 'Đồ ăn', '/food'),
+                  _buildMenuItem(context, AppIcons.grocery, 'Đi chợ hộ', '/grocery'),
+                  _buildMenuItem(context, AppIcons.designatedDriver, 'Lái xe hộ', '/designated-driver'),
+                  _buildMenuItem(context, AppIcons.delivery, 'Giao hàng Express', '/delivery'),
                   _buildDivider(),
                   _buildSectionTitle('TÀI KHOẢN'),
-                  _buildMenuItem(context, Icons.person_outline, 'Thông tin cá nhân', '/profile'),
-                  _buildMenuItem(context, Icons.location_on_outlined, 'Địa chỉ đã lưu', '/saved-addresses'),
-                  _buildMenuItem(context, Icons.payment, 'Thanh toán', '/payment'),
-                  _buildMenuItem(context, Icons.card_giftcard, 'Khuyến mãi', '/promotions', badge: '2'),
-                  _buildMenuItem(context, Icons.chat_bubble_outline, 'Chat hỗ trợ', '/chat'),
-                  _buildMenuItem(context, Icons.support_agent, 'Hỗ trợ', '/support'),
-                  _buildMenuItem(context, Icons.settings_outlined, 'Cài đặt', '/settings'),
+                  _buildMenuItem(context, AppIcons.profile, 'Thông tin cá nhân', '/profile'),
+                  _buildMenuItem(context, AppIcons.dropoff, 'Địa chỉ đã lưu', '/saved-addresses'),
+                  _buildMenuItem(context, AppIcons.creditCard, 'Thanh toán & Ví', '/payment'),
+                  _buildMenuItem(context, AppIcons.voucher, 'Khuyến mãi', '/promotions', badge: '2'),
+                  _buildMenuItem(context, AppIcons.chat, 'Chat hỗ trợ', '/chat'),
+                  _buildMenuItem(context, AppIcons.support, 'Hỗ trợ khách hàng', '/support'),
+                  _buildMenuItem(context, AppIcons.settings, 'Cài đặt', '/settings'),
                   _buildDivider(),
                   _buildSectionTitle('PHÁP LÝ'),
-                  _buildMenuItem(context, Icons.privacy_tip_outlined, 'Chính sách bảo mật', '/privacy'),
-                  _buildMenuItem(context, Icons.description_outlined, 'Điều khoản sử dụng', '/terms'),
+                  _buildMenuItem(context, AppIcons.privacy, 'Chính sách bảo mật', '/privacy'),
+                  _buildMenuItem(context, AppIcons.terms, 'Điều khoản sử dụng', '/terms'),
                 ],
               ),
             ),
@@ -197,15 +205,15 @@ class AppDrawer extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
                     color: AppColors.redBg,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     border: Border.all(color: AppColors.red.withValues(alpha: 0.3)),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.logout, color: AppColors.red, size: 18),
-                      SizedBox(width: 8),
-                      Text('Đăng xuất', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.red)),
+                      const Icon(AppIcons.logout, color: AppColors.red, size: 18),
+                      const SizedBox(width: 8),
+                      Text('Đăng xuất', style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.w700, color: AppColors.red)),
                     ],
                   ),
                 ),
@@ -218,7 +226,7 @@ class AppDrawer extends StatelessWidget {
   }
 
   Widget _buildMenuItem(BuildContext context, IconData icon, String title, String? route,
-      {bool isActive = false, String? badge, String? emoji}) {
+      {bool isActive = false, String? badge}) {
     return GestureDetector(
       onTap: () {
         Navigator.pop(context);
@@ -228,22 +236,20 @@ class AppDrawer extends StatelessWidget {
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: isActive ? AppColors.blueBg : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Row(
           children: [
-            if (emoji != null)
-              SizedBox(width: 24, child: Center(child: Text(emoji, style: const TextStyle(fontSize: 16))))
-            else
-              Icon(icon, size: 20, color: isActive ? AppColors.blue : AppColors.text3),
+            Icon(icon, size: 20, color: isActive ? AppColors.blue : AppColors.text3),
             const SizedBox(width: 14),
             Expanded(
-              child: Text(title,
-                style: TextStyle(
-                  fontSize: 14, fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+              child: Text(
+                title,
+                style: AppTextStyles.body1.copyWith(
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                   color: isActive ? AppColors.blue : AppColors.text,
                 ),
               ),
@@ -253,9 +259,9 @@ class AppDrawer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppColors.redBg,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
-                child: Text(badge, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.red)),
+                child: Text(badge, style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: AppColors.red)),
               ),
           ],
         ),
@@ -265,7 +271,7 @@ class AppDrawer extends StatelessWidget {
 
   Widget _buildDivider() {
     return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 6),
       child: Divider(color: AppColors.border, height: 1),
     );
   }
@@ -273,8 +279,10 @@ class AppDrawer extends StatelessWidget {
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(26, 8, 16, 4),
-      child: Text(title,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.text3, letterSpacing: 1)),
+      child: Text(
+        title,
+        style: AppTextStyles.caption.copyWith(letterSpacing: 1, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }

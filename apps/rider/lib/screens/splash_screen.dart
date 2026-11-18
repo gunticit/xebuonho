@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart';
+import '../config/app_icons.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/consent_dialog.dart';
 
@@ -23,12 +24,12 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1400),
     );
     _fadeAnim = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
-    _scaleAnim = Tween<double>(begin: 0.5, end: 1.0).animate(
+    _scaleAnim = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
     );
     _controller.forward();
@@ -39,7 +40,6 @@ class _SplashScreenState extends State<SplashScreen>
       final hasConsent = prefs.getBool('consent_accepted') ?? false;
 
       if (!hasConsent && mounted) {
-        // First launch — show consent dialog
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -84,10 +84,10 @@ class _SplashScreenState extends State<SplashScreen>
       body: Container(
         decoration: BoxDecoration(
           gradient: RadialGradient(
-            center: Alignment.center,
-            radius: 1.2,
+            center: const Alignment(0, -0.2),
+            radius: 1.0,
             colors: [
-              AppColors.blue.withValues(alpha: 0.08),
+              AppColors.blue.withValues(alpha: 0.15),
               AppColors.bg,
             ],
           ),
@@ -103,27 +103,60 @@ class _SplashScreenState extends State<SplashScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 100, height: 100,
+                      width: 108,
+                      height: 108,
                       decoration: BoxDecoration(
-                        color: AppColors.blue.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: AppColors.blue.withValues(alpha: 0.3), width: 2),
+                        gradient: AppGradients.primary,
+                        borderRadius: BorderRadius.circular(32),
                         boxShadow: [
-                          BoxShadow(color: AppColors.blue.withValues(alpha: 0.2), blurRadius: 40, spreadRadius: 10),
+                          BoxShadow(
+                            color: AppColors.blue.withValues(alpha: 0.4),
+                            blurRadius: 40,
+                            spreadRadius: 4,
+                          ),
                         ],
                       ),
-                      child: const Center(child: Text('🏍️', style: TextStyle(fontSize: 48))),
+                      child: const Center(
+                        child: Icon(
+                          AppIcons.bike,
+                          size: 54,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 24),
-                    const Text('Xebuonho',
-                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppColors.text, letterSpacing: -1)),
-                    const SizedBox(height: 6),
-                    const Text('Đi đâu cũng có',
-                      style: TextStyle(fontSize: 14, color: AppColors.text3, fontWeight: FontWeight.w500)),
-                    const SizedBox(height: 40),
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [Colors.white, Color(0xFF93C5FD)],
+                      ).createShader(bounds),
+                      child: const Text(
+                        'Xebuonho',
+                        style: TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: -0.8,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Nền tảng gọi xe & giao nhận hiện đại',
+                      style: AppTextStyles.body2.copyWith(
+                        color: AppColors.text2,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 48),
                     SizedBox(
-                      width: 24, height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.blue.withValues(alpha: 0.5)),
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.blue.withValues(alpha: 0.8),
+                        ),
+                      ),
                     ),
                   ],
                 ),

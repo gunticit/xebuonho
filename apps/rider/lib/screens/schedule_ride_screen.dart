@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../config/theme.dart';
+import '../config/app_icons.dart';
 import '../services/api_service.dart';
 
 class ScheduleRideScreen extends StatefulWidget {
@@ -19,9 +19,9 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
   bool _isSubmitting = false;
 
   final _vehicles = [
-    {'id': 'bike', 'emoji': '🏍️', 'name': 'Xe máy', 'price': '~25.000đ'},
-    {'id': 'car', 'emoji': '🚗', 'name': 'Ô tô', 'price': '~75.000đ'},
-    {'id': 'premium', 'emoji': '🚙', 'name': 'Premium', 'price': '~120.000đ'},
+    {'id': 'bike', 'icon': AppIcons.bike, 'name': 'Xe máy', 'price': '~25.000đ'},
+    {'id': 'car', 'icon': AppIcons.car, 'name': 'Ô tô 4 chỗ', 'price': '~75.000đ'},
+    {'id': 'premium', 'icon': AppIcons.car, 'name': 'Ô tô 7 chỗ / Premium', 'price': '~120.000đ'},
   ];
 
   Future<void> _pickDate() async {
@@ -61,25 +61,54 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
     }
   }
 
+  String _formatDateVietnamese(DateTime dt) {
+    const weekdays = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+    final weekday = weekdays[(dt.weekday - 1).clamp(0, 6)];
+    final day = dt.day.toString().padLeft(2, '0');
+    final month = dt.month.toString().padLeft(2, '0');
+    final year = dt.year;
+    return '$weekday, $day/$month/$year';
+  }
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  String _formatDateTimeSummary(DateTime dt) {
+    const weekdays = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'];
+    final weekday = weekdays[(dt.weekday - 1).clamp(0, 6)];
+    final day = dt.day.toString().padLeft(2, '0');
+    final month = dt.month.toString().padLeft(2, '0');
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return '$hour:$minute — $weekday, $day/$month';
+  }
+
   /// Đặt lịch thật: tạo order status='scheduled' + scheduled_at.
-  /// Worker của gateway sẽ flip sang 'created' khi tới giờ → tài xế thấy cuốc.
   Future<void> _confirmSchedule() async {
     if (_pickup.trim().isEmpty || _dropoff.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: const Text('⚠️ Vui lòng nhập điểm đón và điểm đến'), backgroundColor: AppColors.orange),
+        const SnackBar(
+          content: Text('Vui lòng nhập điểm đón và điểm đến'),
+          backgroundColor: AppColors.orange,
+        ),
       );
       return;
     }
     if (_scheduled.isBefore(DateTime.now().add(const Duration(minutes: 10)))) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: const Text('⚠️ Giờ đón phải cách hiện tại ít nhất 10 phút'), backgroundColor: AppColors.orange),
+        const SnackBar(
+          content: Text('Giờ đón phải cách hiện tại ít nhất 10 phút'),
+          backgroundColor: AppColors.orange,
+        ),
       );
       return;
     }
 
     setState(() => _isSubmitting = true);
     try {
-      // Điểm đón dùng vị trí hiện tại (demo); địa chỉ là dữ liệu thật cho tài xế
       double lat = 12.9247, lng = 108.2541;
       await ApiService().createRide(
         serviceType: 'ride',
@@ -94,34 +123,51 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
         scheduledAt: _scheduled.toUtc().toIso8601String(),
       );
       if (!mounted) return;
-      final fmt = DateFormat('HH:mm — EEE, dd/MM', 'vi_VN');
+      final timeStr = _formatDateTimeSummary(_scheduled);
+
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
           backgroundColor: AppColors.bg2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(children: [
-            Text('🎉', style: TextStyle(fontSize: 28)),
-            SizedBox(width: 10),
-            Text('Đã đặt lịch!', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.text)),
-          ]),
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Chuyến của bạn đã được lên lịch:', style: TextStyle(fontSize: 13, color: AppColors.text3)),
-            const SizedBox(height: 12),
-            _kv('🕐 Thời gian', fmt.format(_scheduled)),
-            _kv('🚦 Loại xe', _vehicles.firstWhere((v) => v['id'] == _vehicle)['name']!),
-            _kv('📍 Đón', _pickup),
-            _kv('🎯 Đến', _dropoff),
-            if (_remind15)
-              _kv('🔔 Nhắc nhở', 'Trước 15 phút'),
-          ]),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xl)),
+          title: Row(
+            children: [
+              IconContainer(
+                icon: AppIcons.verified,
+                color: AppColors.green,
+                size: 36,
+                iconSize: 20,
+                borderRadius: AppRadius.sm,
+              ),
+              const SizedBox(width: 10),
+              Text('Đã đặt lịch hẹn!', style: AppTextStyles.heading3.copyWith(fontSize: 17)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Chuyến đi của bạn đã được lên lịch thành công:', style: AppTextStyles.caption),
+              const SizedBox(height: 12),
+              _kv('Thời gian', timeStr, AppIcons.timer),
+              _kv('Loại xe', _vehicles.firstWhere((v) => v['id'] == _vehicle)['name'] as String, AppIcons.car),
+              _kv('Điểm đón', _pickup, AppIcons.pickup),
+              _kv('Điểm đến', _dropoff, AppIcons.dropoff),
+              if (_remind15)
+                _kv('Nhắc nhở', 'Trước 15 phút', AppIcons.notifications),
+            ],
+          ),
           actions: [
-            TextButton(
+            ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
-              child: const Text('Đóng', style: TextStyle(color: AppColors.blue)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.blue,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+              ),
+              child: const Text('Xong', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -141,177 +187,273 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
     }
   }
 
-  Widget _kv(String k, String v) => Padding(
+  Widget _kv(String k, String v, IconData icon) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(children: [
-      SizedBox(width: 100, child: Text(k, style: TextStyle(fontSize: 12, color: AppColors.text3))),
-      Expanded(child: Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text))),
-    ]),
+    child: Row(
+      children: [
+        Icon(icon, size: 14, color: AppColors.text3),
+        const SizedBox(width: 6),
+        SizedBox(width: 80, child: Text(k, style: AppTextStyles.caption)),
+        Expanded(child: Text(v, style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.w600, color: AppColors.text))),
+      ],
+    ),
   );
 
   @override
   Widget build(BuildContext context) {
-    final dateFmt = DateFormat('EEE, dd/MM/yyyy', 'vi_VN');
-    final timeFmt = DateFormat('HH:mm');
+    final dateStr = _formatDateVietnamese(_scheduled);
+    final timeStr = _formatTime(_scheduled);
 
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: AppColors.bg2,
-        title: const Text('📅 Đặt lịch chuyến xe', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+        title: Text('Đặt lịch hẹn chuyến xe', style: AppTextStyles.heading3),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Hero
+          // Modern Hero Card
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [AppColors.blue.withValues(alpha: 0.15), AppColors.purple.withValues(alpha: 0.1)]),
-              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: [AppColors.blue.withValues(alpha: 0.18), AppColors.purple.withValues(alpha: 0.12)],
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.xl),
               border: Border.all(color: AppColors.blue.withValues(alpha: 0.3)),
+              boxShadow: AppShadows.subtle,
             ),
-            child: Column(children: [
-              const Text('📅', style: TextStyle(fontSize: 40)),
-              const SizedBox(height: 8),
-              Text('Đặt xe trước', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.text)),
-              const SizedBox(height: 4),
-              Text('Chúng tôi sẽ tự ghép tài xế và nhắc bạn đúng giờ', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.text3)),
-            ]),
+            child: Row(
+              children: [
+                IconContainer(
+                  icon: AppIcons.schedule,
+                  color: AppColors.blue,
+                  size: 54,
+                  iconSize: 28,
+                  borderRadius: AppRadius.md,
+                  showGlow: true,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Đặt xe theo lịch hẹn', style: AppTextStyles.heading4),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Hệ thống tự động ghép tài xế tốt nhất và thông báo nhắc bạn đúng giờ.',
+                        style: AppTextStyles.caption.copyWith(color: AppColors.text2, height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 20),
 
-          // Date + Time
-          Text('🕐 Thời gian', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text)),
+          // Date + Time Section
+          Text('Thời gian đón', style: AppTextStyles.label),
           const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: GestureDetector(
-              onTap: _pickDate,
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: AppColors.bg2, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-                child: Row(children: [
-                  Icon(Icons.calendar_today, color: AppColors.blue, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(dateFmt.format(_scheduled), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text))),
-                ]),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: _pickDate,
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.bg2,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today_rounded, color: AppColors.blue, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(dateStr, style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.w600, color: AppColors.text))),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            )),
-            const SizedBox(width: 8),
-            Expanded(child: GestureDetector(
-              onTap: _pickTime,
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: AppColors.bg2, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-                child: Row(children: [
-                  Icon(Icons.access_time, color: AppColors.green, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(timeFmt.format(_scheduled), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text))),
-                ]),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onTap: _pickTime,
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.bg2,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(AppIcons.timer, color: AppColors.green, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(timeStr, style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.w600, color: AppColors.text))),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            )),
-          ]),
+            ],
+          ),
           const SizedBox(height: 20),
 
           // Pickup / Dropoff
-          Text('📍 Hành trình', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text)),
+          Text('Hành trình', style: AppTextStyles.label),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(color: AppColors.bg2, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+            decoration: BoxDecoration(
+              color: AppColors.bg2,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: AppColors.border),
+            ),
             child: TextField(
-              style: TextStyle(color: AppColors.text, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'Điểm đón',
-                prefixIcon: const Text('🟢', style: TextStyle(fontSize: 16)),
-                prefixIconConstraints: const BoxConstraints(minWidth: 32),
+              style: const TextStyle(color: AppColors.text, fontSize: 14),
+              decoration: const InputDecoration(
+                hintText: 'Nhập địa chỉ đón',
+                prefixIcon: Icon(AppIcons.pickup, color: AppColors.green, size: 18),
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
               ),
               onChanged: (v) => _pickup = v,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(color: AppColors.bg2, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+            decoration: BoxDecoration(
+              color: AppColors.bg2,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: AppColors.border),
+            ),
             child: TextField(
-              style: TextStyle(color: AppColors.text, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'Điểm đến',
-                prefixIcon: const Text('🔴', style: TextStyle(fontSize: 16)),
-                prefixIconConstraints: const BoxConstraints(minWidth: 32),
+              style: const TextStyle(color: AppColors.text, fontSize: 14),
+              decoration: const InputDecoration(
+                hintText: 'Nhập địa chỉ đến',
+                prefixIcon: Icon(AppIcons.dropoff, color: AppColors.red, size: 18),
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
               ),
               onChanged: (v) => _dropoff = v,
             ),
           ),
           const SizedBox(height: 20),
 
-          // Vehicle
-          Text('🚦 Loại xe', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text)),
+          // Vehicle Selection
+          Text('Chọn phương tiện', style: AppTextStyles.label),
           const SizedBox(height: 8),
-          ..._vehicles.map((v) => GestureDetector(
-            onTap: () => setState(() => _vehicle = v['id']!),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _vehicle == v['id'] ? AppColors.blueBg : AppColors.bg2,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _vehicle == v['id'] ? AppColors.blue.withValues(alpha: 0.5) : AppColors.border),
-              ),
-              child: Row(children: [
-                Text(v['emoji']!, style: const TextStyle(fontSize: 24)),
-                const SizedBox(width: 14),
-                Expanded(child: Text(v['name']!, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text))),
-                Text(v['price']!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.orange)),
-                if (_vehicle == v['id'])
-                  Padding(
-                    padding: const EdgeInsets.only(left: 10),
-                    child: Icon(Icons.check_circle, color: AppColors.blue, size: 20),
+          ..._vehicles.map((v) {
+            final isSelected = _vehicle == v['id'];
+            final icon = v['icon'] as IconData;
+            return GestureDetector(
+              onTap: () => setState(() => _vehicle = v['id'] as String),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.blueBg : AppColors.bg2,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(
+                    color: isSelected ? AppColors.blue : AppColors.border,
+                    width: isSelected ? 1.5 : 1,
                   ),
-              ]),
-            ),
-          )),
-          const SizedBox(height: 16),
+                  boxShadow: isSelected ? AppShadows.glow(AppColors.blue) : null,
+                ),
+                child: Row(
+                  children: [
+                    IconContainer(
+                      icon: icon,
+                      color: isSelected ? AppColors.blue : AppColors.text3,
+                      size: 40,
+                      iconSize: 20,
+                      borderRadius: AppRadius.sm,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        v['name'] as String,
+                        style: AppTextStyles.body1.copyWith(
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected ? AppColors.blue : AppColors.text,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      v['price'] as String,
+                      style: AppTextStyles.body1.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.green,
+                      ),
+                    ),
+                    if (isSelected)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 10),
+                        child: Icon(AppIcons.verified, color: AppColors.blue, size: 20),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 14),
 
           // Reminder switch
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(color: AppColors.bg2, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+            decoration: BoxDecoration(
+              color: AppColors.bg2,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: AppColors.border),
+            ),
             child: SwitchListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
               value: _remind15,
-              activeColor: AppColors.blue,
+              activeThumbColor: AppColors.blue,
               onChanged: (v) => setState(() => _remind15 = v),
-              title: Row(children: [
-                const Text('🔔', style: TextStyle(fontSize: 18)),
-                const SizedBox(width: 10),
-                Text('Nhắc nhở trước 15 phút', style: TextStyle(fontSize: 14, color: AppColors.text)),
-              ]),
+              title: Row(
+                children: [
+                  const Icon(AppIcons.notifications, size: 18, color: AppColors.orange),
+                  const SizedBox(width: 10),
+                  Text('Nhắc nhở trước 15 phút', style: AppTextStyles.body2.copyWith(color: AppColors.text)),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
 
-          // Confirm
+          // Confirm button
           GestureDetector(
             onTap: _isSubmitting ? null : _confirmSchedule,
             child: Container(
-              height: 54,
+              height: 52,
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [AppColors.blue, AppColors.purple]),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 4))],
+                gradient: AppGradients.primary,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.blue.withValues(alpha: 0.4),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Center(
                 child: _isSubmitting
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 22,
+                        height: 22,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text('Xác nhận đặt lịch', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+                    : Text('Xác nhận đặt lịch', style: AppTextStyles.button),
               ),
             ),
           ),

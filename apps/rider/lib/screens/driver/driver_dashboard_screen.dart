@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../config/app_icons.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../models/driver_models.dart';
-import '../../models/ride.dart';
 
 class DriverDashboardScreen extends StatefulWidget {
   const DriverDashboardScreen({super.key});
@@ -26,13 +26,12 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
         elevation: 0,
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppColors.orangeBg,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text('🚕', style: TextStyle(fontSize: 18)),
+            IconContainer(
+              icon: AppIcons.car,
+              color: AppColors.orange,
+              size: 38,
+              iconSize: 20,
+              borderRadius: AppRadius.sm,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -43,13 +42,13 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                     auth.userName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text),
+                    style: AppTextStyles.heading4.copyWith(fontSize: 15),
                   ),
                   Text(
                     '${auth.vehicleModel} • ${auth.licensePlate}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: AppColors.text3),
+                    style: AppTextStyles.caption,
                   ),
                 ],
               ),
@@ -63,14 +62,14 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               auth.switchRole('rider');
               Navigator.pushReplacementNamed(context, '/home');
             },
-            icon: const Icon(Icons.swap_horiz, size: 18, color: AppColors.blue),
-            label: const Text(
+            icon: const Icon(AppIcons.swap, size: 18, color: AppColors.blue),
+            label: Text(
               'Chế độ Khách',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.blue),
+              style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: AppColors.blue),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.history, color: AppColors.text2),
+            icon: const Icon(AppIcons.history, color: AppColors.text2),
             tooltip: 'Lịch sử chuyến',
             onPressed: () => Navigator.pushNamed(context, '/driver/history'),
           ),
@@ -138,7 +137,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
         : (isPending ? AppColors.orange : AppColors.blue);
     IconData icon = isRejected
         ? Icons.cancel_outlined
-        : (isPending ? Icons.pending_actions : Icons.verified_user_outlined);
+        : (isPending ? Icons.pending_actions_rounded : AppIcons.verified);
 
     String title = isRejected
         ? 'HỒ SƠ BỊ TỪ CHỐI'
@@ -154,7 +153,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: borderColor, width: 1.5),
       ),
       child: Column(
@@ -181,7 +180,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: accentColor,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                   child: Text(
                     isRejected ? 'Sửa hồ sơ' : 'Xem hồ sơ',
@@ -198,7 +197,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
           const SizedBox(height: 6),
           Text(
             desc,
-            style: const TextStyle(fontSize: 11, color: AppColors.text2, height: 1.4),
+            style: AppTextStyles.caption.copyWith(color: AppColors.text2, height: 1.4),
           ),
         ],
       ),
@@ -210,24 +209,24 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xl)),
         title: Row(
           children: const [
-            Icon(Icons.shield_outlined, color: AppColors.orange, size: 24),
+            Icon(AppIcons.shield, color: AppColors.orange, size: 24),
             SizedBox(width: 8),
-            Text('Chưa thể nhận cuốc', style: TextStyle(color: AppColors.text, fontSize: 16)),
+            Text('Chưa thể nhận cuốc', style: TextStyle(color: AppColors.text, fontSize: 16, fontWeight: FontWeight.bold)),
           ],
         ),
         content: Text(
           status == 'rejected'
               ? 'Hồ sơ đối tác của bạn chưa được duyệt. Vui lòng cập nhật lại thông tin để tiếp tục.'
               : 'Theo quy định thương mại vận tải (NĐ 10/2020/NĐ-CP), bạn chỉ có thể bật nhận cuốc sau khi hồ sơ CCCD, GPLX và đăng ký xe được ban quản trị phê duyệt.',
-          style: const TextStyle(color: AppColors.text2, fontSize: 13, height: 1.4),
+          style: AppTextStyles.body2.copyWith(color: AppColors.text2, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Đóng', style: TextStyle(color: AppColors.text3)),
+            child: Text('Đóng', style: AppTextStyles.caption.copyWith(color: AppColors.text3, fontWeight: FontWeight.bold)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -235,7 +234,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               Navigator.pushNamed(context, '/driver/kyc');
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.orange),
-            child: const Text('Kiểm tra KYC', style: TextStyle(color: Colors.white)),
+            child: const Text('Kiểm tra KYC', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -260,24 +259,15 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: borderColor, width: 1.5),
-        boxShadow: isOnline
-            ? [
-                BoxShadow(
-                  color: AppColors.green.withValues(alpha: 0.15),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                )
-              ]
-            : null,
+        boxShadow: isOnline ? AppShadows.glow(AppColors.green) : AppShadows.subtle,
       ),
       child: Row(
         children: [
-          // Glowing status indicator icon
           Container(
-            width: 48,
-            height: 48,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
               color: statusColor.withValues(alpha: 0.15),
               shape: BoxShape.circle,
@@ -286,8 +276,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
             child: Center(
               child: Icon(
                 isBusy
-                    ? Icons.directions_car
-                    : (isOnline ? Icons.radar : Icons.power_settings_new),
+                    ? AppIcons.car
+                    : (isOnline ? AppIcons.radar : AppIcons.offline),
                 color: statusColor,
                 size: 24,
               ),
@@ -346,14 +336,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'HIỆU SUẤT HÔM NAY',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: AppColors.text3,
-            letterSpacing: 0.8,
-          ),
+          style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.8),
         ),
         const SizedBox(height: 10),
         Row(
@@ -362,7 +347,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               child: _buildMetricTile(
                 title: 'Thu nhập',
                 value: '${_formatCurrency(stats.todayEarnings)}đ',
-                icon: Icons.account_balance_wallet,
+                icon: AppIcons.earnings,
                 color: AppColors.green,
               ),
             ),
@@ -371,7 +356,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               child: _buildMetricTile(
                 title: 'Cuốc xe',
                 value: '${stats.tripsCompleted} chuyến',
-                icon: Icons.check_circle_outline,
+                icon: AppIcons.trips,
                 color: AppColors.blue,
               ),
             ),
@@ -383,8 +368,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
             Expanded(
               child: _buildMetricTile(
                 title: 'Đánh giá',
-                value: '⭐ ${stats.rating}',
-                icon: Icons.star_border,
+                value: '${stats.rating} ⭐',
+                icon: AppIcons.star,
                 color: AppColors.orange,
               ),
             ),
@@ -393,7 +378,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               child: _buildMetricTile(
                 title: 'Tỉ lệ nhận',
                 value: '${stats.acceptanceRate}%',
-                icon: Icons.thumb_up_alt_outlined,
+                icon: AppIcons.acceptance,
                 color: AppColors.purple,
               ),
             ),
@@ -412,8 +397,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.bg2,
-        borderRadius: BorderRadius.circular(12),
+        gradient: AppGradients.card,
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -421,15 +406,21 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 6),
-              Text(title, style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+              IconContainer(
+                icon: icon,
+                color: color,
+                size: 28,
+                iconSize: 16,
+                borderRadius: AppRadius.sm,
+              ),
+              const SizedBox(width: 8),
+              Text(title, style: AppTextStyles.caption),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             value,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.text),
+            style: AppTextStyles.heading3.copyWith(fontSize: 16),
           ),
         ],
       ),
@@ -444,19 +435,25 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.bg2,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Text('🔥', style: TextStyle(fontSize: 16)),
-              SizedBox(width: 8),
+              IconContainer(
+                icon: AppIcons.hotspot,
+                color: AppColors.orange,
+                size: 30,
+                iconSize: 18,
+                borderRadius: AppRadius.sm,
+              ),
+              const SizedBox(width: 10),
               Text(
                 'Khu vực nhu cầu cao (Thưởng nóng)',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.text),
+                style: AppTextStyles.heading4.copyWith(fontSize: 13),
               ),
             ],
           ),
@@ -478,20 +475,20 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text)),
+              Text(name, style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(height: 2),
-              Text(desc, style: const TextStyle(fontSize: 11, color: AppColors.text3)),
+              Text(desc, style: AppTextStyles.caption),
             ],
           ),
         ),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: AppColors.orangeBg,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
             border: Border.all(color: AppColors.orange.withValues(alpha: 0.4)),
           ),
-          child: Text(badge, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.orange)),
+          child: Text(badge, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.orange)),
         ),
       ],
     );
@@ -505,34 +502,42 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.bg2,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'THÔNG TIN XE ĐỐI TÁC',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.text3, letterSpacing: 0.8),
+            style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.8),
           ),
-          const SizedBox(height: 12),
-          _buildInfoRow('Loại xe', auth.vehicleType == 'bike' ? '🏍️ Xe máy 2 bánh' : '🚗 Ô tô 4 chỗ'),
-          const SizedBox(height: 8),
+          const SizedBox(height: 14),
+          _buildInfoRow('Loại xe', auth.vehicleType == 'bike' ? 'Xe máy 2 bánh' : 'Ô tô 4 chỗ', icon: auth.vehicleType == 'bike' ? AppIcons.bike : AppIcons.car),
+          const SizedBox(height: 10),
           _buildInfoRow('Mẫu xe', auth.vehicleModel),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _buildInfoRow('Biển kiểm soát', auth.licensePlate),
-          const SizedBox(height: 8),
-          _buildInfoRow('Tình trạng hồ sơ', 'Đã xác thực giấy tờ (Verified)', isSuccess: true),
+          const SizedBox(height: 10),
+          _buildInfoRow('Tình trạng hồ sơ', 'Đã xác thực giấy tờ (Verified)', isSuccess: true, icon: AppIcons.verified),
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value, {bool isSuccess = false}) {
+  Widget _buildInfoRow(String label, String value, {bool isSuccess = false, IconData? icon}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+        Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: isSuccess ? AppColors.green : AppColors.text3),
+              const SizedBox(width: 6),
+            ],
+            Text(label, style: AppTextStyles.body2),
+          ],
+        ),
         Text(
           value,
           style: TextStyle(
@@ -554,7 +559,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     final progress = countdown / 15.0;
 
     return Container(
-      color: Colors.black.withValues(alpha: 0.7),
+      color: Colors.black.withValues(alpha: 0.75),
       child: Align(
         alignment: Alignment.bottomCenter,
         child: Container(
@@ -562,15 +567,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppColors.bg2,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
             border: Border.all(color: AppColors.orange, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.orange.withValues(alpha: 0.3),
-                blurRadius: 24,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            boxShadow: AppShadows.glow(AppColors.orange),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -586,26 +585,29 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                   valueColor: const AlwaysStoppedAnimation<Color>(AppColors.orange),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
               // Title & Fare
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.orangeBg,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '${req.serviceType.icon} ${req.serviceType.displayName} • $countdown giây',
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.orangeBg,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(AppIcons.car, size: 14, color: AppColors.orange),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${req.serviceType.displayName} • $countdown s',
                           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.orange),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -616,7 +618,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                       ),
                       Text(
                         'Tổng cước: ${_formatCurrency(req.fare)}đ',
-                        style: const TextStyle(fontSize: 11, color: AppColors.text3),
+                        style: AppTextStyles.caption,
                       ),
                     ],
                   ),
@@ -626,28 +628,28 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
 
               // Rider info
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppColors.bg,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
                 child: Row(
                   children: [
                     CircleAvatar(
-                      radius: 16,
+                      radius: 18,
                       backgroundColor: AppColors.blueBg,
-                      child: const Icon(Icons.person, size: 18, color: AppColors.blue),
+                      child: const Icon(AppIcons.profile, size: 20, color: AppColors.blue),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         '${req.riderName} (⭐ ${req.riderRating})',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text),
+                        style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.w600),
                       ),
                     ),
                     Text(
                       '${req.distanceKm} km (~${req.durationMin}p)',
-                      style: const TextStyle(fontSize: 12, color: AppColors.text3),
+                      style: AppTextStyles.caption,
                     ),
                   ],
                 ),
@@ -655,12 +657,18 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               const SizedBox(height: 14),
 
               // Locations
-              _buildLocationRow(Icons.circle, AppColors.green, 'Điểm đón', req.pickupAddress),
+              _buildLocationRow(AppIcons.pickup, AppColors.green, 'Điểm đón', req.pickupAddress),
               const SizedBox(height: 8),
-              _buildLocationRow(Icons.location_on, AppColors.red, 'Điểm đến', req.dropoffAddress),
+              _buildLocationRow(AppIcons.dropoff, AppColors.red, 'Điểm đến', req.dropoffAddress),
               if (req.notes != null) ...[
                 const SizedBox(height: 8),
-                Text('📝 Ghi chú: ${req.notes}', style: const TextStyle(fontSize: 12, color: AppColors.orange)),
+                Row(
+                  children: [
+                    const Icon(AppIcons.note, size: 14, color: AppColors.orange),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text('Ghi chú: ${req.notes}', style: const TextStyle(fontSize: 12, color: AppColors.orange))),
+                  ],
+                ),
               ],
               const SizedBox(height: 18),
 
@@ -674,9 +682,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         side: const BorderSide(color: AppColors.border),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
                       ),
-                      child: const Text('Từ chối', style: TextStyle(color: AppColors.text3, fontWeight: FontWeight.w600)),
+                      child: Text('Từ chối', style: AppTextStyles.button.copyWith(color: AppColors.text3)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -696,7 +704,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                         backgroundColor: AppColors.green,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                        elevation: 4,
+                        shadowColor: AppColors.green.withValues(alpha: 0.4),
                       ),
                       child: const Text(
                         'CHẤP NHẬN CUỐC ➔',
@@ -750,8 +760,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppColors.bg2,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
             border: Border.all(color: actionColor, width: 2),
+            boxShadow: AppShadows.glow(actionColor),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -765,7 +776,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: actionColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                       border: Border.all(color: actionColor),
                     ),
                     child: Text(
@@ -786,26 +797,26 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppColors.bg,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
                 child: Row(
                   children: [
                     CircleAvatar(
                       backgroundColor: AppColors.blueBg,
-                      child: const Icon(Icons.person, color: AppColors.blue),
+                      child: const Icon(AppIcons.profile, color: AppColors.blue),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(req.riderName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text)),
-                          Text(req.riderPhone, style: const TextStyle(fontSize: 12, color: AppColors.text3)),
+                          Text(req.riderName, style: AppTextStyles.heading4.copyWith(fontSize: 14)),
+                          Text(req.riderPhone, style: AppTextStyles.caption),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.phone, color: AppColors.green),
+                      icon: const Icon(AppIcons.call, color: AppColors.green),
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('Đang gọi cho khách: ${req.riderPhone}')),
@@ -813,7 +824,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                       },
                     ),
                     IconButton(
-                      icon: const Icon(Icons.chat_bubble_outline, color: AppColors.blue),
+                      icon: const Icon(AppIcons.chat, color: AppColors.blue),
                       onPressed: () => Navigator.pushNamed(context, '/chat'),
                     ),
                   ],
@@ -823,9 +834,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
 
               // Target location based on status
               if (trip.status == DriverTripStatus.arrivingPickup || trip.status == DriverTripStatus.arrivedPickup)
-                _buildLocationRow(Icons.radio_button_checked, AppColors.green, 'Đón khách tại', req.pickupAddress)
+                _buildLocationRow(AppIcons.pickup, AppColors.green, 'Đón khách tại', req.pickupAddress)
               else
-                _buildLocationRow(Icons.location_on, AppColors.red, 'Chở khách tới', req.dropoffAddress),
+                _buildLocationRow(AppIcons.dropoff, AppColors.red, 'Chở khách tới', req.dropoffAddress),
 
               const SizedBox(height: 20),
 
@@ -836,7 +847,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                   backgroundColor: actionColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                  elevation: 4,
+                  shadowColor: actionColor.withValues(alpha: 0.4),
                 ),
                 child: Text(
                   actionLabel,
@@ -848,7 +861,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               // Cancel button
               TextButton(
                 onPressed: () => driver.cancelCurrentTrip(),
-                child: const Text('Hủy chuyến', style: TextStyle(color: AppColors.red, fontSize: 12)),
+                child: Text('Hủy chuyến', style: AppTextStyles.caption.copyWith(color: AppColors.red, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -861,16 +874,16 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 14, color: iconColor),
+        Icon(icon, size: 16, color: iconColor),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 11, color: AppColors.text3)),
+              Text(label, style: AppTextStyles.caption),
               Text(
                 address,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text),
+                style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.w600, color: AppColors.text),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),

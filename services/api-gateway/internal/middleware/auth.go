@@ -110,6 +110,20 @@ func GetUserRole(r *http.Request) string {
 	return v
 }
 
+// RequireRole returns middleware enforcing the authenticated user's role.
+// Must run AFTER AuthMiddleware so the role is present in context.
+func RequireRole(role string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if GetUserRole(r) != role {
+				writeError(w, http.StatusForbidden, "Yêu cầu quyền "+role)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func writeError(w http.ResponseWriter, code int, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)

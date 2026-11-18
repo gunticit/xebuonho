@@ -4,9 +4,12 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../config/api_config.dart';
+import '../config/app_icons.dart';
 import '../providers/location_provider.dart';
 import '../providers/active_order_provider.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/modern_bottom_nav.dart';
+import '../widgets/service_grid_button.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,10 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _recenterToCurrentLocation() async {
     final loc = context.read<LocationProvider>();
-    // 1. Ngay lập tức di chuyển camera map về vị trí hiện tại đã có (0ms latency, không chờ mạng)
     _mapController.move(LatLng(loc.lat, loc.lng), 16);
-
-    // 2. Refresh GPS ngầm trong nền
     await loc.fetchLocation();
     if (mounted) {
       _mapController.move(LatLng(loc.lat, loc.lng), 16);
@@ -48,6 +48,26 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _onBottomNavTapped(int index) {
+    setState(() => _currentNavIndex = index);
+    switch (index) {
+      case 0:
+        break; // Already on home
+      case 1:
+        Navigator.pushNamed(context, '/activities');
+        break;
+      case 2:
+        Navigator.pushNamed(context, '/payment');
+        break;
+      case 3:
+        Navigator.pushNamed(context, '/chat');
+        break;
+      case 4:
+        Navigator.pushNamed(context, '/profile');
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final locProvider = context.watch<LocationProvider>();
@@ -65,7 +85,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       key: _scaffoldKey,
       drawer: const AppDrawer(),
-      bottomNavigationBar: _buildBottomNav(),
       body: Stack(
         children: [
           // ========== MAP LAYER ==========
@@ -75,7 +94,6 @@ class _HomeScreenState extends State<HomeScreen> {
               initialCenter: LatLng(locProvider.lat, locProvider.lng),
               initialZoom: 15,
               onTap: (tapPosition, point) {
-                // Chạm vào bản đồ để chọn điểm đón chính xác từng mét
                 context.read<LocationProvider>().selectLocationOnMap(point.latitude, point.longitude);
                 ScaffoldMessenger.of(context).hideCurrentSnackBar();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -84,17 +102,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     backgroundColor: AppColors.card,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                       side: const BorderSide(color: AppColors.green),
                     ),
-                    content: const Row(
+                    content: Row(
                       children: [
-                        Text('📍', style: TextStyle(fontSize: 18)),
-                        SizedBox(width: 8),
+                        const Icon(AppIcons.pin, color: AppColors.green, size: 20),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Đã ghim điểm đón trên bản đồ. Bấm 🎯 nếu muốn quay lại GPS.',
-                            style: TextStyle(color: AppColors.text, fontSize: 13),
+                            'Đã ghim điểm đón trên bản đồ. Bấm nút định vị để quay lại GPS.',
+                            style: AppTextStyles.body2.copyWith(color: AppColors.text),
                           ),
                         ),
                       ],
@@ -129,8 +147,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 markers: [
                   Marker(
                     point: LatLng(locProvider.lat, locProvider.lng),
-                    width: 50,
-                    height: 50,
+                    width: 52,
+                    height: 52,
                     child: _buildUserMarker(locProvider.isManualPin),
                   ),
                 ],
@@ -141,35 +159,43 @@ class _HomeScreenState extends State<HomeScreen> {
           // ========== TOP HEADER & SEARCH ==========
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Column(
                 children: [
                   // App bar row
                   Row(
                     children: [
-                      _buildCircleBtn('☰', () => _scaffoldKey.currentState?.openDrawer()),
+                      _buildCircleActionBtn(
+                        icon: AppIcons.menu,
+                        onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: GestureDetector(
                           onTap: _recenterToCurrentLocation,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
-                              color: AppColors.card,
-                              borderRadius: BorderRadius.circular(20),
+                              color: AppColors.card.withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(AppRadius.pill),
                               border: Border.all(color: AppColors.border),
+                              boxShadow: AppShadows.subtle,
                             ),
                             child: Row(
                               children: [
-                                Text(locProvider.isManualPin ? '📍' : '🏍️', style: const TextStyle(fontSize: 16)),
-                                const SizedBox(width: 8),
+                                Icon(
+                                  locProvider.isManualPin ? AppIcons.pin : AppIcons.bike,
+                                  color: locProvider.isManualPin ? AppColors.green : AppColors.blue,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        locProvider.isManualPin ? '📍 Điểm đón đã ghim' : 'Vị trí hiện tại',
+                                        locProvider.isManualPin ? 'Điểm đón đã ghim' : 'Vị trí hiện tại',
                                         style: TextStyle(
                                           fontSize: 10,
                                           fontWeight: locProvider.isManualPin ? FontWeight.w600 : FontWeight.normal,
@@ -180,14 +206,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                         locProvider.loading
                                             ? 'Đang xác định vị trí...'
                                             : locProvider.currentAddress,
-                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.text),
+                                        style: AppTextStyles.body1.copyWith(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
                                 ),
                                 Icon(
-                                  locProvider.isManualPin ? Icons.edit_location_alt : Icons.my_location,
+                                  locProvider.isManualPin ? AppIcons.edit : AppIcons.myLocation,
                                   color: locProvider.isManualPin ? AppColors.green : AppColors.blue,
                                   size: 16,
                                 ),
@@ -197,58 +226,50 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      _buildCircleBtn('🔔', () => Navigator.pushNamed(context, '/notifications')),
+                      _buildCircleActionBtn(
+                        icon: AppIcons.notifications,
+                        onTap: () => Navigator.pushNamed(context, '/notifications'),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
 
-                  // Search Bar
+                  // Modern Search Bar
                   GestureDetector(
                     onTap: () => Navigator.pushNamed(context, '/search'),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: AppColors.card,
-                        borderRadius: BorderRadius.circular(14),
+                        color: AppColors.card.withValues(alpha: 0.95),
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
                         border: Border.all(color: AppColors.border),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.35),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
+                        boxShadow: AppShadows.medium,
                       ),
                       child: Row(
                         children: [
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: AppColors.greenBg,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Center(child: Text('📍', style: TextStyle(fontSize: 16))),
+                          IconContainer(
+                            icon: AppIcons.pickup,
+                            color: AppColors.green,
+                            size: 34,
+                            iconSize: 18,
+                            borderRadius: AppRadius.sm,
                           ),
                           const SizedBox(width: 12),
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               'Bạn cần đi đâu, ăn gì, hay lái xe hộ?',
-                              style: TextStyle(
+                              style: AppTextStyles.body2.copyWith(
                                 color: AppColors.text3,
-                                fontSize: 13,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),
-                          Container(
-                            width: 30,
-                            height: 30,
-                            decoration: BoxDecoration(
-                              color: AppColors.blueBg,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Center(child: Text('🔍', style: TextStyle(fontSize: 14))),
+                          IconContainer(
+                            icon: AppIcons.search,
+                            color: AppColors.blue,
+                            size: 34,
+                            iconSize: 18,
+                            borderRadius: AppRadius.sm,
                           ),
                         ],
                       ),
@@ -270,34 +291,40 @@ class _HomeScreenState extends State<HomeScreen> {
             duration: const Duration(milliseconds: 280),
             curve: Curves.fastOutSlowIn,
             right: 16,
-            bottom: _isMenuExpanded ? 375 : 85,
+            bottom: _isMenuExpanded ? 415 : 125,
             child: GestureDetector(
               onTap: _recenterToCurrentLocation,
               child: Container(
-                width: 44,
-                height: 44,
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
                   color: AppColors.card,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   border: Border.all(color: AppColors.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      blurRadius: 10,
-                    ),
-                  ],
+                  boxShadow: AppShadows.medium,
                 ),
-                child: const Center(child: Text('🎯', style: TextStyle(fontSize: 18))),
+                child: const Center(
+                  child: Icon(AppIcons.target, color: AppColors.blue, size: 22),
+                ),
               ),
             ),
           ),
 
-          // ========== BOTTOM SHEET HUB ==========
+          // ========== BOTTOM SHEET HUB & FLOATING NAV ==========
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: _buildBottomSheet(context),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildBottomSheet(context),
+                ModernBottomNav(
+                  currentIndex: _currentNavIndex,
+                  onTap: _onBottomNavTapped,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -313,26 +340,18 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.bg2,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(color: AppColors.blue.withValues(alpha: 0.6), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.blue.withValues(alpha: 0.25),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: AppShadows.glow(AppColors.blue),
         ),
         child: Row(
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppColors.blueBg,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Center(child: Text(order.emoji, style: const TextStyle(fontSize: 18))),
+            IconContainer(
+              icon: AppIcons.delivery,
+              color: AppColors.blue,
+              size: 36,
+              iconSize: 20,
+              borderRadius: AppRadius.md,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -343,26 +362,50 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     children: [
                       Flexible(
-                        child: Text(order.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.text), overflow: TextOverflow.ellipsis),
+                        child: Text(
+                          order.title,
+                          style: AppTextStyles.heading4.copyWith(fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(color: AppColors.orangeBg, borderRadius: BorderRadius.circular(6)),
-                        child: Text('${order.etaMinutes}p', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.orange)),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.orangeBg,
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                        child: Text(
+                          '${order.etaMinutes}p',
+                          style: AppTextStyles.caption.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.orange,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text(order.statusText, style: const TextStyle(fontSize: 11, color: AppColors.green, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    order.statusText,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.green,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: AppColors.blue, borderRadius: BorderRadius.circular(8)),
-              child: const Text('Xem', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: AppGradients.primary,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: const Text('Xem', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
           ],
         ),
@@ -375,35 +418,34 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: color.withValues(alpha: 0.18),
-        border: Border.all(color: color, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.35),
-            blurRadius: 16,
-            spreadRadius: 4,
-          ),
-        ],
+        color: color.withValues(alpha: 0.2),
+        border: Border.all(color: color, width: 2.5),
+        boxShadow: AppShadows.glow(color),
       ),
       child: Center(
-        child: Text(isManual ? '📍' : '🏍️', style: const TextStyle(fontSize: 20)),
+        child: Icon(
+          isManual ? AppIcons.pin : AppIcons.bike,
+          color: color,
+          size: 24,
+        ),
       ),
     );
   }
 
-  Widget _buildCircleBtn(String emoji, VoidCallback onTap) {
+  Widget _buildCircleActionBtn({required IconData icon, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 42,
-        height: 42,
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(12),
+          color: AppColors.card.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(color: AppColors.border),
+          boxShadow: AppShadows.subtle,
         ),
         child: Center(
-          child: Text(emoji, style: const TextStyle(fontSize: 18)),
+          child: Icon(icon, color: AppColors.text, size: 20),
         ),
       ),
     );
@@ -431,27 +473,20 @@ class _HomeScreenState extends State<HomeScreen> {
       behavior: HitTestBehavior.translucent,
       onVerticalDragUpdate: handleDragUpdate,
       onVerticalDragEnd: handleDragEnd,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.fastOutSlowIn,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
         decoration: BoxDecoration(
-          color: AppColors.bg2,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          color: AppColors.bg2.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(AppRadius.xxl),
           border: Border.all(color: AppColors.border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.45),
-              blurRadius: 24,
-              offset: const Offset(0, -8),
-            ),
-          ],
+          boxShadow: AppShadows.strong,
         ),
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ========== INTERACTIVE DRAG HANDLE (TAP OR DRAG TO TOGGLE) ==========
+            // ========== INTERACTIVE DRAG HANDLE ==========
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () {
@@ -461,40 +496,32 @@ class _HomeScreenState extends State<HomeScreen> {
               onVerticalDragEnd: handleDragEnd,
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 4),
                 color: Colors.transparent,
                 child: Center(
                   child: Column(
                     children: [
                       Container(
-                        width: 48,
-                        height: 5,
+                        width: 44,
+                        height: 4,
                         decoration: BoxDecoration(
-                          color: AppColors.text3.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(2.5),
+                          color: AppColors.text3.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            _isMenuExpanded
-                                ? Icons.keyboard_arrow_down
-                                : Icons.keyboard_arrow_up,
+                            _isMenuExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
                             color: AppColors.text3,
                             size: 14,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            _isMenuExpanded
-                                ? 'Kéo xuống để ẩn menu'
-                                : 'Kéo lên để xem đầy đủ dịch vụ',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.text3,
-                            ),
+                            _isMenuExpanded ? 'Thu gọn menu' : 'Mở rộng dịch vụ',
+                            style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -503,45 +530,39 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
 
             // ========== COMPACT MINI HUB (WHEN COLLAPSED) ==========
             if (!_isMenuExpanded)
               Padding(
-                padding: const EdgeInsets.only(top: 2, bottom: 4),
+                padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   children: [
-                    // Quick Wallet summary
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: AppColors.card,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                         border: Border.all(color: AppColors.border),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('💳', style: TextStyle(fontSize: 14)),
-                          SizedBox(width: 6),
-                          Text('500.000đ',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.text)),
+                          const Icon(AppIcons.wallet, size: 16, color: AppColors.green),
+                          const SizedBox(width: 6),
+                          Text('500.000đ', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold, color: AppColors.text)),
                         ],
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Quick Shortcuts row
                     Expanded(
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          _buildMiniShortcut('🛵', 'Xe máy', () => Navigator.pushNamed(context, '/search')),
-                          _buildMiniShortcut('🚗', 'Ô tô', () => Navigator.pushNamed(context, '/search')),
-                          _buildMiniShortcut('🍔', 'Đồ ăn', () => Navigator.pushNamed(context, '/food')),
-                          _buildMiniShortcut('🚙', 'Lái hộ', () => Navigator.pushNamed(context, '/designated-driver')),
+                          _buildMiniShortcut(AppIcons.bike, 'Xe máy', AppColors.blue, () => Navigator.pushNamed(context, '/search')),
+                          _buildMiniShortcut(AppIcons.car, 'Ô tô', AppColors.green, () => Navigator.pushNamed(context, '/search')),
+                          _buildMiniShortcut(AppIcons.food, 'Đồ ăn', AppColors.orange, () => Navigator.pushNamed(context, '/food')),
+                          _buildMiniShortcut(AppIcons.designatedDriver, 'Lái hộ', const Color(0xFF38BDF8), () => Navigator.pushNamed(context, '/designated-driver')),
                         ],
                       ),
                     ),
@@ -553,37 +574,44 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_isMenuExpanded) ...[
               // ========== WALLET & DEALS BAR ==========
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.circular(14),
+                  gradient: AppGradients.card,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   border: Border.all(color: AppColors.border),
                 ),
                 child: Row(
                   children: [
-                    const Text('💳', style: TextStyle(fontSize: 20)),
-                    const SizedBox(width: 8),
-                    const Column(
+                    IconContainer(
+                      icon: AppIcons.wallet,
+                      color: AppColors.green,
+                      size: 36,
+                      iconSize: 20,
+                      borderRadius: AppRadius.sm,
+                    ),
+                    const SizedBox(width: 10),
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Ví Xebuonho', style: TextStyle(fontSize: 10, color: AppColors.text3)),
-                        Text('500.000 đ', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.text)),
+                        Text('Ví Xebuonho', style: AppTextStyles.caption),
+                        Text('500.000 đ', style: AppTextStyles.heading4.copyWith(fontSize: 14)),
                       ],
                     ),
                     const Spacer(),
                     GestureDetector(
                       onTap: () => Navigator.pushNamed(context, '/top-up'),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: AppColors.blueBg,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          border: Border.all(color: AppColors.blue.withValues(alpha: 0.3)),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(Icons.add, size: 14, color: AppColors.blue),
-                            SizedBox(width: 2),
-                            Text('Nạp tiền', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.blue)),
+                            const Icon(AppIcons.add, size: 14, color: AppColors.blue),
+                            const SizedBox(width: 4),
+                            Text('Nạp tiền', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold, color: AppColors.blue)),
                           ],
                         ),
                       ),
@@ -593,40 +621,40 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () => Navigator.pushNamed(context, '/promotions'),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Text('🎟️', style: TextStyle(fontSize: 16)),
-                          SizedBox(width: 4),
-                          Text('5 Voucher', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.orange)),
+                          const Icon(AppIcons.voucher, size: 16, color: AppColors.orange),
+                          const SizedBox(width: 4),
+                          Text('5 Voucher', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold, color: AppColors.orange)),
                         ],
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // ========== 8 CORE SERVICES HUB GRID ==========
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildServiceBtn('🛵', 'Xe máy', AppColors.blueBg, AppColors.blue, () => Navigator.pushNamed(context, '/search')),
-                  _buildServiceBtn('🚗', 'Ô tô', AppColors.greenBg, AppColors.green, () => Navigator.pushNamed(context, '/search')),
-                  _buildServiceBtn('🍔', 'Đồ ăn', AppColors.orangeBg, AppColors.orange, () => Navigator.pushNamed(context, '/food')),
-                  _buildServiceBtn('🚙', 'Lái xe hộ', const Color(0xFF132F4C), const Color(0xFF38BDF8), () => Navigator.pushNamed(context, '/designated-driver'), badge: 'HOT'),
+                  ServiceGridButton(icon: AppIcons.bike, label: 'Xe máy', color: AppColors.blue, onTap: () => Navigator.pushNamed(context, '/search')),
+                  ServiceGridButton(icon: AppIcons.car, label: 'Ô tô', color: AppColors.green, onTap: () => Navigator.pushNamed(context, '/search')),
+                  ServiceGridButton(icon: AppIcons.food, label: 'Đồ ăn', color: AppColors.orange, onTap: () => Navigator.pushNamed(context, '/food')),
+                  ServiceGridButton(icon: AppIcons.designatedDriver, label: 'Lái xe hộ', color: const Color(0xFF38BDF8), onTap: () => Navigator.pushNamed(context, '/designated-driver'), badge: 'HOT'),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildServiceBtn('🛒', 'Đi chợ', AppColors.purpleBg, AppColors.purple, () => Navigator.pushNamed(context, '/grocery')),
-                  _buildServiceBtn('📦', 'Giao hàng', const Color(0xFF0F3A4A), const Color(0xFF06B6D4), () => Navigator.pushNamed(context, '/delivery'), badge: 'MỚI'),
-                  _buildServiceBtn('📅', 'Đặt trước', const Color(0xFF312E81), const Color(0xFF818CF8), () => Navigator.pushNamed(context, '/schedule')),
-                  _buildServiceBtn('📋', 'Hoạt động', AppColors.bg3, AppColors.border, () => Navigator.pushNamed(context, '/activities')),
+                  ServiceGridButton(icon: AppIcons.grocery, label: 'Đi chợ', color: AppColors.purple, onTap: () => Navigator.pushNamed(context, '/grocery')),
+                  ServiceGridButton(icon: AppIcons.delivery, label: 'Giao hàng', color: AppColors.cyan, onTap: () => Navigator.pushNamed(context, '/delivery'), badge: 'MỚI'),
+                  ServiceGridButton(icon: AppIcons.schedule, label: 'Đặt trước', color: const Color(0xFF818CF8), onTap: () => Navigator.pushNamed(context, '/schedule')),
+                  ServiceGridButton(icon: AppIcons.activities, label: 'Hoạt động', color: AppColors.text2, onTap: () => Navigator.pushNamed(context, '/activities')),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // ========== DESIGNATED DRIVER PROMO BANNER ==========
               GestureDetector(
@@ -635,25 +663,31 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [AppColors.green.withOpacity(0.2), const Color(0xFF0D9488).withOpacity(0.12)],
+                      colors: [AppColors.green.withValues(alpha: 0.2), const Color(0xFF0D9488).withValues(alpha: 0.12)],
                     ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.green.withOpacity(0.3)),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Text('🛡️', style: TextStyle(fontSize: 24)),
-                      SizedBox(width: 10),
+                      IconContainer(
+                        icon: AppIcons.shield,
+                        color: AppColors.green,
+                        size: 38,
+                        iconSize: 22,
+                        borderRadius: AppRadius.md,
+                      ),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Lái xe hộ — Bạn say tôi lái', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.text)),
-                            Text('Tài xế chuyên nghiệp lái xe của bạn đưa bạn về nhà', style: TextStyle(fontSize: 10, color: AppColors.text3)),
+                            Text('Lái xe hộ — Bạn say tôi lái', style: AppTextStyles.heading4.copyWith(fontSize: 13)),
+                            Text('Tài xế chuyên nghiệp lái xe của bạn đưa bạn về an toàn', style: AppTextStyles.caption),
                           ],
                         ),
                       ),
-                      Icon(Icons.chevron_right, color: AppColors.green, size: 18),
+                      const Icon(AppIcons.forward, color: AppColors.green, size: 20),
                     ],
                   ),
                 ),
@@ -665,123 +699,25 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildMiniShortcut(String emoji, String label, VoidCallback onTap) {
+  Widget _buildMiniShortcut(IconData icon, String label, Color color, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: AppColors.card,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           border: Border.all(color: AppColors.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 15)),
+            Icon(icon, size: 16, color: color),
             const SizedBox(width: 4),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text)),
+            Text(label, style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w600, color: AppColors.text)),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildServiceBtn(
-    String emoji,
-    String label,
-    Color bgColor,
-    Color borderColor,
-    VoidCallback onTap, {
-    String? badge,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 76,
-        child: Column(
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: bgColor,
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: borderColor.withValues(alpha: 0.4)),
-                  ),
-                  child: Center(child: Text(emoji, style: const TextStyle(fontSize: 22))),
-                ),
-                if (badge != null)
-                  Positioned(
-                    top: -4,
-                    right: -6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: badge == 'HOT' ? AppColors.red : AppColors.blue,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(badge, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.white)),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.text2),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return BottomNavigationBar(
-      currentIndex: _currentNavIndex,
-      backgroundColor: AppColors.bg2,
-      selectedItemColor: AppColors.blue,
-      unselectedItemColor: AppColors.text3,
-      selectedFontSize: 11,
-      unselectedFontSize: 11,
-      type: BottomNavigationBarType.fixed,
-      onTap: (index) {
-        setState(() => _currentNavIndex = index);
-        switch (index) {
-          case 0:
-            break; // Already on home
-          case 1:
-            Navigator.pushNamed(context, '/activities');
-            break;
-          case 2:
-            Navigator.pushNamed(context, '/payment');
-            break;
-          case 3:
-            Navigator.pushNamed(context, '/chat');
-            break;
-          case 4:
-            Navigator.pushNamed(context, '/profile');
-            break;
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Trang chủ'),
-        BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Hoạt động'),
-        BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Ví & Pay'),
-        BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Tin nhắn'),
-        BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Cá nhân'),
-      ],
     );
   }
 }

@@ -462,6 +462,40 @@
             font-size: 0.8rem; color: var(--text-secondary);
         }
 
+        /* Admin login gate */
+        .login-overlay {
+            position: fixed; inset: 0; z-index: 10000;
+            background: var(--bg-primary);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .login-overlay.hidden { display: none; }
+        .login-card {
+            width: 360px; padding: 40px 32px; text-align: center;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 16px; box-shadow: var(--shadow);
+        }
+        .login-logo { font-size: 2.5rem; }
+        .login-card h1 { font-size: 1.3rem; margin: 10px 0 4px; }
+        .login-card h1 span { color: var(--text-muted); font-weight: 400; }
+        .login-sub { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 24px; }
+        .login-error {
+            background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3);
+            color: var(--accent-red); font-size: 0.8rem; padding: 10px;
+            border-radius: 8px; margin-bottom: 14px;
+        }
+        .login-input {
+            width: 100%; padding: 12px 14px; margin-bottom: 12px;
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-radius: 10px; color: var(--text-primary); font-size: 0.9rem; outline: none;
+        }
+        .login-input:focus { border-color: var(--accent-blue); }
+        .login-btn {
+            width: 100%; padding: 12px; border: none; border-radius: 10px;
+            background: var(--gradient-blue); color: #fff; font-weight: 700; font-size: 0.95rem;
+            cursor: pointer;
+        }
+        .login-btn:disabled { opacity: 0.6; cursor: wait; }
+
         /* Image Lightbox */
         .lightbox-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -484,6 +518,19 @@
     </style>
 </head>
 <body>
+    <!-- Admin Login Gate (ẩn sau khi đăng nhập) -->
+    <div id="admin-login-overlay" class="login-overlay">
+        <div class="login-card">
+            <div class="login-logo">🚀</div>
+            <h1>Xebuonho <span>Admin</span></h1>
+            <p class="login-sub">Đăng nhập tài khoản quản trị viên để tiếp tục</p>
+            <div class="login-error" id="login-error" style="display:none"></div>
+            <input type="tel" id="login-phone" class="login-input" placeholder="Số điện thoại" autocomplete="username">
+            <input type="password" id="login-password" class="login-input" placeholder="Mật khẩu" autocomplete="current-password" onkeydown="if(event.key==='Enter')adminLogin()">
+            <button class="login-btn" id="login-btn" onclick="adminLogin()">🔐 Đăng nhập</button>
+        </div>
+    </div>
+
     <header class="header">
         <div class="header-inner">
             <div class="logo-wrap">
@@ -506,6 +553,8 @@
                     Hệ thống trực tuyến
                 </div>
                 <div class="timestamp" id="clock">--:--:--</div>
+                <span id="admin-user" style="color:var(--text-secondary);font-size:0.8rem"></span>
+                <button class="btn-refresh" id="admin-logout-btn" onclick="adminLogout()" style="display:none">🚪 Thoát</button>
                 <button class="btn-refresh" onclick="refreshCurrentTab()">🔄 Làm mới</button>
             </div>
         </div>
@@ -773,6 +822,79 @@
 
     <script>
         const API = '';
+
+        // ===== Admin Authentication (JWT, role admin) =====
+        const ADMIN_TOKEN_KEY = 'xebuonho_admin_token';
+        const ADMIN_NAME_KEY = 'xebuonho_admin_name';
+
+        const getToken = () => localStorage.getItem(ADMIN_TOKEN_KEY);
+        const adminName = () => localStorage.getItem(ADMIN_NAME_KEY) || 'Admin';
+
+        function authHeaders(extra = {}) {
+            const h = { ...extra };
+            const t = getToken();
+            if (t) h['Authorization'] = 'Bearer ' + t;
+            return h;
+        }
+
+        // fetch với JWT; 401/403 → thoát về màn login
+        async function authFetch(url, opts = {}) {
+            const res = await fetch(url, { ...opts, headers: authHeaders(opts.headers || {}) });
+            if ((res.status === 401 || res.status === 403) && getToken()) {
+                adminLogout();
+            }
+            return res;
+        }
+
+        function showLogin() { document.getElementById('admin-login-overlay').classList.remove('hidden'); }
+        function hideLogin() { document.getElementById('admin-login-overlay').classList.add('hidden'); }
+
+        function updateAdminBadge() {
+            document.getElementById('admin-user').textContent = '👤 ' + adminName();
+            document.getElementById('admin-logout-btn').style.display = '';
+        }
+
+        async function adminLogin() {
+            const phone = document.getElementById('login-phone').value.trim();
+            const password = document.getElementById('login-password').value;
+            const errBox = document.getElementById('login-error');
+            const btn = document.getElementById('login-btn');
+            errBox.style.display = 'none';
+            if (!phone || !password) {
+                errBox.textContent = 'Vui lòng nhập số điện thoại và mật khẩu';
+                errBox.style.display = 'block';
+                return;
+            }
+            btn.disabled = true; btn.textContent = 'Đang đăng nhập...';
+            try {
+                const res = await fetch(API + '/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, password }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Đăng nhập thất bại');
+                if ((data.user && data.user.role || '') !== 'admin') throw new Error('Tài khoản không có quyền quản trị viên');
+                localStorage.setItem(ADMIN_TOKEN_KEY, data.access_token);
+                localStorage.setItem(ADMIN_NAME_KEY, data.user.full_name || data.user.phone || 'Admin');
+                updateAdminBadge();
+                hideLogin();
+                startDashboardLoads();
+            } catch (e) {
+                errBox.textContent = e.message;
+                errBox.style.display = 'block';
+            } finally {
+                btn.disabled = false; btn.textContent = '🔐 Đăng nhập';
+            }
+        }
+
+        function adminLogout() {
+            localStorage.removeItem(ADMIN_TOKEN_KEY);
+            localStorage.removeItem(ADMIN_NAME_KEY);
+            document.getElementById('admin-user').textContent = '';
+            document.getElementById('admin-logout-btn').style.display = 'none';
+            showLogin();
+        }
         let revenueChart, donutChart;
         let fleetMap = null;
         let fleetMarkers = [];
@@ -840,7 +962,7 @@
         // ==========================================
         async function loadStats() {
             try {
-                const res = await fetch(API + '/api/v1/admin/stats');
+                const res = await authFetch(API + '/api/v1/admin/stats');
                 const data = await res.json();
                 const o = data.overview;
 
@@ -894,7 +1016,7 @@
 
         async function loadRevenue() {
             try {
-                const res = await fetch(API + '/api/v1/admin/revenue');
+                const res = await authFetch(API + '/api/v1/admin/revenue');
                 const data = await res.json();
                 const d = data.chart_data;
 
@@ -956,7 +1078,7 @@
 
         async function loadFeed() {
             try {
-                const res = await fetch(API + '/api/v1/admin/orders/recent');
+                const res = await authFetch(API + '/api/v1/admin/orders/recent');
                 const data = await res.json();
                 document.getElementById('live-feed').innerHTML = data.orders.map(o => `
                     <div class="feed-item">
@@ -978,7 +1100,7 @@
 
         async function loadDrivers() {
             try {
-                const res = await fetch(API + '/api/v1/admin/drivers');
+                const res = await authFetch(API + '/api/v1/admin/drivers');
                 const data = await res.json();
                 document.getElementById('top-drivers').innerHTML = data.top_drivers.map((d, i) => `
                     <div style="display:flex;align-items:center;gap:10px;padding:0.55rem 0;border-bottom:1px solid rgba(75,85,99,0.15)">
@@ -1000,9 +1122,7 @@
         // ==========================================
         async function loadKycDrivers() {
             try {
-                const res = await fetch(API + '/api/v1/auth/admin/drivers?admin_dev=1', {
-                    headers: { 'X-Admin-Role': 'admin' }
-                });
+                const res = await authFetch(API + '/api/v1/auth/admin/drivers');
                 if (res.ok) {
                     const data = await res.json();
                     allKycDrivers = data.drivers || [];
@@ -1118,9 +1238,7 @@
             modal.classList.add('active');
 
             try {
-                const res = await fetch(`${API}/api/v1/auth/admin/drivers/${driverId}?admin_dev=1`, {
-                    headers: { 'X-Admin-Role': 'admin' }
-                });
+                const res = await authFetch(`${API}/api/v1/auth/admin/drivers/${driverId}`);
                 let detail = null;
                 if (res.ok) {
                     detail = await res.json();
@@ -1174,9 +1292,9 @@
             }
 
             try {
-                const res = await fetch(`${API}/api/v1/auth/admin/drivers/${activeKycDriverId}/approval?admin_dev=1`, {
+                const res = await authFetch(`${API}/api/v1/auth/admin/drivers/${activeKycDriverId}/approval`, {
                     method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json', 'X-Admin-Role': 'admin' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: status, reason: reason })
                 });
 
@@ -1202,7 +1320,7 @@
         // ==========================================
         async function loadOrders() {
             try {
-                const res = await fetch(API + '/api/v1/admin/orders/recent');
+                const res = await authFetch(API + '/api/v1/admin/orders/recent');
                 const data = await res.json();
                 allOrders = data.orders || [];
                 renderOrdersTable();
@@ -1287,7 +1405,7 @@
         async function loadFleetMap() {
             if (!fleetMap) initFleetMap();
             try {
-                const res = await fetch(API + '/api/v1/admin/fleet');
+                const res = await authFetch(API + '/api/v1/admin/fleet');
                 const data = await res.json();
                 const drivers = data.drivers || [];
 
@@ -1343,11 +1461,21 @@
             if (fleetMap) fleetMap.setView([lat, lng], zoom);
         }
 
-        // Initial load
-        Promise.all([loadStats(), loadRevenue(), loadFeed(), loadDrivers()]);
+        // Initial load — chỉ chạy sau khi đăng nhập admin
+        function startDashboardLoads() {
+            Promise.all([loadStats(), loadRevenue(), loadFeed(), loadDrivers()]);
+        }
+
+        if (getToken()) {
+            updateAdminBadge();
+            startDashboardLoads();
+        } else {
+            showLogin();
+        }
 
         // Auto-refresh stats every 30s
         setInterval(() => {
+            if (!getToken()) return;
             const activePane = document.querySelector('.tab-pane.active');
             if (activePane && activePane.id === 'tab-overview') {
                 loadStats(); loadFeed(); loadDrivers();
@@ -1355,7 +1483,7 @@
                 loadFleetMap();
             }
         }, 30000);
-        setInterval(loadRevenue, 60000);
+        setInterval(() => { if (getToken()) loadRevenue(); }, 60000);
     </script>
 </body>
 </html>
